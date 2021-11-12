@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html>
+<head><title>WebGL Noise Tester</title>
+<script type="application/javascript" src="js/require.js">
+</script>
+<script type="application/x-fragment-shader" id="fragment">
+uniform vec2 iRes;
+uniform float aspect;
+uniform float SLIDERS[11];
+uniform float T;
+
+#define PI 3.14159265358
+
+float tent(float f) {
+  return 1.0 - abs(fract(f)-0.5)*2.0;
+}
+float cos1(float f) {
+  return cos(f*3.141592654)*0.5 + 0.5;
+}
+float sin1(float f) {
+  return sin(f*3.141592654)*0.5 + 0.5;
+}
+
+float tent2(float f) {
+  return tent(f+0.5);
+}
+
+//#define cos(x) (tent((x)/(2.0*PI))*2.0-1.0)
+//#define sin(x) (tent(0.5+(x)/(2.0*PI))*2.0-1.0)
+
+float smin(float a, float b, float t) {
+    if (t == 0.0)
+        return a < b ? a : b;
+        
+    if (a < b-t*0.5) {
+        return a;
+    } else if (a < b+t*0.5) {
+        float f = (a-b+t*0.5) / t;
+    
+        f = f*f*(3.0 - 2.0*f);
+        
+        return a + (b - a)*f;
+    }
+
+    return b;
+}
+
+float smax(float a, float b, float t) {
+    //a = sqrt(a);
+    //b = sqrt(b);
+    
+    if (t == 0.0)
+        return a > b ? a : b;
+        
+    if (a >= b+t*0.5) {
+        return a;
+    } else if (a >= b-t*0.5) {
+        float f = 1.0 - (a-b+t*0.5) / t;
+    
+        f = f*f*(3.0 - 2.0*f);
+        
+        return pow(a + (b - a)*f, 1.0);
+    }
+
+    return b;
+}
+
+//#define AA_PATTERN_MODE
+float pattern(float ix, float iy, vec2 uv, float seed, out float id) {
+    float gfac = 1.0 + SLIDERS[8]*0.3;
+    
+    float gx = tent(ix*gfac), gy = tent(iy*gfac);
+    float dx = tent(cos(seed)*ix + sin(seed)*iy);
+    float dy = tent(cos(seed)*iy - sin(seed)*ix);
+
+#ifdef AA_PATTERN_MODE    
+    dx = tent(tent(seed)*ix - iy);
+    dy = tent(tent(seed)*iy + ix);
+#endif
+    float f = (gx+gy+dx+dy)*0.25;
+    //f = pow(gx*gy*dx*dy, 0.25)*1.5;
+    //f = pow(gx*gx + gy*gy + dx*dx + dy*dy, 0.5)/sqrt(3.0);
+    //f = pow(gx*dx + gy*dy, 0.5)/sqrt(2.0);
+    
+    if (uv.x > 0.7) {
+        float swid = 5.0;
+        //*
+        //dx=1.0-dx, dy = 1.0-dy, gx=1.0-gx, gy=1.0-gy;
+        f = smax(smax(dx, gx, swid), smax(dy, gy, swid), swid);
+        //f = pow(f, 0.5);
+        
+        //f = pow(f, 0.25);
+        
+        //*/
+    }
+    
+    //return f*f*(3.0-2.0*f);
+    return pow(f, 0.5);
+}
+
+#define FWID 2
+
+//3559
+float get_id(float ix, float iy, float seed, float steps) {
+    ix = floor(ix+0.5);
+    iy = floor(iy+0.5);
+    
+    float sum = 0.0;
+    float wsum = 0.0;
+    float rnd = 0.0;
+    
+    for (int i=-FWID; i<=FWID; i++) {
+        for (int j=-FWID; j<=FWID; j++) {
+            float dx = float(i)/float(FWID), dy = float(j)/float(FWID);
+            float id;
+            float f = pattern(ix+float(i), iy+float(j), vec2(0.0, 0.0), seed, id);
+            float w = 1.0 - sqrt(dx*dx + dy*dy)/sqrt(2.0);
+            w *= w*w*w;
+            
+            f = f*f;
+            //f *= f*f*f;
+            f = floor(f*steps)/steps;
+
+            rnd = fract(rnd*3559.5245 + f*31.234);
+            f = rnd;
+            
+            sum += f*w;
+            wsum += w;
+
+        }
+    }
+    
+    sum /= wsum;
+    sum = floor(sum*steps)/steps;
+    
+    return sum*140.0;
+}
+
+vec3 docolor(float f) {
+  f = pow(f, SLIDERS[7]);
+  
+  float time = 0.0;//T*0.1;
+  float freq = SLIDERS[3];
+  
+  /*
+  float fac1 = pow(3.0, SLIDERS[1]);
+  float fac2 = pow(2.0, SLIDERS[1]);
+  float fac3 = pow(1.5, SLIDERS[1]);
+  */
+  float fac1 = pow(1.3, SLIDERS[1]);
+  float fac2 = pow(1.6, SLIDERS[1]);
+  float fac3 = pow(1.9, SLIDERS[1]);
+  
+  float t = (fac1+fac2+fac3);
+  
+  fac1 *= 4.0/t;
+  fac2 *= 4.0/t;
+  fac3 *= 4.0/t;
+  
+  float r = cos1((f+SLIDERS[4])*freq*fac1+0.3+time*100.0);
+  float g = cos1((f+SLIDERS[4])*freq*fac2+0.5+time*100.0);
+  float b = cos1((f+SLIDERS[4])*freq*fac3+0.3+time*100.0);
+  
+  return normalize(vec3(r, g, b));
+}
+
+vec4 shader(float ix, float iy) {
+  vec2 uv = vec2(ix, iy) / iRes;
+  
+  float ix2 = ix * SLIDERS[2]*0.0625;
+  float iy2 = iy * SLIDERS[2]*0.0625;
+  
+  float d = 0.75;
+  float f, id;
+  vec3 clr;
+
+#define LEVELS 3
+
+  int i;
+  float it = 32749.0;
+  float fsum, ftot, scale = SLIDERS[9];
+  float seed = SLIDERS[0]*PI; //floor(SLIDERS[0]*it)/it*PI;
+
+  //seed = acos(seed/PI);
+  
+  //attempt at forcing alignment by tweaking the scale with an oscillating function
+  //fitted to the values in this table: 
+  
+  //seed/pi             scale
+  //1.3577              2.099285 or possibly (possibly!) 1.924
+  //1.34444             2
+  //1.400142857142854   1.902857142857143
+  //1.6429999999999965  2.1
+  //2.161571428571422   1.968571428571426
+  
+  
+  //or not;
+  scale = SLIDERS[9];// + cos(seed*PI*2.0/0.0625-0.8961)*.1*SLIDERS[10];
+
+  //return vec4(vec3(1.0, 1.0, 1.0)*pattern(ix2, iy2, uv, seed, id), 1.0);
+  
+#define DESCENDING
+
+#ifdef DESCENDING
+  float scale2 = pow(scale, float(LEVELS)-1.0);
+  
+  ix2 *= scale2;
+  iy2 *= scale2;
+  
+  scale = 1.0 / scale;
+ 
+  float scaleaccum = 1.0;
+  
+  for (int i=LEVELS-1; i>=0; i--) {
+#else
+  
+  for (int i=0; i<LEVELS; i++) {
+#endif
+    float w = 1.0 - float(i)/float(LEVELS);
+    
+    f = pattern(ix2, iy2, uv, seed, id);
+    
+    float ffac = 1.0-float(i)/float(LEVELS);
+    
+    //ffac = 1.0-exp(-ffac*SLIDERS[10]*4.0);
+    //ffac = pow(ffac, SLIDERS[10]);
+    ffac = log(((1.0-ffac)*0.5+0.5)*2.717*SLIDERS[10]);
+
+    ffac = 0.5*ffac;
+    
+    if (f > 0.1 + ffac) {
+        fsum = float(1+i)/float(LEVELS+1);
+        float steps = 7.0;
+        fsum = floor(f*steps+0.5)/steps*float(i+1);
+        ftot = 1.0;
+        break;
+    }
+    /*
+    fsum += f*w;
+    ftot += w;
+    
+    */
+
+
+    //*
+    ix2 *= scale;
+    iy2 *= scale;
+    //*/
+    
+    scaleaccum *= scale;
+
+    //ix2 += SLIDERS[9]*scaleaccum;
+    //iy2 += SLIDERS[10]*scaleaccum;
+  }
+  
+  fsum /= ftot != 0.0 ? ftot : 1.0;
+  
+  if (uv.y > 0.8) {
+    return vec4(fsum, fsum, fsum, 1.0);
+  }
+  clr = docolor(fsum);
+  
+  //r=g=b=f;
+  //if (f < 0.0)
+  //  r=g=b=1.0;
+  
+  return vec4(clr, 1.0);
+}
+</script>
+<script type="application/javascript">
+'use strict';
+
+require.config({
+  baseUrl : "./js/"
+});
+var SLIDER_NAMES = [
+  "seed", "clrfac", "size", "contrast", "color", "id steps", "id transp.", "power", "gridscale", "step scale", "param"
+];
+
+var SLIDERS;
+
+window.T = 0;
+
+SLIDERS = [0.1, 0.25, 0.1, 0.1, 0.0, 4.0, 1.0, 1.0];
+SLIDERS=[0.27142857142857146,0.25,0.1,0.179999999999999,0,4,1, 1.0];
+SLIDERS=[0.27142857142857146,1.3685714285714285,0.08000000000000013,3.534285714285712,0,4,0.8,1];
+SLIDERS=[0.3271428571428567,1.3685714285714285,0.0371428571428573,3.5,0,4,1.0,1];
+SLIDERS[5] = 1.0;
+SLIDERS=[-1.2714285714285734,1.3157142857142856,0.09857142857142881,8.662857142857142,4.208571428571428,5.022857142857141,0.6114285714285708,0.15857142857142825];
+SLIDERS=[-1.1757142857142886,21.028428571428684,0.09857142857142881,19.004928571428565,6.620000000000009,5.022857142857141,1.0814285714285705,-0.06285714285713345];
+SLIDERS=[-1.1757142857142886,21.028428571428684,0.09857142857142881,19.004928571428565,6.620000000000009,5.022857142857141,1.0814285714285705,3.397142857142866];
+SLIDERS = [1.125, 1.0, 0.125, 1.0, 1.0, 10.0, 1.0, 1.0]; 
+SLIDERS=[1.1607142857142843,10.905714285714279,0.125,12.615714285714256,1.1485714285714306,10,1,0.19000000000000156, 0.0];
+  //"seed", "clrfac", "size", "contrast", "color", "id steps", "id transp.", "power"
+SLIDERS=[1.1678571428571414,10.905714285714279,0.125,1,-0.6971428571428555,9.615714285714285,1,1,0];
+SLIDERS=[1.1678571428571414,10.905714285714279,0.023571428571428483,1,-0.6971428571428555,9.615714285714285,1,1,0];
+SLIDERS=[1.1846428571428569,10.905714285714279,0.023571428571428483,2.8942857142857132,1.4714285714285724,9.615714285714285,1,1,0];
+SLIDERS=[1.2832142857142839,10.905714285714279,0.023571428571428483,18.09857142857143,1.7314285714285718,9.615714285714285,1,6.848571428571431,0.6128571428571428];
+SLIDERS=[1.0,10.905714285714279,0.0035714285714284854/0.0625,18.09857142857143,1.7314285714285718,9.615714285714285,1,6.848571428571431,0.6128571428571428];
+SLIDERS=[1.34442857142857,10.905714285714279,0.05714285714285577,18.09857142857143,1.7314285714285718,9.615714285714285,1,6.848571428571431,0.6128571428571428, 2.0, 1.0];
+
+SLIDERS=[1.3574999999999988,10.905714285714279,0.05714285714285577,18.09857142857143,1.7314285714285718,9.615714285714285,1,6.848571428571431,0.6128571428571428, 2.0, 1.0];
+SLIDERS[8] = 0.0;
+//SLIDERS[9] = SLIDERS[10] = 0.0;
+SLIDERS=[1.7417142857142824,10.905714285714279,0.05714285714285577,18.09857142857143,1.7314285714285718,9.615714285714285,1,6.848571428571431,0,2,0.25];
+SLIDERS=[1.9139285714285652,13.642887142857148,0.025714285714285577,3.324324,4,9.615714285714285,1,1,0,2,0.25];
+SLIDERS[4] = 4.47428571428571;
+SLIDERS=[1.9139285714285652,13.642887142857148,-0.15000000000000027,3.324324,4.47428571428571,9.615714285714285,1,1,0,2,0.25];
+SLIDERS=[1.7508571428571411,13.642887142857148,-0.29285714285714265,3.324324,4.47428571428571,9.615714285714285,1,1,0,2,0.25];
+SLIDERS=[1.7508571428571411,13.642887142857148,-0.29285714285714265,3.324324,4.47428571428571,9.615714285714285,1,1,0,2,-0.2828571428571431];
+SLIDERS=[1.7508571428571411,13.642887142857148,-0.29285714285714265,3.324324,4.47428571428571,9.615714285714285,1,1,0,2,1.8228571428571436];
+SLIDERS=[1.7950714285714255,13.642887142857148,-0.5428571428571424,1,3.7042857142857093,9.615714285714285,1,1,0,2,1.962857142857144];
+SLIDERS=[1.844499999999999,12.790030000000002,-0.24142857142857155,1,5.964285714285704,9.615714285714285,1,1,0,2,1.4214285714285704];
+SLIDERS=[1.844499999999999,11.12574428571429,-0.24142857142857155,1,12.86571428571427,10.021428571428572,1,1,0,2,1.4214285714285704];
+SLIDERS=[1.844499999999999,10.348601428571438,-0.24142857142857155,1,16.291428571428554,10.021428571428572,1,1,0,2,1.4214285714285704];
+SLIDERS=[1.844499999999999,10.348601428571438,-0.24142857142857155,4.027142857142814,19.41428571428572,10.368571428571425,1,0.2828571428571401,0,2,1.4214285714285704];
+
+
+SLIDERS=[2.2952857142857015,10.334315714285726,-0.15999999999999853,4.027142857142814,19.41428571428572,10.368571428571425,1,0.2828571428571401,0,2,1.5671428571428585];
+SLIDERS=[2.257857142857129,10.334315714285726,-0.15999999999999853,4.027142857142814,19.41428571428572,10.368571428571425,1,0.2828571428571401,0,2,1.5671428571428585];
+SLIDERS=[0.25114285714285695,10.334315714285726,-0.27285714285714135,4.027142857142814,19.41428571428572,10.368571428571425,1,0.2828571428571401,0,2,1.5671428571428585];
+SLIDERS=[0.29514285714285715,10.334315714285726,-0.27285714285714135,4.027142857142814,19.41428571428572,10.368571428571425,1,0.2828571428571401,0,2,1.5671428571428585];
+
+SLIDERS=[0.34657142857142864,10.334315714285726,-0.11714285714285563,4.027142857142814,19.41428571428572,10.368571428571425,1,0.2828571428571401,0,2,1.5671428571428585];
+
+SLIDERS=[0.3742857142857143,10.334315714285726,-0.11714285714285563,4.027142857142814,19.41428571428572,10.368571428571425,1,0.2828571428571401,0,2,1.5671428571428585];
+
+SLIDERS=[0.3742857142857143,10.334315714285726,-0.8557142857142842,4.027142857142814,19.41428571428572,10.368571428571425,1,0.2828571428571401,0,2,0.6585714285714298];
+SLIDERS=[0.3742857142857143,10.334315714285726,-0.5399999999999979,4.027142857142814,19.41428571428572,10.368571428571425,1,0.2828571428571401,-0.06792857142857155,2,0.782857142857144];
+SLIDERS=[0.3742857142857143,10.334315714285726,-0.5214285714285669,4.027142857142814,19.41428571428572,10.368571428571425,1,0.2828571428571401,-0.672785714285717,2,2.310000000000007];
+SLIDERS=[0.3742857142857143,10.334315714285726,-0.1471428571428526,4.027142857142814,19.41428571428572,10.368571428571425,1,0.2828571428571401,-0.6231428571428582,2,1.5000000000000093];
+SLIDERS[8] = 0;
+
+SLIDERS=[0.7397857142857168,10.334315714285726,-0.19857142857142407,4.027142857142814,19.53714285714286,10.368571428571425,1,0.2828571428571401,0,2,1.4000000000000068];
+SLIDERS=[0.7420714285714315,10.334315714285726,-0.19857142857142407,4.027142857142814,19.53714285714286,10.368571428571425,1,0.2828571428571401,0,2,1.4000000000000068];
+SLIDERS=[0.819285714285719,10.334315714285726,-1.6542857142857088,4.027142857142814,19.53714285714286,10.368571428571425,1,0.2828571428571401,0,2,1.4000000000000068];
+SLIDERS=[0.8307142857142905,10.334315714285726,-1.9357142857142808,4.027142857142814,19.53714285714286,10.368571428571425,1,0.2828571428571401,0,2,1.4000000000000068];
+
+SLIDERS=[0.8307142857142905,14.640030000000026,-0.4857142857142808,4.715714285714252,20.035714285714327,10.368571428571425,1,0.2828571428571401,0,2,1.42000000000001];
+SLIDERS=[0.8307142857142905,15.244315714285733,-0.4857142857142808,7.057214285714266,20.394285714285775,10.368571428571425,1,0.2828571428571401,0,2,1.42000000000001];
+SLIDERS=[0.8307142857142905,15.244315714285733,-0.4857142857142808,7.057214285714266,19.287142857142705,10.317142857142853,1,0.2828571428571401,0,2,1.42000000000001];
+
+SLIDERS=[0.8307142857142905,35,-0.4857142857142808,7.057214285714266,20.872499999999818,10.317142857142853,1,0.2828571428571401,0,2,1.42000000000001];
+SLIDERS=[1.2690714285714326,35,-0.4857142857142808,9.291785714285698,23.646499999999953,10.317142857142853,1,1.79585714285714,0,2,1.42000000000001];
+SLIDERS=[1.2690714285714326,10.448714285714177,-0.4857142857142808,9.291785714285698,23.646499999999953,10.317142857142853,1,1.79585714285714,0,2,1.42000000000001];
+SLIDERS=[1.2205000000000064,10.448714285714177,1.0142857142857202,9.291785714285698,23.646499999999953,10.317142857142853,1,1.79585714285714,0,2,1.42000000000001];
+
+//AA patterns
+SLIDERS=[0.7403571428571368,-5,-0.5285714285714218,9.291785714285698,23.646499999999953,10.317142857142853,1,1.79585714285714,0,2,1.3671428571428632];
+SLIDERS=[0.7354999999999966,-4.848571428571413,-0.31428571428570756,9.291785714285698,23.873642857142787,10.317142857142853,1,1.5287142857142846,0,2,1.6871428571428626];
+SLIDERS=[0.6926428571428518,-4.848571428571413,-0.8185714285714193,9.324785714285712,23.873642857142787,10.317142857142853,1,3.877285714285709,0,2,1.465714285714287];
+SLIDERS=[0.7469285714285662,-4.495714285714275,-0.5814285714285619,9.324785714285712,23.873642857142787,10.317142857142853,1.012857142857143,4.3215714285714295,0,2,1.465714285714287];
+
+require(["util", "webgl", "sliders"], function(util, webgl, sliders) {
+    function gen_primes(max) {
+      max = max == undefined ? 512 : max;
+      
+      var ret = new Array(max);
+      
+      for (var i=0; i<ret.length; i++) {
+        ret[i] = i;
+      }
+      
+      for (var j=2; j<ret.length; j++) {
+        var k = j+j;
+        while (k < ret.length) {
+          ret[k] = -1;
+          k += j;
+        }
+      }
+      
+      var r2 = [];
+      for (var i=0; i<ret.length; i++) {
+        if (ret[i] != -1) {
+          r2.push(ret[i]);
+        }
+      }
+      
+      return r2;
+    }
+  window.primes = gen_primes(1<<15);
+  
+  var Render = util.Class([
+    function constructor() {
+      this.buffer = new webgl.RenderBuffer();
+      this.regen = 1;
+    },
+    
+    function regen_buffers(gl) {
+      this.regen = 0;
+      var mesh = [
+        0, 0,   0, 1,   1, 1,
+        0, 0,   1, 1,   1, 0
+      ];
+      
+      var vbuf = this.vbuf = this.buffer.get(gl, "vertex")
+      
+      gl.bindBuffer(gl.ARRAY_BUFFER, vbuf);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(mesh), gl.STATIC_DRAW);
+   },
+    
+    function draw(gl) {
+      if (this.regen) {
+        this.regen_buffers(gl);
+        this.compile_shader(gl);
+      }
+      
+      var vbuf = this.vbuf;
+      var shader = this.shader;
+      
+      gl.enableVertexAttribArray(0);
+      gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+      
+      gl.disable(gl.DEPTH_TEST);
+      gl.disable(gl.DITHER);
+      
+      gl.viewport(0, 0, canvas.width, canvas.height);
+      
+      shader.bind(gl, {
+        iRes    : [canvas.width, canvas.height],
+        aspect  : canvas.height / canvas.width
+      });
+      
+      gl.uniform1f(shader.uniformloc("T"), window.T);
+      
+      for (var i=0; i<SLIDERS.length; i++) {
+        gl.uniform1f(shader.uniformloc("SLIDERS["+i+"]"), SLIDERS[i]);
+      }
+      
+      gl.drawArrays(gl.TRIANGLES, 0, 6);
+    },
+    
+    function compile_shader(gl) {
+      var code = document.getElementById("fragment").text;
+      
+      var vshader = [
+        "//vertex",
+        "precision mediump float;",
+        "attribute vec2 co;",
+        "varying vec2 vCo;",
+        
+        "void main() {",
+        "  gl_Position = vec4((co-0.5)*2.0, 0.0, 1.0);",
+        "  vCo = co;",
+        "}"
+      ].join("\n");
+      
+      var fshader = [
+        "//fragment",
+        "precision mediump float;",
+        code,
+        "varying vec2 vCo;",
+        "void main() {",
+        "  vec2 p = vCo * iRes.xy;",
+        "  gl_FragColor = shader(p[0], p[1]);",
+        "}"
+      ].join("\n");
+      
+      var shader = new webgl.ShaderProgram(gl, vshader, fshader, ["co"]);
+      this.shader = shader;
+    }
+  ]);
+
+  var AppState = util.Class([
+    function constructor(gl, canvas, g, canvas2d) {
+      this.gl = gl; //3d api
+      this.g = g;   //2d api
+      
+      this.canvas2d = canvas2d;
+      this.canvas = canvas;
+      this.render = new Render();
+      
+      this.sliders = new sliders.SliderManager(50, 50, 25, 
+                                               window.innerHeight-150, SLIDERS, SLIDER_NAMES);
+      this.sliders.bind_events();
+      
+      window.addEventListener("keydown", this.on_keydown.bind(this));
+    },
+    
+    function toggle_timer() {
+        if (this.timer !== undefined) {
+            clearInterval(this.timer);
+            this.timer = undefined;
+            
+            console.log("stopped timer");
+            return;
+        }
+        
+        console.log("starting timer");
+        
+        this.timer = setInterval(() => {
+            console.log(window.SLIDERS[3].toFixed(5));
+            
+            window.SLIDERS[3] += Math.PI/256;
+            window.redraw_all();
+        }, 100);
+    },
+    
+    function on_keydown(e) {
+        console.log(e.keyCode);
+        
+        switch (e.keyCode) {
+            case 68: //dkey
+                this.toggle_timer();
+                break;
+        }
+    },
+    
+    function draw() {
+      this.render.draw(this.gl);
+      
+      this.g.clearRect(0, 0, this.canvas2d.width, this.canvas2d.height);
+      this.sliders.draw(this.canvas2d, this.g);
+      
+      window.T += 0.0001;
+      redraw_all();
+    }
+  ]);
+  
+  function start() {
+    console.log("init!");
+    
+    var canvas = document.getElementById("canvas");
+    var canvas2d = document.getElementById("canvas2d");
+    
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    
+    canvas2d.width = window.innerWidth;
+    canvas2d.height = window.innerHeight;
+    var g = canvas2d.getContext("2d");
+    
+    var gl = webgl.init_webgl(canvas, {});
+    gl.clearColor(0.2, 0.4, 0.9, 1.0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    
+    window._appstate = new AppState(gl, canvas, g, canvas2d);
+    
+    var animreq = undefined;
+    function do_draw() {
+      animreq = undefined;
+      _appstate.draw();
+    }
+    
+    window.redraw_all = function() {
+      if (animreq == undefined) {
+        animreq = requestAnimationFrame(do_draw);
+      }
+    }
+    
+    redraw_all();
+  }
+  
+  start();
+  
+  
+});
+
+</script>
+<style>
+#canvas {
+  position : absolute;
+  z-index  : 0;
+}
+
+#canvas2d {
+  position : absolute;
+  z-index  : 1;
+}
+</style>
+</head>
+<body>
+<canvas id="canvas">
+</canvas>
+<canvas id="canvas2d">
+</canvas>
+</body>
+</html>

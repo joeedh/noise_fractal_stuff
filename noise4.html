@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html>
+<head><title>WebGL Noise Tester</title>
+<script type="application/javascript" src="js/require.js">
+</script>
+<script type="application/x-fragment-shader" id="fragment">
+uniform vec2 iRes;
+uniform float aspect;
+uniform float SLIDERS[6];
+uniform float T;
+
+#define PI 3.141592654
+
+float tent(float f) {
+  return 1.0 - abs(fract(f)-0.5)*2.0;
+}
+float cos1(float f) {
+  return cos(f*3.141592654)*0.5 + 0.5;
+}
+float sin1(float f) {
+  return sin(f*3.141592654)*0.5 + 0.5;
+}
+
+float tent2(float f) {
+  return tent(f+0.5);
+}
+
+//#define cos(x) (tent((x)/(2.0*PI))*2.0-1.0)
+//#define sin(x) (tent(0.5+(x)/(2.0*PI))*2.0-1.0)
+float smax(float a, float b, float w) {
+  float d = b - a;
+  
+  if (d > -w && d < w) {
+    d = (d + w) / (2.0 * w);
+    d = d*d*(3.0 - 2.0*d);
+    
+    return a + (b - a)*d;
+  } else {
+    return max(a, b);
+  }
+}
+
+float smin(float a, float b, float w) {
+  float d = a - b;
+  
+  if (d > -w && d < w) {
+    d = (d + w) / (2.0 * w);
+    d = d*d*(3.0 - 2.0*d);
+    
+    return a + (b - a)*d;
+  } else {
+    return min(a, b);
+  }
+}
+
+float octgrid(float ix, float iy) {
+  ix *= 10.0;
+  iy *= 10.0;
+  
+  float a = cos1(ix), b = cos1(iy);
+  float f = smax(a, b, 0.3);
+  
+  f = f*f*(3.0-2.0*f);
+  //f = f*f*(3.0-2.0*f);
+  
+  return f*f*f;
+}
+
+float sample(float ix, float iy, float iz) {
+  //float f = length(vec3(ix, iy, iz)) - 0.1;
+  
+  //return min(f, iz+0.1);
+  
+  ix *= 0.5;
+  iy *= 0.5;
+  float seed = SLIDERS[0] + T*2.31;
+  
+  float a = octgrid(ix, iy);
+  float b = octgrid(cos(seed)*ix - sin(seed)*iy, cos(seed)*iy + sin(seed)*ix);
+  
+  float height = smin(a, b, 0.35);
+  height = smax(0.5, height, 0.2);
+  
+  height *= 0.15;
+  float f = iz - height;
+  
+  return min(-length(vec3(ix, iy, iz))+4.0, f);
+}
+
+float pattern(float ix, float iy) {
+  ix = 2.0*ix/iRes.x - 1.0;
+  iy = 2.0*iy/iRes.x - 1.0;
+
+  float seed = SLIDERS[0];
+  
+  float x = cos(T*3.0);
+  float y = cos(T*5.0);
+  
+  vec3 cam = vec3(0.5+x, 0.5+y, 1.0);
+  vec3 target = vec3(x, 0.0+y, 0.2+cos(T*3.0)*0.5);
+  
+  vec3 dir = normalize(target - cam);
+  vec3 xaxis = normalize(cross(dir, vec3(0.0, 0.0, 1.0)));
+  vec3 yaxis = normalize(cross(xaxis, dir));
+  
+  float lens = 0.5;
+  vec3 ro = xaxis*ix*lens + yaxis*iy*lens + cam + dir*0.4, rt = normalize(ro - cam);
+  vec3 start = ro;
+  
+  //*
+  float t = 1.0;
+  for (int i=0; i<35; i++) {
+    t = sample(ro[0], ro[1], ro[2]);
+    ro += rt*t*0.5;
+    
+    if (abs(t) < 0.01) {
+      break;
+    }
+  }
+  //*/
+  
+  float df = 0.001;
+  float f = sample(ro[0], ro[1], ro[2]);
+  float dx = sample(ro[0]+df, ro[1], ro[2]) - f;
+  float dy = sample(ro[0], ro[1]+df, ro[2]) - f;
+  float dz = sample(ro[0], ro[1], ro[2]+df) - f;
+  vec3 norm = normalize(vec3(dx, dy, dz));
+  
+  //return abs(norm[1]);
+  return abs(norm[1])*0.8 + abs(norm[0])*0.3 + abs(norm[2])*0.1;//+tent(20.0*ro[0])*tent(20.0*ro[1]);
+}
+
+vec4 shader(float ix, float iy) {
+  float freq = SLIDERS[4]*3.5 + tent(T)*0.038;
+  
+  float d = 0.75;
+  /*
+  float f = (pattern(ix, iy)*1.75
+             + pattern(ix-d, iy-d)
+             + pattern(ix-d, iy+d)
+             + pattern(ix+d, iy+d)
+             + pattern(ix+d, iy-d)
+            )*(1.0/(4.0+1.75));
+  */
+  float f = pattern(ix, iy);
+  
+  float r = cos1((f+SLIDERS[5])*freq*3.0+0.3);
+  float g = cos1((f+SLIDERS[5])*freq*2.0+0.5);
+  float b = cos1((f+SLIDERS[5])*freq*1.0+0.3);
+  
+  //if (ix < iRes.x*0.5)
+    r=g=b=f;
+  //if (f < 0.0)
+  //  r=g=b=1.0;
+  
+  return vec4(r, g, b, 1.0);
+}
+
+</script>
+<script type="application/javascript">
+'use strict';
+
+require.config({
+  baseUrl : "./js/"
+});
+var SLIDER_NAMES = [
+  "seed", "detail", "filter", "gain", "color", "mix"
+];
+
+window.T = 0;
+
+var SLIDERS;
+
+SLIDERS = [0.234, 0.5, 0.1, 1, 1];
+SLIDERS=[0.2511428571428571, 0.5, 1.6971428571428566,2.639999999999999,1];
+SLIDERS = [0.234, 0.5, 0.1, 1, 1];
+SLIDERS=[1.6654285714285686,0.5,1.4442857142857144,2.2157142857142853,1.0328571428571425];
+SLIDERS=[1.2111428571428542,0.5,-0.15571428571428572,0.1,1, 0.001];
+SLIDERS=[1.2597142857142833,0.5,2.4142857142857093,1.1171428571428585,2.5742857142857147,0.001];
+
+SLIDERS=[-1.2717142857142902,0.5,4.7199999999999935,1.0685714285714305,6.565714285714276,7.170999999999998];
+SLIDERS=[-1.1817142857142935,0.5,4.5842857142857065,0.7357142857142854,8.87857142857143,9.732428571428569];
+//SLIDERS=[-1.1817142857142935,0.5,4.5842857142857065,0.7357142857142854,3.5,9.319571428571427];
+
+//SLIDERS=[-1.1817142857142935,0.5,0.1,0.7357142857142854,0.11285714285714109,7.909571428571425];
+SLIDERS=[3.75,0.5,1.6628571428571428,3.5128571428571416,0.33857142857142625,7.991];
+SLIDERS[0] = 2.9;
+SLIDERS=[4.394285714285708,0.5,1.6628571428571428,3.5128571428571416,0.6671428571428545,12.329571428571436];
+SLIDERS[0] = 0.5;
+
+require(["util", "webgl", "sliders"], function(util, webgl, sliders) {
+  var Render = util.Class([
+    function constructor() {
+      this.buffer = new webgl.RenderBuffer();
+      this.regen = 1;
+    },
+    
+    function regen_buffers(gl) {
+      this.regen = 0;
+      var mesh = [
+        0, 0,   0, 1,   1, 1,
+        0, 0,   1, 1,   1, 0
+      ];
+      
+      var vbuf = this.vbuf = this.buffer.get(gl, "vertex")
+      
+      gl.bindBuffer(gl.ARRAY_BUFFER, vbuf);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(mesh), gl.STATIC_DRAW);
+   },
+    
+    function draw(gl) {
+      if (this.regen) {
+        this.regen_buffers(gl);
+        this.compile_shader(gl);
+      }
+      
+      var vbuf = this.vbuf;
+      var shader = this.shader;
+      
+      gl.enableVertexAttribArray(0);
+      gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+      
+      gl.disable(gl.DEPTH_TEST);
+      gl.disable(gl.DITHER);
+      
+      gl.viewport(0, 0, canvas.width, canvas.height);
+      
+      shader.bind(gl, {
+        iRes    : [canvas.width, canvas.height],
+        aspect  : canvas.height / canvas.width
+      });
+
+      gl.uniform1f(shader.uniformloc("T"), window.T);
+      
+      for (var i=0; i<SLIDERS.length; i++) {
+        gl.uniform1f(shader.uniformloc("SLIDERS["+i+"]"), SLIDERS[i]);
+      }
+      
+      gl.drawArrays(gl.TRIANGLES, 0, 6);
+    },
+    
+    function compile_shader(gl) {
+      var code = document.getElementById("fragment").text;
+      
+      var vshader = [
+        "//vertex",
+        "precision mediump float;",
+        "attribute vec2 co;",
+        "varying vec2 vCo;",
+        
+        "void main() {",
+        "  gl_Position = vec4((co-0.5)*2.0, 0.0, 1.0);",
+        "  vCo = co;",
+        "}"
+      ].join("\n");
+      
+      var fshader = [
+        "//fragment",
+        "precision mediump float;",
+        code,
+        "varying vec2 vCo;",
+        "void main() {",
+        "  vec2 p = vCo * iRes.xy;",
+        "  gl_FragColor = shader(p[0], p[1]);",
+        "}"
+      ].join("\n");
+      
+      var shader = new webgl.ShaderProgram(gl, vshader, fshader, ["co"]);
+      this.shader = shader;
+    }
+  ]);
+
+  var AppState = util.Class([
+    function constructor(gl, canvas, g, canvas2d) {
+      this.gl = gl; //3d api
+      this.g = g;   //2d api
+      
+      this.canvas2d = canvas2d;
+      this.canvas = canvas;
+      this.render = new Render();
+      
+      this.sliders = new sliders.SliderManager(50, 50, 25, 
+                                               window.innerHeight-150, SLIDERS, SLIDER_NAMES);
+      this.sliders.bind_events();
+    },
+    
+    function draw() {
+      this.render.draw(this.gl);
+      
+      this.g.clearRect(0, 0, this.canvas2d.width, this.canvas2d.height);
+      this.sliders.draw(this.canvas2d, this.g);
+      
+      window.T += 0.005;
+      redraw_all();
+    }
+  ]);
+  
+  function start() {
+    console.log("init!");
+    
+    var canvas = document.getElementById("canvas");
+    var canvas2d = document.getElementById("canvas2d");
+    
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    
+    canvas2d.width = window.innerWidth;
+    canvas2d.height = window.innerHeight;
+    var g = canvas2d.getContext("2d");
+    
+    var gl = webgl.init_webgl(canvas, {});
+    gl.clearColor(0.2, 0.4, 0.9, 1.0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    
+    window._appstate = new AppState(gl, canvas, g, canvas2d);
+    
+    var animreq = undefined;
+    function do_draw() {
+      animreq = undefined;
+      _appstate.draw();
+    }
+    
+    window.redraw_all = function() {
+      if (animreq == undefined) {
+        animreq = requestAnimationFrame(do_draw);
+      }
+    }
+    
+    redraw_all();
+  }
+  
+  start();
+});
+
+</script>
+<style>
+#canvas {
+  position : absolute;
+  z-index  : 0;
+}
+
+#canvas2d {
+  position : absolute;
+  z-index  : 1;
+}
+</style>
+</head>
+<body>
+<canvas id="canvas">
+</canvas>
+<canvas id="canvas2d">
+</canvas>
+</body>
+</html>

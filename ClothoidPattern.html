@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html>
+<head><title>WebGL Noise Tester</title>
+<script type="application/javascript" src="js/require.js">
+</script>
+<script type="application/x-fragment-shader" id="fragment">
+uniform vec2 iRes;
+uniform float aspect;
+uniform float SLIDERS[6];
+uniform float T;
+
+#define PI 3.141592654
+
+float tent(float f) {
+  return 1.0 - abs(fract(f)-0.5)*2.0;
+}
+float cos1(float f) {
+  return cos(f*3.141592654)*0.5 + 0.5;
+}
+float sin1(float f) {
+  return sin(f*3.141592654)*0.5 + 0.5;
+}
+
+float tent2(float f) {
+  return tent(f+0.5);
+}
+
+//#define cos(x) (tent((x)/(2.0*PI))*2.0-1.0)
+//#define sin(x) (tent(0.5+(x)/(2.0*PI))*2.0-1.0)
+
+float ctent(float f) {
+    return cos(f*PI*2.0)*0.5 + 0.5;
+}
+float smin(float a, float b, float t) {
+    if (t == 0.0)
+        return a < b ? a : b;
+        
+    if (a < b-t*0.5) {
+        return a;
+    } else if (a < b+t*0.5) {
+        float f = (a-b+t*0.5) / t;
+    
+        f = f*f*(3.0 - 2.0*f);
+        
+        return a + (b - a)*f;
+    }
+
+    return b;
+}
+
+float pattern2(float x, float y) {
+    float f;
+    
+    f = length(vec2(x, y));
+    if (f > 1.414) 
+        return 0.0;
+        
+    f *= f;
+    f += atan(y, x)/PI/8.0;
+    
+    return fract(f*12.0);
+}
+
+float samplef(float x, float y, float k) {
+    float dx = ctent(x*cos(SLIDERS[0]) + y*sin(SLIDERS[0]));
+    float dy = ctent(y*cos(SLIDERS[0]) - x*sin(SLIDERS[0]));
+    float gx = ctent(x), gy = ctent(y);
+    
+    //return (dx+dy)/2.0;
+    return (dx*gy + dy*gx)*(gx*dy + gy*dx)/2.0;
+    return smin(dx*gx, dy*gy, 10.0);
+    return (dx*dx+dy*dy+gx*gx+gy*gy)/4.0;
+    return (dx*gx + dy*gy)*0.5;
+}
+
+float pattern(float ix, float iy) {
+  vec2 uv = vec2(ix, iy) / iRes;
+  int i;
+  
+  float scale = pow(max(SLIDERS[1], 0.000001), 2.0);
+  
+  uv -= 0.5;
+  uv[0] *= iRes.x / iRes.y;
+  vec2 startuv = uv;
+
+  uv = startuv*scale*6.0;
+  
+  float f = 1.0;
+  #define STEPS 24
+  
+  float ds = 1.0 / float(STEPS);
+  
+  //return samplef(uv.x, uv.y, SLIDERS[2]);
+  
+  for (int i=0; i<STEPS; i++) {
+    float k = SLIDERS[2], df = 0.0005;
+    float ff = samplef(uv.x, uv.y, k);
+    float dx = (samplef(uv.x+df, uv.y, k) - ff) / df;
+    float dy = (samplef(uv.x, uv.y+df, k) - ff) / df;
+    
+    //f += length(vec2(dx, dy));
+    //return fract(ff*k);
+    //float x2 = fract(ff*k);
+    //float y2 = fract(k*atan(dy, dx)/PI);
+    
+    if (dx*dx + dy*dy < 0.3) {// && f == 0.0) {
+      f = float(i) / float(STEPS);
+      //f = pow(f, 2.0);
+      break;
+    }
+    
+    uv.x += -dy*ds;
+    uv.y += dx*ds;
+  }
+  
+  //f = f / float(STEPS)/2.0;
+  //f *= 10.2432;
+  //f = fract(f*SLIDERS[3] + 0.0*SLIDERS[4]);
+  
+  //return pattern2((x2-0.5)*0.5, (y2-0.5)*0.5);
+  //return fract(atan(dy, dx)*0.2);
+  return f;
+}
+
+vec3 interp(vec3 a, vec3 b, float t) {
+    return a + (b - a)*t;
+}
+
+vec4 shader(float ix, float iy) {
+
+#define N 2
+  
+  float fsum = 0.0, ftot = 0.0;
+  float fwid = 1.0, f;
+  float r=0.0, g=0.0, b=0.0;
+  vec3 clr;
+  
+  for (int i=0; i<N; i++) {
+      for (int j=0; j<N; j++) {
+        float dx = (float(i) + float(N)-0.5)*(1.0/float(N))*fwid;
+        float dy = (float(j) + float(N)-0.5)*(1.0/float(N))*fwid;
+        float w = 1.0 - 2.0*(dx*dx + dy*dy) / fwid;
+        
+        w = w*w*(3.0 - 2.0*w);
+        float f2 = pattern(ix+dx, iy+dy);
+      
+        float freq = 0.5;
+        vec3 clr2;
+        
+        float hue = tent(f2*0.1 + SLIDERS[4]);
+        if (hue < 1.0/6.0) {
+            hue = 6.0*hue;
+            clr2 = interp(vec3(1.0, 0.5, 1.0), vec3(1.0, 1.0, 0.0), hue);
+        } else if (hue < 2.0/6.0) {
+            hue = 6.0*(hue-1.0/6.0);
+            clr2 = interp(vec3(1.0, 1.0, 1.0), vec3(0.0, 1.0, 0.0), hue);
+        } else if (hue < 3.0/6.0) {
+            hue = 6.0*(hue-2.0/6.0);
+            clr2 = interp(vec3(0.0, 1.0, 0.0), vec3(0.0, 1.0, 1.0), hue);
+        } else if (hue < 4.0/6.0) {
+            hue = 6.0*(hue-3.0/6.0);
+            clr2 = interp(vec3(0.0, 1.0, 1.0), vec3(0.0, 0.0, 1.0), hue);
+        } else if (hue < 5.0/6.0) {
+            hue = 6.0*(hue-4.0/6.0);
+            clr2 = interp(vec3(0.0, 0.0, 1.0), vec3(1.0, 0.0, 1.0), hue);
+        } else if (hue < 6.0/6.0) {
+            hue = 6.0*(hue-5.0/6.0);
+            clr2 = interp(vec3(1.0, 0.0, 1.0), vec3(1.0, 0.0, 0.0), hue);
+        }
+        
+        //clr2.r = cos1((f2+SLIDERS[5]*10.0)*freq*3.0+0.3+T*100.0);
+        //clr2.g = cos1((f2+SLIDERS[5]*10.0)*freq*2.0+0.5+T*115.0);
+        //clr2.b = cos1((f2+SLIDERS[5]*10.0)*freq*1.0+0.3+T*130.0);
+        //clr2 = normalize(clr2);
+        
+        clr += clr2*w;
+        
+        fsum += f2*w;
+        ftot += w;
+      }
+  }
+  
+  clr.r /= ftot;
+  clr.g /= ftot;
+  clr.b /= ftot;
+  
+  f = fsum / ftot;
+  
+  //r=g=b=f;
+  if (iy/iRes.y < 0.77)
+    clr = vec3(f, f, f);
+  
+  return vec4(clr, 1.0);
+}
+</script>
+<script type="application/javascript">
+'use strict';
+
+require.config({
+  baseUrl : "./js/"
+});
+var SLIDER_NAMES = [
+  "seed", "detail", "filter", "gain", "color", "mix"
+];
+
+var SLIDERS;
+
+window.T = 0;
+
+SLIDERS=[1,0.004285714285714962,0.055714285714286,0.025285714285714,1.41857142857143,1.6779571428571414];
+SLIDERS=[1,0.005071428571428951,-0.7641428571428551,0.10107142857142801,1.41857142857143,1.6779571428571414];
+SLIDERS=[1.2371428571428567,0.6428571428572507,-0.7641428571428551,0.10107142857142801,1.41857142857143,1.6779571428571414];
+SLIDERS=[1.2371428571428567,0.011428571428679694,-0.7641428571428551,0.10107142857142801,1.41857142857143,1.6779571428571414];
+SLIDERS=[1.2371428571428567,0.0010000000001082548,-0.7641428571428551,0.10107142857142801,1.41857142857143,1.6779571428571414];
+SLIDERS=[1.2371428571428567,0.43242857142867974,-0.7641428571428551,0.10107142857142801,1.41857142857143,1.6779571428571414];
+
+SLIDERS=[1.0485714285714285,1.2652857142858212,1.9558571428571456,0.10107142857142801,1.41857142857143,1.6779571428571414];
+//SLIDERS=[1.2371428571428567,0.6838571428572507,-0.7641428571428551,0.10107142857142801,1.41857142857143,1.6779571428571414];
+
+SLIDERS=[0.5785714285714247,1.772428571428679,1.9558571428571456,1.5,1.41857142857143,1.6779571428571414];
+
+var continued_fract_tmp = new Array(1024);
+function cfract_intern(n, max_steps) {
+  var floor = Math.floor;
+  max_steps = max_steps == undefined ? 1024 : max_steps;
+  
+  var list = continued_fract_tmp;
+  
+  for (var i=0; i<max_steps; i++) {
+    var f = floor(n)
+    list[i] = f;
+    
+    n -= f;
+    
+    if (f == 0) 
+      break;
+      
+    n = 1.0 / n
+  }
+  
+  var len = i;
+  
+  var f = 1;
+  for (var i=len-1; i >= 0; i--) {
+    f = list[i] + 1/f;
+  }
+  
+  return f;
+}
+
+function cfract(f, max) {
+    let sign = Math.sign(f);
+    
+    f = Math.abs(f);
+    
+    if (f < 1.0) {
+        f = cfract_intern(f+1.0, max) - 1.0;
+    } else {
+        f = cfract_intern(f, max);
+    }
+    
+    if (max == 1) {
+        f -= 1;
+    }
+    
+    return f*sign;
+}
+
+require(["util", "webgl", "sliders"], function(util, webgl, sliders) {
+  var Render = util.Class([
+    function constructor() {
+      this.buffer = new webgl.RenderBuffer();
+      this.regen = 1;
+    },
+    
+    function regen_buffers(gl) {
+      this.regen = 0;
+      var mesh = [
+        0, 0,   0, 1,   1, 1,
+        0, 0,   1, 1,   1, 0
+      ];
+      
+      var vbuf = this.vbuf = this.buffer.get(gl, "vertex")
+      
+      gl.bindBuffer(gl.ARRAY_BUFFER, vbuf);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(mesh), gl.STATIC_DRAW);
+   },
+    
+    function draw(gl) {
+      if (this.regen) {
+        this.regen_buffers(gl);
+        this.compile_shader(gl);
+      }
+      
+      var vbuf = this.vbuf;
+      var shader = this.shader;
+      
+      gl.enableVertexAttribArray(0);
+      gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+      
+      gl.disable(gl.DEPTH_TEST);
+      gl.disable(gl.DITHER);
+      
+      gl.viewport(0, 0, canvas.width, canvas.height);
+      
+      shader.bind(gl, {
+        iRes    : [canvas.width, canvas.height],
+        aspect  : canvas.height / canvas.width
+      });
+      
+      gl.uniform1f(shader.uniformloc("T"), window.T);
+      
+      let SLIDERS2 = SLIDERS.clone();
+      //SLIDERS2[0] = cfract(SLIDERS2[0], Math.max(Math.ceil(SLIDERS2[1]*10.0), 1));
+      
+      for (var i=0; i<SLIDERS2.length; i++) {
+        gl.uniform1f(shader.uniformloc("SLIDERS["+i+"]"), SLIDERS2[i]);
+      }
+      
+      gl.drawArrays(gl.TRIANGLES, 0, 6);
+    },
+    
+    function compile_shader(gl) {
+      var code = document.getElementById("fragment").text;
+      
+      var vshader = [
+        "//vertex",
+        "precision mediump float;",
+        "attribute vec2 co;",
+        "varying vec2 vCo;",
+        
+        "void main() {",
+        "  gl_Position = vec4((co-0.5)*2.0, 0.0, 1.0);",
+        "  vCo = co;",
+        "}"
+      ].join("\n");
+      
+      var fshader = [
+        "//fragment",
+        "precision mediump float;",
+        code,
+        "varying vec2 vCo;",
+        "void main() {",
+        "  vec2 p = vCo * iRes.xy;",
+        "  gl_FragColor = shader(p[0], p[1]);",
+        "}"
+      ].join("\n");
+      
+      var shader = new webgl.ShaderProgram(gl, vshader, fshader, ["co"]);
+      this.shader = shader;
+    }
+  ]);
+
+  var AppState = util.Class([
+    function constructor(gl, canvas, g, canvas2d) {
+      this.gl = gl; //3d api
+      this.g = g;   //2d api
+      
+      this.canvas2d = canvas2d;
+      this.canvas = canvas;
+      this.render = new Render();
+      
+      this.sliders = new sliders.SliderManager(50, 50, 25, 
+                                               window.innerHeight-150, SLIDERS, SLIDER_NAMES);
+      this.sliders.bind_events();
+    },
+    
+    function draw() {
+      this.render.draw(this.gl);
+      
+      this.g.clearRect(0, 0, this.canvas2d.width, this.canvas2d.height);
+      this.sliders.draw(this.canvas2d, this.g);
+      
+      window.T += 0.0001;
+      redraw_all();
+    }
+  ]);
+  
+  function start() {
+    console.log("init!");
+    
+    var canvas = document.getElementById("canvas");
+    var canvas2d = document.getElementById("canvas2d");
+    
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    
+    canvas2d.width = window.innerWidth;
+    canvas2d.height = window.innerHeight;
+    var g = canvas2d.getContext("2d");
+    
+    var gl = webgl.init_webgl(canvas, {});
+    gl.clearColor(0.2, 0.4, 0.9, 1.0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    
+    window._appstate = new AppState(gl, canvas, g, canvas2d);
+    
+    var animreq = undefined;
+    function do_draw() {
+      animreq = undefined;
+      _appstate.draw();
+    }
+    
+    window.redraw_all = function() {
+      if (animreq == undefined) {
+        animreq = requestAnimationFrame(do_draw);
+      }
+    }
+    
+    redraw_all();
+  }
+  
+  start();
+});
+
+</script>
+<style>
+#canvas {
+  position : absolute;
+  z-index  : 0;
+}
+
+#canvas2d {
+  position : absolute;
+  z-index  : 1;
+}
+</style>
+</head>
+<body>
+<canvas id="canvas">
+</canvas>
+<canvas id="canvas2d">
+</canvas>
+</body>
+</html>

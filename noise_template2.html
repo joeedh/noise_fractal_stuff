@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html>
+<head><title>WebGL Noise Tester</title>
+<script type="application/javascript" src="js/require.js">
+</script>
+<script type="application/x-fragment-shader" id="fragment">
+uniform vec2 iRes;
+uniform float aspect;
+uniform float SLIDERS[6];
+uniform float T;
+
+#define PI 3.141592654
+
+float tent(float f) {
+  return 1.0 - abs(fract(f)-0.5)*2.0;
+}
+float cos1(float f) {
+  return cos(f*3.141592654)*0.5 + 0.5;
+}
+float sin1(float f) {
+  return sin(f*3.141592654)*0.5 + 0.5;
+}
+
+float tent2(float f) {
+  return tent(f+0.5);
+}
+
+//#define cos(x) (tent((x)/(2.0*PI))*2.0-1.0)
+//#define sin(x) (tent(0.5+(x)/(2.0*PI))*2.0-1.0)
+
+float pattern(float ix2, float iy2) {
+  float ix0 = ix2;
+  ix2 *= 0.25;
+  iy2 *= 0.25;  
+  
+  //ix2 = floor(ix2);
+  //iy2 = floor(iy2);
+  
+  float th = SLIDERS[0]*PI*0.2;// + tent(T*8.5)*0.28;
+  
+  float ix = ix2;//cos(-th)*ix2 - sin(-th)*iy2;
+  float iy = iy2;//cos(-th)*iy2 + sin(-th)*ix2;
+  //ix = floor(ix);
+  //iy = floor(iy);
+  
+  float filter = SLIDERS[2];// * (tent(T*2.0)*0.5+0.5);
+  
+  float costh = cos(th), sinth = sin(th);
+  float c1 = cos(filter-ix), s1 = sin(filter+iy);
+  float c2 = cos(filter+iy), s2 = sin(filter-ix);
+  float c3 = cos((filter-ix)*sinth-(filter+iy)*costh);
+  float c4 = cos(filter-iy);
+  float c5 = cos(filter+ix);
+  float mul = SLIDERS[3]*10.0;
+  
+  float ans5=-((c5*s1*sinth-cos(filter+iy)*sin(
+      filter+ix)*costh)*sin((filter+ix)*sinth+(filter+iy)*costh)+(
+      costh+sinth)*(costh-sinth)*cos((filter+ix)*sinth+(filter+iy)*
+      costh)*sin(filter+ix)*s1)*cos((filter+ix)*costh-(
+      filter+iy)*sinth)-((cos(filter-ix)*s1*sinth+cos(
+      filter+iy)*sin(filter-ix)*costh)*sin((filter-ix)*sinth-(filter
+      +iy)*costh)+(costh+sinth)*(costh-sinth)*cos((filter-ix)*sinth-
+      (filter+iy)*costh)*sin(filter-ix)*s1)*cos((filter-
+      ix)*costh+(filter+iy)*sinth);
+  float ans4=-((cos(filter-ix)*sin(filter-iy)*sinth-cos(filter-iy)*sin(
+      filter-ix)*costh)*sin((filter-ix)*sinth+(filter-iy)*costh)+(
+      costh+sinth)*(costh-sinth)*cos((filter-ix)*sinth+(filter-iy)*
+      costh)*sin(filter-ix)*sin(filter-iy))*cos((filter-ix)*costh-(
+      filter-iy)*sinth)+(cos(filter-ix)*s1*costh-cos(
+      filter+iy)*sin(filter-ix)*sinth)*cos((filter-ix)*sinth-(filter
+      +iy)*costh)*sin((filter-ix)*costh+(filter+iy)*sinth)+(cos(
+      filter+ix)*s1*costh+cos(filter+iy)*sin(filter+ix)*
+      sinth)*cos((filter+ix)*sinth+(filter+iy)*costh)*sin((filter+ix
+      )*costh-(filter+iy)*sinth)+(cos(filter-ix)*sin((filter-ix)*
+      costh+(filter+iy)*sinth)*sin((filter-ix)*sinth-(filter+iy)*
+      costh)-c5*sin((filter+ix)*costh-(filter+iy)*sinth)
+      *sin((filter+ix)*sinth+(filter+iy)*costh))*cos(filter+iy)+ans5;
+  float ans3=(cos(filter-ix)*sin(filter-iy)*costh+cos(filter-iy)*sin(
+      filter-ix)*sinth)*cos((filter-ix)*sinth+(filter-iy)*costh)*sin
+      ((filter-ix)*costh-(filter-iy)*sinth)-(cos(filter-iy)*sin(
+      filter+ix)*sinth-c5*sin(filter-iy)*costh)*cos((
+      filter+ix)*sinth-(filter-iy)*costh)*sin((filter+ix)*costh+(
+      filter-iy)*sinth)-(cos(filter-ix)*sin((filter-ix)*costh-(
+      filter-iy)*sinth)*sin((filter-ix)*sinth+(filter-iy)*costh)-cos
+      (filter+ix)*sin((filter+ix)*costh+(filter-iy)*sinth)*sin((
+      filter+ix)*sinth-(filter-iy)*costh))*cos(filter-iy)-((cos(
+      filter-iy)*sin(filter+ix)*costh+c5*sin(filter-iy)*
+      sinth)*sin((filter+ix)*sinth-(filter-iy)*costh)+(costh+sinth)*
+      (costh-sinth)*cos((filter+ix)*sinth-(filter-iy)*costh)*sin(
+      filter-iy)*sin(filter+ix))*cos((filter+ix)*costh+(filter-iy)*
+      sinth)+ans4;
+  float ans2=ans3*mul;
+  float ans1=-ans2;
+  float ans=ans1/(4.0*(costh+sinth+1.0)*(costh+sinth-1.0)*(costh-sinth+1.0)*(
+      costh-sinth-1.0)*filter*filter);
+ 
+  float dx1 = sin(cos(th)*ix - sin(th)*iy);
+  float dy1 = sin(cos(th)*iy + sin(th)*ix);
+  float f1 = sin(ix)*sin(iy);//*0.5 + 0.5;
+  float f2 = dx1*dy1;//*0.5 + 0.5;
+  
+  //float fb = f1*f2*0.5 + 0.5; //(1.0 - f1*f1*0.5 - f2*f2*0.5)*0.7;
+  float f = ans*0.25 + 0.75;
+  //fb = f*float(fb < 0.48 && fb > 0.25 ? -1.0 : 1.0);
+  
+  return f;
+  
+  //return ix0 < iRes.x*0.5 ? fb : f;//float(fb>0.6);//fb*fb*fb*0.5*f;//*4.0;///*f*2.0;
+}
+
+vec4 shader(float ix, float iy) {
+  ix -= 550.0;
+  iy -= 400.0;
+  
+  float freq = SLIDERS[4];
+  /*
+  float d = 0.75;
+  
+  float f = (pattern(ix, iy)*1.75
+             + pattern(ix-d, iy-d)
+             + pattern(ix-d, iy+d)
+             + pattern(ix+d, iy+d)
+             + pattern(ix+d, iy-d)
+            )*(1.0/(4.0+1.75));
+  //*/
+  float sz = 45.0;
+  
+  ix /= sz;
+  iy /= sz;
+  
+#define STEPS 8
+
+  float seed = SLIDERS[0]*((3.14159265358*2.0)/float(STEPS)), f = 0.0;
+  float fi;
+  
+  //f = 10.0;
+  for (int i=0; i<STEPS; i++) {
+    float df = tent(iy*cos(seed*float(i)) + ix*sin(seed*float(i)));
+    df -= 0.5;
+    
+    //f = min(f, df);
+    f += df*df;
+  }
+  
+  f = sqrt(f);
+
+  /*
+  float dx = tent(iy*cos(seed) + ix*sin(seed+0.5));
+  float dy = tent(iy*cos(seed*2.0) + ix*sin(seed*2.0+0.5));
+  float dz = tent(iy*cos(seed*3.0) + ix*sin(seed*3.0+0.5));
+  float da = tent(iy*cos(seed*4.0) + ix*sin(seed*4.0+0.5));
+  float db = tent(iy*cos(seed*5.0) + ix*sin(seed*5.0+0.5));
+  
+  dx -= 0.5;
+  dy -= 0.5;
+  dz -= 0.5;
+  da -= 0.5;
+  db -= 0.5;
+  
+  //float f = (dx*dx+dy*dy+dz*dz); //max(max(dx, dy), dz);
+  float f = min(min(min(min(dx, dy), dz), da), db);
+  f = sqrt(dx*dx + dy*dy + dz*dz + da*da + db*db);
+  */
+  
+  float r = cos1((f+SLIDERS[5]*10.0)*freq*3.0+0.3);//+T*100.0);
+  float g = cos1((f+SLIDERS[5]*10.0)*freq*2.0+0.5);//+T*100.0);
+  float b = cos1((f+SLIDERS[5]*10.0)*freq*1.0+0.3);//+T*100.0);
+  
+  //r=g=b=f;
+  //if (f < 0.0)
+  //  r=g=b=1.0;
+  
+  return vec4(r, g, b, 1.0);
+}
+</script>
+<script type="application/javascript">
+'use strict';
+
+require.config({
+  baseUrl : "./js/"
+});
+var SLIDER_NAMES = [
+  "seed", "detail", "filter", "gain", "color", "mix"
+];
+
+var SLIDERS;
+
+window.T = 0;
+
+SLIDERS = [0.234, 0.5, 0.1, 1, 1];
+SLIDERS=[0.2511428571428571, 0.5, 1.6971428571428566,2.639999999999999,1];
+SLIDERS = [0.234, 0.5, 0.1, 1, 1];
+SLIDERS=[1.6654285714285686,0.5,1.4442857142857144,2.2157142857142853,1.0328571428571425];
+SLIDERS=[1.2111428571428542,0.5,-0.15571428571428572,0.1,1, 0.001];
+SLIDERS=[1.2597142857142833,0.5,2.4142857142857093,1.1171428571428585,2.5742857142857147,0.001];
+
+SLIDERS=[-1.2717142857142902,0.5,4.7199999999999935,1.0685714285714305,6.565714285714276,7.170999999999998];
+SLIDERS=[-1.1817142857142935,0.5,4.5842857142857065,0.7357142857142854,8.87857142857143,9.732428571428569];
+//SLIDERS=[-1.1817142857142935,0.5,4.5842857142857065,0.7357142857142854,3.5,9.319571428571427];
+
+//SLIDERS=[-1.1817142857142935,0.5,0.1,0.7357142857142854,0.11285714285714109,7.909571428571425];
+SLIDERS=[-1.2474285714285787,0.5,1.6628571428571428,3.5128571428571416,0.33857142857142625,7.991];
+SLIDERS[0] = 1.234
+SLIDERS=[-1.9631428571428569,0.5,1.6628571428571428,3.5128571428571416,0.33857142857142625,7.991];
+SLIDERS=[-1.9631428571428569,0.5,0.955714285714286,3.5128571428571416,0.33857142857142625,7.991];
+SLIDERS=[-1.948857142857143,0.5,0.955714285714286,0.4528571428571403,1.5214285714285691,12.135285714285724];
+SLIDERS=[-1.3074285714285728,0.5,0.955714285714286,1.22528571428571403,0.647142857142858,12.135285714285724];
+
+SLIDERS=[1.2566370614359172,0.5,0.955714285714286,1.225285714285714,1.41857142857143,15.56528571428572/10];
+SLIDERS=[3.915208490007334,0.5,0.955714285714286,1.225285714285714,1.41857142857143,15.56528571428572/10];
+SLIDERS=[1.0,0.5,0.955714285714286,1.225285714285714,1.41857142857143,1.6779571428571414];
+
+var continued_fract_tmp = new Array(1024);
+function cfract_intern(n, max_steps) {
+  var floor = Math.floor;
+  max_steps = max_steps == undefined ? 1024 : max_steps;
+  
+  var list = continued_fract_tmp;
+  
+  for (var i=0; i<max_steps; i++) {
+    var f = floor(n)
+    list[i] = f;
+    
+    n -= f;
+    
+    if (f == 0) 
+      break;
+      
+    n = 1.0 / n
+  }
+  
+  var len = i;
+  
+  var f = 1;
+  for (var i=len-1; i >= 0; i--) {
+    f = list[i] + 1/f;
+  }
+  
+  return f;
+}
+
+function cfract(f, max) {
+    let sign = Math.sign(f);
+    
+    f = Math.abs(f);
+    
+    if (f < 1.0) {
+        f = cfract_intern(f+1.0, max) - 1.0;
+    } else {
+        f = cfract_intern(f, max);
+    }
+    
+    if (max == 1) {
+        f -= 1;
+    }
+    
+    return f*sign;
+}
+
+require(["util", "webgl", "sliders"], function(util, webgl, sliders) {
+  var Render = util.Class([
+    function constructor() {
+      this.buffer = new webgl.RenderBuffer();
+      this.regen = 1;
+    },
+    
+    function regen_buffers(gl) {
+      this.regen = 0;
+      var mesh = [
+        0, 0,   0, 1,   1, 1,
+        0, 0,   1, 1,   1, 0
+      ];
+      
+      var vbuf = this.vbuf = this.buffer.get(gl, "vertex")
+      
+      gl.bindBuffer(gl.ARRAY_BUFFER, vbuf);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(mesh), gl.STATIC_DRAW);
+   },
+    
+    function draw(gl) {
+      if (this.regen) {
+        this.regen_buffers(gl);
+        this.compile_shader(gl);
+      }
+      
+      var vbuf = this.vbuf;
+      var shader = this.shader;
+      
+      gl.enableVertexAttribArray(0);
+      gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+      
+      gl.disable(gl.DEPTH_TEST);
+      gl.disable(gl.DITHER);
+      
+      gl.viewport(0, 0, canvas.width, canvas.height);
+      
+      shader.bind(gl, {
+        iRes    : [canvas.width, canvas.height],
+        aspect  : canvas.height / canvas.width
+      });
+      
+      gl.uniform1f(shader.uniformloc("T"), window.T);
+      
+      let SLIDERS2 = SLIDERS.clone();
+      //SLIDERS2[0] = cfract(SLIDERS2[0], Math.max(Math.ceil(SLIDERS2[1]*10.0), 1));
+      
+      for (var i=0; i<SLIDERS2.length; i++) {
+        gl.uniform1f(shader.uniformloc("SLIDERS["+i+"]"), SLIDERS2[i]);
+      }
+      
+      gl.drawArrays(gl.TRIANGLES, 0, 6);
+    },
+    
+    function compile_shader(gl) {
+      var code = document.getElementById("fragment").text;
+      
+      var vshader = [
+        "//vertex",
+        "precision mediump float;",
+        "attribute vec2 co;",
+        "varying vec2 vCo;",
+        
+        "void main() {",
+        "  gl_Position = vec4((co-0.5)*2.0, 0.0, 1.0);",
+        "  vCo = co;",
+        "}"
+      ].join("\n");
+      
+      var fshader = [
+        "//fragment",
+        "precision mediump float;",
+        code,
+        "varying vec2 vCo;",
+        "void main() {",
+        "  vec2 p = vCo * iRes.xy;",
+        "  gl_FragColor = shader(p[0], p[1]);",
+        "}"
+      ].join("\n");
+      
+      var shader = new webgl.ShaderProgram(gl, vshader, fshader, ["co"]);
+      this.shader = shader;
+    }
+  ]);
+
+  var AppState = util.Class([
+    function constructor(gl, canvas, g, canvas2d) {
+      this.gl = gl; //3d api
+      this.g = g;   //2d api
+      
+      this.canvas2d = canvas2d;
+      this.canvas = canvas;
+      this.render = new Render();
+      
+      this.sliders = new sliders.SliderManager(50, 50, 25, 
+                                               window.innerHeight-150, SLIDERS, SLIDER_NAMES);
+      this.sliders.bind_events();
+    },
+    
+    function draw() {
+      this.render.draw(this.gl);
+      
+      this.g.clearRect(0, 0, this.canvas2d.width, this.canvas2d.height);
+      this.sliders.draw(this.canvas2d, this.g);
+      
+      window.T += 0.0001;
+      redraw_all();
+    }
+  ]);
+  
+  function start() {
+    console.log("init!");
+    
+    var canvas = document.getElementById("canvas");
+    var canvas2d = document.getElementById("canvas2d");
+    
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    
+    canvas2d.width = window.innerWidth;
+    canvas2d.height = window.innerHeight;
+    var g = canvas2d.getContext("2d");
+    
+    var gl = webgl.init_webgl(canvas, {});
+    gl.clearColor(0.2, 0.4, 0.9, 1.0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    
+    window._appstate = new AppState(gl, canvas, g, canvas2d);
+    
+    var animreq = undefined;
+    function do_draw() {
+      animreq = undefined;
+      _appstate.draw();
+    }
+    
+    window.redraw_all = function() {
+      if (animreq == undefined) {
+        animreq = requestAnimationFrame(do_draw);
+      }
+    }
+    
+    redraw_all();
+  }
+  
+  start();
+});
+
+</script>
+<style>
+#canvas {
+  position : absolute;
+  z-index  : 0;
+}
+
+#canvas2d {
+  position : absolute;
+  z-index  : 1;
+}
+</style>
+</head>
+<body>
+<canvas id="canvas">
+</canvas>
+<canvas id="canvas2d">
+</canvas>
+</body>
+</html>

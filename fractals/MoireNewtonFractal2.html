@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html>
+<head><title>WebGL Noise Tester</title>
+<script type="application/javascript" src="js/require.js">
+</script>
+<script type="application/x-fragment-shader" id="fragment">
+uniform vec2 iRes;
+uniform float aspect;
+uniform float SLIDERS[13];
+uniform float T;
+
+#define PI 3.14159265358
+
+float tent(float f) {
+  return 1.0 - abs(fract(f)-0.5)*2.0;
+}
+float cos1(float f) {
+  return cos(f*3.141592654)*0.5 + 0.5;
+}
+float sin1(float f) {
+  return sin(f*3.141592654)*0.5 + 0.5;
+}
+
+float tent2(float f) {
+  return tent(f+0.5);
+}
+
+//#define cos(x) (tent((x)/(2.0*PI))*2.0-1.0)
+//#define sin(x) (tent(0.5+(x)/(2.0*PI))*2.0-1.0)
+
+float tcos(float f) {
+    //return cos(f);
+    f /= 2.0*PI;
+    return tent(f)*2.0 - 1.0;
+}
+
+vec2 rot2d(vec2 p, float th) {
+    return vec2(tcos(th)*p.x + tcos(th+PI*0.5)*p.y, tcos(th)*p.y - tcos(th+PI*0.5)*p.x);
+}
+
+float smin(float a, float b, float t) {
+    if (t == 0.0)
+        return a < b ? a : b;
+        
+    if (a < b-t*0.5) {
+        return a;
+    } else if (a < b+t*0.5) {
+        float f = (a-b+t*0.5) / t;
+    
+        f = f*f*(3.0 - 2.0*f);
+        
+        return a + (b - a)*f;
+    }
+
+    return b;
+}
+
+float smax(float a, float b, float t) {
+    //a = sqrt(a);
+    //b = sqrt(b);
+    
+    if (t == 0.0)
+        return a > b ? a : b;
+        
+    if (a >= b+t*0.5) {
+        return a;
+    } else if (a >= b-t*0.5) {
+        float f = 1.0 - (a-b+t*0.5) / t;
+    
+        f = f*f*(3.0 - 2.0*f);
+        
+        return pow(a + (b - a)*f, 1.0);
+    }
+
+    return b;
+}
+
+float atan2(float y, float x) {
+    if (x > 0.0) {
+        return atan(y / x);
+    } else if (x < 0.0 && y >= 0.0) {
+        return atan(y / x) + PI;
+    } else if (x < 0.0 && y < 0.0) {
+        return atan(y / x) - PI;
+    }  else if (x == 0.0 && y > 0.0) {
+        return PI*0.5;
+    } else if (x == 0.0 && y < 0.0) {
+        return -PI*0.5;
+    } else {
+        return 0.0;
+    }
+}
+
+float ctent(float f) {
+    f = cos(f*PI*2.0)*0.5+0.5;
+    //f = f*f*(3.0-2.0*f);
+    f *= f*f;
+    return f;
+}
+
+float basepattern(float ix, float iy, vec2 uv, float gfac2, float seed) {
+    float gfac = SLIDERS[7]*0.2 + 0.8 + (tent(T*0.1)-0.5)*0.0;
+    
+    float dx = ctent(0.5*(cos(PI/3.0+seed)*ix + cos(PI/3.0+seed+PI*0.5)*iy));
+    float dy = ctent(0.5*(cos(2.0*PI/3.0+seed)*ix + cos(2.0*PI/3.0+seed+PI*0.5)*iy));
+    float dz = ctent(0.5*(cos(3.0*PI/3.0+seed)*ix + cos(3.0*PI/3.0+seed+PI*0.5)*iy));
+    
+    float gx = ctent(0.5*(cos(PI/3.0)*gfac*ix + cos(PI/3.0+PI*0.5)*gfac*iy));
+    float gy = ctent(0.5*(cos(2.0*PI/3.0)*gfac*ix + cos(2.0*PI/3.0+PI*0.5)*gfac*iy));
+    float gz = ctent(0.5*(cos(3.0*PI/3.0)*gfac*ix + cos(3.0*PI/3.0+PI*0.5)*gfac*iy));
+    
+    //gfac = 1.0+gfac2;
+    //ix += gfac2;
+    //iy += gfac2;
+    float gx2 = gx;//ctent(0.5*(cos(PI/3.0)*gfac*ix + cos(PI/3.0+PI*0.5)*gfac*iy));
+    float gy2 = gy;//ctent(0.5*(cos(2.0*PI/3.0)*gfac*ix + cos(2.0*PI/3.0+PI*0.5)*gfac*iy));
+    float gz2 = gz;//ctent(0.5*(cos(3.0*PI/3.0)*gfac*ix + cos(3.0*PI/3.0+PI*0.5)*gfac*iy));
+    
+    float f = 0.0;
+    
+    f = (dx+dy+dz+gx+gy+gz)/6.0;
+    
+    f = 1.0;
+    float w = 2.0;
+    
+    f = smax(dx*gx, dy*gy, w);
+    f = smax(f, dz, w);
+    f = smax(f, gx, w);
+    f = smax(f, gy, w);
+    f = smax(f, gz, w);
+    
+    //f = (dx+dy+dz+gx+gy+gz)/6.0;
+    //f = sqrt(dx*dx + dy*dy + dz*dz + gx*gx + gy*gy + gz*gz) / sqrt(6.0);
+    //f = (dx*dx + dy*dy + dz*dz + gx*gx + gy*gy + gz*gz + gx2*gx2 + gy2*gy2 + gz2*gz2) / (9.0);
+    
+    f = sqrt(dx) + sqrt(dy) + sqrt(dz) + sqrt(gx) + sqrt(gy) + sqrt(gz);
+    f /= 3.0;
+    
+    //f = sqrt(f);
+    
+    //f = (dx+dy+dz+gx+gy+gz+gx2+gy2+gz2)/9.0;
+    //f = pow(dx*dy*dz, 0.3333)*0.5 + pow(gx*gy*gz, 0.33333)*0.5;
+    
+    //*
+    f = pow(f, SLIDERS[6]);
+    f = ctent((f + SLIDERS[4])*SLIDERS[3]*0.5);
+    //*/
+    
+    return f;
+}
+
+float pattern(float ix, float iy, vec2 uv, float seed) {
+    float df = 0.08;
+    /*
+    float f1 = basepattern(ix, iy, uv, -df*2.0, seed);
+    float f2 = basepattern(ix, iy, uv, -df, seed);
+    float f3 = basepattern(ix, iy, uv, 0.0, seed);
+    float f4 = basepattern(ix, iy, uv, +df, seed);
+    float f5 = basepattern(ix, iy, uv, +df*2.0, seed);
+    //*/
+    float f, fi=0.0;
+    int i;
+    //return basepattern(ix, iy, uv, 0.0, seed);
+    
+    float oix = ix, oiy = iy;
+    float limit = SLIDERS[12];
+    
+    for (int i=0; i<150; i++) {    
+        float f1 = basepattern(ix, iy, uv, 0.0, seed);
+        float f2 = basepattern(ix+df, iy, uv, 0.0, seed);
+        float f3 = basepattern(ix, iy+df, uv, 0.0, seed);
+        
+        float dx = (f2 - f1) / df;
+        float dy = (f3 - f1) / df;
+        //float len = sqrt(dx*dx + dy*dy);
+        
+        dx *= SLIDERS[11];
+        dy *= SLIDERS[11];
+        
+        //f1 /= dx*dx + dy*dy;
+        if (dx == 0.0 && dy == 0.0) {
+            break;
+        }
+        
+        if ((oix-ix)*(oix-ix) + (oiy-iy)*(oiy-iy) > limit*limit) {
+            break;
+        }
+        
+        float t = dx; dx = dy; dy = -t;
+        ix += dx;//-dy;
+        iy += dy;//dx;
+        
+        fi += 1.0;
+    }
+    
+    //f = basepattern(ix, iy, uv, 0.0, seed);
+    
+    return fi/50.0;
+    /*
+    f = pow(f, SLIDERS[6]);
+    f = ctent((f + SLIDERS[4])*SLIDERS[3]*0.5);
+    //*/
+    
+    //float steps = floor(1.0 + max(SLIDERS[9]*5.0, 0.0));
+    //f = floor(f*steps+0.5)/steps;
+
+    return f;
+}
+#define FWID 2
+
+//3559
+float get_id(float ix, float iy, float seed, float steps) {
+    ix = floor(ix+0.5);
+    iy = floor(iy+0.5);
+    
+    float sum = 0.0;
+    float wsum = 0.0;
+    float rnd = 0.0;
+    
+    for (int i=-FWID; i<=FWID; i++) {
+        for (int j=-FWID; j<=FWID; j++) {
+            float dx = float(i)/float(FWID), dy = float(j)/float(FWID);
+            float f = pattern(ix+float(i), iy+float(j), vec2(0.0, 0.0), seed);
+            float w = 1.0 - sqrt(dx*dx + dy*dy)/sqrt(2.0);
+            w *= w*w*w;
+            
+            f = f*f;
+            //f *= f*f*f;
+            f = floor(f*steps)/steps;
+
+            rnd = fract(rnd*3559.5245 + f*31.234);
+            f = rnd;
+            
+            sum += f*w;
+            wsum += w;
+
+        }
+    }
+    
+    sum /= wsum;
+    sum = floor(sum*steps)/steps;
+    
+    return sum*140.0;
+}
+
+vec3 docolor(float f) {
+  float time = 0.0;//T*0.1;
+  
+  /*
+  float fac1 = pow(3.0, SLIDERS[1]);
+  float fac2 = pow(2.0, SLIDERS[1]);
+  float fac3 = pow(1.5, SLIDERS[1]);
+  */
+  float fac1 = 1.23432*pow(2.0, SLIDERS[5]*1.0);
+  float fac2 = 3.23432*pow(3.0, SLIDERS[5]*1.0);
+  float fac3 = 5.23432*pow(5.0, SLIDERS[5]*1.0);
+  
+  float t = (fac1+fac2+fac3);
+  
+  fac1 *= SLIDERS[8]/t;
+  fac2 *= SLIDERS[8]/t;
+  fac3 *= SLIDERS[8]/t;
+  
+  float r = cos1(f*fac1+0.323+time*100.0);
+  float g = cos1(f*fac2-3.523+time*100.0);
+  float b = cos1(f*fac3+2.323+time*100.0);
+  
+  return normalize(vec3(r, g, b))/(tent(f/PI/2.0)*0.5 + 0.5);
+}
+
+vec4 shader(float ix, float iy) {
+  vec2 uv = vec2(ix, iy) / iRes;
+  
+  float seed = SLIDERS[0] + T*0.0;
+  float scale = SLIDERS[2];
+  scale *= 0.064;
+  
+  ix -= iRes.x*0.5;
+  iy -= iRes.y*0.5;
+  
+  float ix2 = ix * scale;
+  float iy2 = iy * scale;
+  
+  ix2 += SLIDERS[9]*10.0;//scale;
+  iy2 += SLIDERS[10]*10.0;//scale;
+  
+  float f, f2;
+  
+  f = pattern(ix2, iy2, uv, seed);
+  //f2 = pattern(ix2*2.0, iy2*2.0, uv, seed);
+  
+  //f = (f+f2)*0.5;
+  vec3 clr = docolor(f);
+  
+  if (uv.y > 0.7) {
+    clr = vec3(f, f, f);
+  }
+  
+  return vec4(clr, 1.0);
+}
+</script>
+<script type="application/javascript">
+'use strict';
+
+require.config({
+  baseUrl : "./js/"
+});
+var SLIDER_NAMES = [
+  "seed", "periodicity", "size", "contrast", "color", "clrfac", "pow", "gridscale", "clrmul", "panx", "pany", "fwid", "limit"
+];
+
+var SLIDERS;
+
+window.T = 0;
+
+SLIDERS=[1.5415285714285598,1.4642857142857142,1.75,0.7971428571428628,3.068571428571425,1,2.955714285714282,2.488571428571428,10.84857142857142,4.0542857142857125,0.8242857142857134,0.22142857142857136];
+SLIDERS[6] = SLIDERS[3] = SLIDERS[8] = SLIDERS[7] = 1;
+SLIDERS[4] = 0;
+SLIDERS=[2.6258142857142546,1.4642857142857142,2.187142857142859,0.43142857142856245,9.307142857142852,1,0.4871428571428558,1,21.367142857142866,4.0542857142857125,0.8242857142857134,0.22142857142857136];
+SLIDERS=[2.6258142857142546,1.4642857142857142,1.077142857142859,0.2085714285714197,11.522857142857163,1,0.10857142857142803,1,180,4.0542857142857125,0.8242857142857134,0.22142857142857136];
+SLIDERS=[1.598626122625159,1.4642857142857142,0.3342857142857156,2.465714285714291,11.522857142857163,1,1.0714285714285634,1,1,4.0542857142857125,0.8242857142857134,0.22142857142857136];
+SLIDERS[3] = SLIDERS[8] = SLIDERS[6] = 1.0;
+SLIDERS=[1.5114832654823007,1.4642857142857142,1.4357142857142866,7.262857142857142,11.54571428571433,1,0.13857142857142835,1,2.9457142857142844,0.26714285714285735,0.8242857142857134,0.22142857142857136];
+SLIDERS=[2.2376190472857087,0.5271428571428586,1.4357142857142866,7.265714285714286,11.54571428571433,1,0.13857142857142835,1,2.9457142857142844,1,0.8242857142857134,0.22142857142857136];
+SLIDERS[3] = SLIDERS[8] = 1.0;
+SLIDERS[6] = 1.0;
+SLIDERS[11] = 0.0;
+SLIDERS[9] = 13.0;
+SLIDERS=[2.2376190472857087,0.5271428571428586,1.4357142857142866,1,11.54571428571433,1,1,1,1,13,0.0,0.012857142857142857];
+SLIDERS[3] = SLIDERS[8] = SLIDERS[6] = 1.0;
+SLIDERS[4] = 0.0;
+SLIDERS=[2.2376190472857087,0.5271428571428586,1.4357142857142866,1,0,1,1,1,6.502857142857145,13,-0.03999999999999971,0.012857142857142857];
+SLIDERS=[2.307619047285708,0.1757142857142872,0.7000000000000014,1,0,1,1,1,4,13,-0.03999999999999971,0.012857142857142857];
+SLIDERS=[2.307619047285708,0.1757142857142872,0.43428571428571544,1,0,1,1,1,4,13,0.0,0.012857142857142857];
+
+SLIDERS=[2.2704761901428507,0.1757142857142872,-0.25285714285714167,1,-0.08999999999999991,1,1.2357142857142853,1,4,13,0.484285714285714,0.012857142857142857];
+SLIDERS=[2.2704761901428507,0.1757142857142872,-0.018571428571427327,0.4485714285714279,0.0757142857142857,1,1.2357142857142853,1,4,13,0.012857142857142857,-1.152857142857143];
+SLIDERS[11] = -0.2;
+SLIDERS=[2.4464047615714235,0.7871428571428587,1.0,0.4485714285714279,-0.08650000000000001,1,1.341428571428572,1,4,12.911428571428571,0.06571428571428574,-0.29228571428571526];
+SLIDERS=[2.4421190472857095,0.7871428571428587,0.7742857142857159/4,1.2871428571428571,-0.3479285714285715,1,1.341428571428572,1,4,12.911428571428571,0.06571428571428574,-0.33085714285714385];
+SLIDERS=[2.419261904428567,0.7871428571428587,0.11214285714285753,1.8271428571428576,-1.0764999999999998,1,0.28142857142857197,1,2.597142857142858,12.911428571428571,0.06571428571428574,1.3062857142857132];
+SLIDERS=[2.419261904428567,0.7871428571428587,0.11500000000000021,3.6457142857142855,-0.8793571428571422,1,0.28142857142857197,1,2.597142857142858,12.911428571428571,0.06571428571428574,0.23571428571428577];
+SLIDERS=[2.419261904428567,0.7871428571428587,0.0021428571428573325,3.6457142857142855,-0.7524999999999997,1,0.28142857142857197,1,2.597142857142858,12.842857142857143,0.12142857142857148,0.33000000000000007];
+SLIDERS=[2.419261904428567,0.7871428571428587,0.001071428571428774,3.6457142857142855,-0.7524999999999997,1,0.28142857142857197,1,2.597142857142858,12.842857142857143,0.11842857142857145,0.33000000000000007, 1.5];
+//SLIDERS=[2.419261904428567,0.7871428571428587,-0.03892857142857123,3.6457142857142855,-0.7524999999999997,1,0.28142857142857197,1,2.597142857142858,12.842857142857143,0.11842857142857145,0.1,1.5];
+SLIDERS=[2.419261904428567,0.7871428571428587,0.14035714285714307,3.6457142857142855,-0.3817142857142849,1,0.06571428571428625,1,2.597142857142858,12.842857142857143,0.11842857142857145,0.5542857142857143,7.619999999999999];
+
+require(["util", "webgl", "sliders"], function(util, webgl, sliders) {
+    var continued_fract_tmp = new Array(1024);
+    
+    window.cfract = function cfract(n, max_steps) {
+      var floor = Math.floor;
+      max_steps = max_steps == undefined ? 1024 : max_steps;
+      
+      var list = continued_fract_tmp;
+      
+      for (var i=0; i<max_steps; i++) {
+        var f = floor(n)
+        list[i] = f;
+        
+        n -= f;
+        
+        if (f == 0) 
+          break;
+          
+        n = 1.0 / n
+      }
+      
+      var len = i;
+      
+      var f = 1;
+      for (var i=len-1; i >= 0; i--) {
+        f = list[i] + 1/f;
+      }
+      
+      return f;
+    }
+
+    function gen_primes(max) {
+      max = max == undefined ? 512 : max;
+      
+      var ret = new Array(max);
+      
+      for (var i=0; i<ret.length; i++) {
+        ret[i] = i;
+      }
+      
+      for (var j=2; j<ret.length; j++) {
+        var k = j+j;
+        while (k < ret.length) {
+          ret[k] = -1;
+          k += j;
+        }
+      }
+      
+      var r2 = [];
+      for (var i=0; i<ret.length; i++) {
+        if (ret[i] != -1) {
+          r2.push(ret[i]);
+        }
+      }
+      
+      return r2;
+    }
+  window.primes = gen_primes(1<<15);
+  
+  var Render = util.Class([
+    function constructor() {
+      this.buffer = new webgl.RenderBuffer();
+      this.regen = 1;
+    },
+    
+    function regen_buffers(gl) {
+      this.regen = 0;
+      var mesh = [
+        0, 0,   0, 1,   1, 1,
+        0, 0,   1, 1,   1, 0
+      ];
+      
+      var vbuf = this.vbuf = this.buffer.get(gl, "vertex")
+      
+      gl.bindBuffer(gl.ARRAY_BUFFER, vbuf);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(mesh), gl.STATIC_DRAW);
+   },
+    
+    function draw(gl) {
+      if (this.regen) {
+        this.regen_buffers(gl);
+        this.compile_shader(gl);
+      }
+      
+      var vbuf = this.vbuf;
+      var shader = this.shader;
+      
+      gl.enableVertexAttribArray(0);
+      gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+      
+      gl.disable(gl.DEPTH_TEST);
+      gl.disable(gl.DITHER);
+      
+      gl.viewport(0, 0, canvas.width, canvas.height);
+      
+      shader.bind(gl, {
+        iRes    : [canvas.width, canvas.height],
+        aspect  : canvas.height / canvas.width
+      });
+      
+      gl.uniform1f(shader.uniformloc("T"), window.T);
+      
+      for (var i=0; i<SLIDERS.length; i++) {
+        let f = SLIDERS[i];
+        
+        if (i == 0) {
+            let max = ~~(1.0 + Math.max(SLIDERS[1]*9.0, 0.0));
+            
+            f = (cfract(f+1.0, max)-1.0)*Math.PI*2.0;
+        }
+        gl.uniform1f(shader.uniformloc("SLIDERS["+i+"]"), f);
+      }
+      
+      gl.drawArrays(gl.TRIANGLES, 0, 6);
+    },
+    
+    function compile_shader(gl) {
+      var code = document.getElementById("fragment").text;
+      
+      var vshader = [
+        "//vertex",
+        "precision mediump float;",
+        "attribute vec2 co;",
+        "varying vec2 vCo;",
+        
+        "void main() {",
+        "  gl_Position = vec4((co-0.5)*2.0, 0.0, 1.0);",
+        "  vCo = co;",
+        "}"
+      ].join("\n");
+      
+      var fshader = [
+        "//fragment",
+        "precision mediump float;",
+        code,
+        "varying vec2 vCo;",
+        "void main() {",
+        "  vec2 p = vCo * iRes.xy;",
+        "  gl_FragColor = shader(p[0], p[1]);",
+        "}"
+      ].join("\n");
+      
+      var shader = new webgl.ShaderProgram(gl, vshader, fshader, ["co"]);
+      this.shader = shader;
+    }
+  ]);
+
+  var AppState = util.Class([
+    function constructor(gl, canvas, g, canvas2d) {
+      this.gl = gl; //3d api
+      this.g = g;   //2d api
+      
+      this.canvas2d = canvas2d;
+      this.canvas = canvas;
+      this.render = new Render();
+      
+      this.sliders = new sliders.SliderManager(50, 50, 25, 
+                                               window.innerHeight-150, SLIDERS, SLIDER_NAMES);
+      this.sliders.bind_events();
+      
+      window.addEventListener("keydown", this.on_keydown.bind(this));
+    },
+    
+    function toggle_timer() {
+        if (this.timer !== undefined) {
+            clearInterval(this.timer);
+            this.timer = undefined;
+            
+            console.log("stopped timer");
+            return;
+        }
+        
+        console.log("starting timer");
+        
+        this.timer = setInterval(() => {
+            console.log(window.SLIDERS[3].toFixed(5));
+            
+            window.SLIDERS[3] += Math.PI/256;
+            window.redraw_all();
+        }, 100);
+    },
+    
+    function on_keydown(e) {
+        console.log(e.keyCode);
+        
+        switch (e.keyCode) {
+            case 68: //dkey
+                this.toggle_timer();
+                break;
+        }
+    },
+    
+    function draw() {
+      this.render.draw(this.gl);
+      
+      this.g.clearRect(0, 0, this.canvas2d.width, this.canvas2d.height);
+      this.sliders.draw(this.canvas2d, this.g);
+      
+      window.T += 0.015;
+      redraw_all();
+    }
+  ]);
+  
+  function start() {
+    console.log("init!");
+    
+    var canvas = document.getElementById("canvas");
+    var canvas2d = document.getElementById("canvas2d");
+    
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    
+    canvas2d.width = window.innerWidth;
+    canvas2d.height = window.innerHeight;
+    var g = canvas2d.getContext("2d");
+    
+    var gl = webgl.init_webgl(canvas, {});
+    gl.clearColor(0.2, 0.4, 0.9, 1.0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    
+    window._appstate = new AppState(gl, canvas, g, canvas2d);
+    
+    var animreq = undefined;
+    function do_draw() {
+      animreq = undefined;
+      _appstate.draw();
+    }
+    
+    window.redraw_all = function() {
+      if (animreq == undefined) {
+        animreq = requestAnimationFrame(do_draw);
+      }
+    }
+    
+    redraw_all();
+  }
+  
+  start();
+  
+  
+});
+
+</script>
+<style>
+#canvas {
+  position : absolute;
+  z-index  : 0;
+}
+
+#canvas2d {
+  position : absolute;
+  z-index  : 1;
+}
+</style>
+</head>
+<body>
+<canvas id="canvas">
+</canvas>
+<canvas id="canvas2d">
+</canvas>
+</body>
+</html>

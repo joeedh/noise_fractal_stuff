@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html>
+<head><title>WebGL Noise Tester</title>
+<script type="application/javascript" src="js/require.js">
+</script>
+<script type="application/x-fragment-shader" id="fragment">
+uniform vec2 iRes;
+uniform float aspect;
+uniform float SLIDERS[6];
+uniform float T;
+
+#define PI 3.141592654
+
+float tent(float f) {
+  return 1.0 - abs(fract(f)-0.5)*2.0;
+}
+float cos1(float f) {
+  return cos(f*3.141592654)*0.5 + 0.5;
+}
+float sin1(float f) {
+  return sin(f*3.141592654)*0.5 + 0.5;
+}
+
+float tent2(float f) {
+  return tent(f+0.5);
+}
+
+//#define cos(x) (tent((x)/(2.0*PI))*2.0-1.0)
+//#define sin(x) (tent(0.5+(x)/(2.0*PI))*2.0-1.0)
+float pattern(float ix2, float iy2) {
+  return ix2;
+}
+
+#define f11 (7.1142234*2.0+SLIDERS[0])
+#define rand_mul f11
+#define rand_off 0.0
+#define c1 f11
+#define c2 f11
+#define c3 f11
+#define c4 f11
+#define permscale f11
+/*
+const float f11 = 7.1142234;
+const float rand_mul = f11;
+const float rand_off = 0.0;
+const float c1 = f11, c2 = f11, c3 = f11, c4 = f11;
+const float permscale = f11; //0.25234;
+//*/
+
+float hash(float seed) {
+  //float f = tent((seed*rand_mul + rand_off)/PI/2.0);
+  //f = f*f*(3.0 - 2.0*f);
+  //return f;
+  
+  return cos(seed*rand_mul + rand_off)*0.5 + 0.5;
+  seed = fract(seed*0.1) + fract(seed*0.01) + fract(seed*10.23423);
+  return fract(1.0 / fract(0.000001*seed + 0.000001));
+}
+
+vec2 grad(float seed) {
+  return vec2(hash(seed), hash(seed*c1 + seed*c2))*2.0 - 1.0;
+}
+
+float perm(float seed) {
+  return hash(seed*permscale);
+}
+
+float grate(float x, float y, float th) {
+  return cos(cos(th)*x - sin(th)*y);
+}
+
+float myfloor(float f) {
+  return floor(f);
+}
+
+float myfract(float f) {
+  return f - myfloor(f);
+}
+
+#define floor myfloor
+#define fract myfract
+
+float hash2(float x, float y) {
+  float s = x*fract(x*0.23432)*10.23432 + y*fract(y*0.153432)*100.23432;
+  s = fract(s);
+  
+  s = fract(1.0 / (0.000001 + 0.00001*fract(s)));
+  return s;
+}
+
+float hash3(float x, float y) {
+  float c = 2.0;
+  return (hash2(x*2.0, y*2.0) + hash2(x*2.0, y*2.0+c) + hash2(x*2.0+c, y*2.0+c) + hash2(x*2.0+c, y*2.0)) / 4.0;
+}
+
+float tent3(float f) {
+  return tent(f)*2.0 - 1.0;
+}
+
+//#define cos tent3
+#if 0
+float WNoise( float p[3]) { /* Non-projected 3D noise */
+  int i, f[3], c[3], mid[3], n=noiseTileSize; /* f, c = filter, noise coeff indices */
+  float w[3][3], t, result = 0.0;
+  
+  /* Evaluate quadratic B-spline basis functions */
+  for (i=0; i<3; i++) {
+    mid[i]=ceil(p[i]-0.5); t=mid[i]-(p[i]-0.5);
+    w[i][0]=t*t/2; w[i][2]=(1-t)*(1-t)/2; w[i][1]=1-w[i][0]-w[i][2]; 
+  }
+  
+  /* Evaluate noise by weighting noise coefficients by basis function values */
+  for(f[2]=-1;f[2]<=1;f[2]++) {
+    for(f[1]=-1;f[1]<=1;f[1]++) {
+      for(f[0]=-1;f[0]<=1;f[0]++) {
+        float weight=1;
+        for (i=0; i<3; i++) {
+          c[i]=Mod(mid[i]+f[i],n); weight*=w[i][f[i]+1];
+        }
+        result += weight * noiseTileData[c[2]*n*n+c[1]*n+c[0]]; 
+      }
+    }
+  }
+  
+  return result;
+}
+
+float WProjectedNoise( float p[3], float normal[3]) { /* 3D noise projected onto 2D */
+  int i, c[3], min[3], max[3], n=noiseTileSize; /* c = noise coeff location */
+  float support, result=0;
+  /* Bound the support of the basis functions for this projection direction */
+  for (i=0; i<3; i++) {
+    support = 3*abs(normal[i]) + 3*sqrt((1-normal[i]*normal[i])/2);
+    min[i] = ceil( p[i] - (3*abs(normal[i]) + 3*sqrt((1-normal[i]*normal[i])/2)) );
+    max[i] = floor( p[i] + (3*abs(normal[i]) + 3*sqrt((1-normal[i]*normal[i])/2)) ); 
+  }
+  
+  /* Loop over the noise coefficients within the bound. */
+  for(c[2]=min[2];c[2]<=max[2];c[2]++) {
+    for(c[1]=min[1];c[1]<=max[1];c[1]++) {
+      for(c[0]=min[0];c[0]<=max[0];c[0]++) {
+        float t, t1, t2, t3, dot=0, weight=1;
+        /* Dot the normal with the vector from c to p */
+        for (i=0; i<3; i++) {
+          dot+=normal[i]*(p[i]-c[i]);
+        }
+          /* Evaluate the basis function at c moved halfway to p along the normal. */
+        for (i=0; i<3; i++) {
+          t = (c[i]+normal[i]*dot/2)-(p[i]-1.5); t1=t-1; t2=2-t; t3=3-t;
+          weight*=(t<=0||t>=3)? 0 : (t<1) ? t*t/2 : (t<2)? 1-(t1*t1+t2*t2)/2 : t3*t3/2;
+          
+        }
+        
+        /* Evaluate noise by weighting noise coefficients by basis function values. */
+        result += weight * noiseTileData[Mod(c[2],n)*n*n+Mod(c[1],n)*n+Mod(c[0],n)];
+      }
+    }
+  }
+    
+  return result;
+}
+float WMultibandNoise( float p[3],float s,float *normal,int firstBand,int nbands,float *w) {
+  float q[3], result=0, variance=0; int i, b;
+  for (b=0; b<nbands && s+firstBand+b<0; b++) {
+  for (i=0; i<=2; i++) {q[i]=2*p[i]*pow(2,firstBand+b);}
+  result += (normal) ? w[b] * WProjectedNoise(q,normal) : w[b] * WNoise(q);}
+  for (b=0; b<nbands; b++) {variance+=w[b]*w[b];}
+  /* Adjust the noise so it has a variance of 1. */
+  if (variance) result /= sqrt(variance * ((normal) ? 0.296 : 0.210));
+  return result;
+}
+#endif
+
+vec4 shader1(float ix, float iy) {
+  ix -= 550.0;
+  iy -= 400.0;
+  float f;
+
+    float seed1 = SLIDERS[0]+42.68168153057934; //SLIDERS[0];
+    float seed12 = seed1*seed1;
+    float floorix = floor(ix);
+    float flooriy = floor(iy);
+    
+    float ans1=2.0*((iy-1.0+ix-flooriy-floorix)*cos((cos(0.5*(2.0*(flooriy+0.5)+cos((floorix+1.0)*seed12))*seed12)+1.0)*seed12)
+    -(ix+iy-flooriy-floorix)*cos((cos(0.5*(2.0*(flooriy+0.5)+cos(floorix*seed12))*seed12)+1.0)*seed12))*(
+    floorix-ix+1.5)*(floorix-ix)*(floorix-ix)+(ix+iy-flooriy-floorix
+    )*cos((cos(0.5*(2.0*(flooriy+0.5)+cos(floorix*seed12))*
+    seed12)+1.0)*seed12);
+    
+    float ans=2.0*(2.0*((iy-2.0+ix-flooriy-floorix)*cos((cos(0.5*(2.0
+    *(flooriy+1.5)+cos((floorix+1.0)*seed12))*seed12)+1.0)
+    *seed12)+(ix+iy-flooriy-floorix)*cos((cos(0.5*(2.0*(
+    flooriy+0.5)+cos(floorix*seed12))*seed12)+1.0)*seed12
+    )-(iy-1.0+ix-flooriy-floorix)*(cos((cos(0.5*(2.0*(floor(
+    iy)+1.5)+cos(floorix*seed12))*seed12)+1.0)*seed12)+cos
+    ((cos(0.5*(2.0*(flooriy+0.5)+cos((floorix+1.0)*seed12))*
+    seed12)+1.0)*seed12)))*(floorix-ix+1.5)*(floorix-ix)*(floorix-ix)
+    +(iy-1.0+ix-flooriy-floorix)*cos((cos(0.5*(2.0*(flooriy
+    +1.5)+cos(floorix*seed12))*seed12)+1.0)*seed12)-(ix+iy
+    -flooriy-floorix)*cos((cos(0.5*(2.0*(flooriy+0.5)+cos(
+    floorix*seed12))*seed12)+1.0)*seed12))*(flooriy-iy+
+    1.5)*(flooriy-iy)*(flooriy-iy)+ans1;
+    
+    float ff = ans*0.5 + 0.5;
+    //ff = fract(T*0.02+ff);
+  
+  float th = SLIDERS[0];
+  float u = fract(ix), v = fract(iy);
+  
+  return vec4(ff, ff, ff, 1.0);
+  
+  /*
+  float fx = floor(ix), fy = floor(iy);
+  u = u*u*(3.0 - 2.0*u);
+  v = v*v*(3.0 - 2.0*v);
+  
+  float g1 = (grate(fx, fy, fx)+grate(fx, fy, fy)) / 2.0;
+  float g2 = (grate(fx, fy+1.0, fx)+grate(fx, fy+1.0, fy+1.0)) / 2.0;
+  float g3 = (grate(fx+1.0, fy+1.0, fx+1.0)+grate(fx+1.0, fy+1.0, fy+1.0)) / 2.0;
+  float g4 = (grate(fx+1.0, fy, fx+1.0)+grate(fx+1.0, fy, fy)) / 2.0;
+  //*/
+  
+  /*
+  fy += 1.0;
+  fx += 1.0;
+  g1 = hash3(fx, fy);
+  g2 = hash3(fx, fy+1.0);
+  g3 = hash3(fx+1.0, fy+1.0);
+  g4 = hash3(fx+1.0, fy);
+  
+  float ga = g1 + (g2 - g1)*v;
+  float gb = g4 + (g3 - g4)*v;
+  ff = ga + (gb - ga)*u;
+  //*/
+  
+  //ff = hash3(fx, fy);
+  
+  //return vec4(ff, ff, ff, 1.0);
+  
+  /*
+  perlin noise
+  on factor;
+  on period;
+  
+  off rounded;
+
+  comment: clear crand_mul, rand_off, c1, c2, c3, c4, permscale;
+  
+  rand_mul := seed1;
+  rand_off := 0.0;
+  c1 := seed1; c2 := seed1; c3 = seed1; c4 := seed1;
+  permscale := seed1;  
+  
+  load_package "avector";
+
+  procedure hash(seed);
+    cos(seed*RAND_MUL + RAND_OFF)*0.5 + 0.5;
+
+  procedure gradx(seed);
+    hash(seed)*2.0 - 1.0;
+
+  procedure grady(seed);
+    hash(seed*c1 + seed*c2)*2.0 - 1.0;
+
+  procedure myperm(seed);
+      hash(seed*permscale);
+      
+  u := ix - floor(ix); v := iy - floor(iy);
+  x := floor(ix); y := floor(iy);
+  
+  i1 := myperm(x);
+  j := myperm(x+1.0);
+  
+  b00 := myperm(i1 + y);
+  b10 := myperm(j + y);
+  b01 := myperm(i1 + y + 1.0);
+  b11 := myperm(j + y + 1.0);
+  
+  ax := grady(b00); ay := grady(b00);
+  bx := grady(b10); by := grady(b10);
+  cx := grady(b01); cy := grady(b01);
+  dx := grady(b11); dy := grady(b11);
+  
+  procedure smoothstep(s);
+    -cos(s*pi)*0.5 + 0.5;
+  
+  fu := smoothstep(u);
+  fv := smoothstep(v);
+  
+  comment: fu := u*u*(3.0 - 2.0*u);
+  comment: fv := v*v*(3.0 - 2.0*v);
+  
+  comment: fu := u;
+  comment: fv := v;
+  
+  u1 := u*ax + v*ay;
+  v1 := (u-1.0)*bx + v*by;
+  
+  u2 := u*cx + (v-1.0)*cy;
+  v2 := (u-1.0)*dx + (v-1.0)*dy;
+  
+  fa := u1 + (v1 - u1)*fu;
+  fb := u2 + (v2 - u2)*fu;
+  
+  ff := fa + (fb - fa)*fv; 
+?  */
+  
+  float x = floor(ix), y = floor(iy);
+  
+  float i = perm(x);
+  float j = perm(x+1.0);
+  
+  float b00 = perm(i + y);
+  float b10 = perm(j + y);
+  float b01 = perm(i + y + 1.0);
+  float b11 = perm(j + y + 1.0);
+  
+  vec2 a = grad(b00);
+  vec2 b  = grad(b10);
+  vec2 c = grad(b01);
+  vec2 d = grad(b11);
+  
+  float fu = u*u*(3.0 - 2.0*u);
+  float fv = v*v*(3.0 - 2.0*v);
+  
+  float u1 = dot(vec2(u, v), a);
+  float v1 = dot(vec2(u-1.0, v), b);
+  float fa = u1 + (v1 - u1)*fu;
+
+  float u2 = dot(vec2(u, v-1.0), c);
+  float v2 = dot(vec2(u-1.0, v-1.0), d);
+  float fb = u2 + (v2 - u2)*fu;
+  
+  float fc = fa + (fb - fa)*fv;
+  
+  f = abs(fc*0.5+0.5);
+  //f = fract(T*0.02+f);
+  
+  return vec4(f, f, f, 1.0);
+}
+
+float hashb(float ix, float iy) {
+  float seed = 0.23432+SLIDERS[0];
+  return tent(ix*10.23432*seed + iy*0.123423*seed + tent(ix*100.23423*seed));
+}
+
+float fbm(float ix, float iy) {
+  float x = floor(ix);
+  float y = floor(iy);
+  
+  float f1 = hashb(x, y);
+  
+  return f1;
+}
+
+vec4 shader(float ix, float iy) {
+  
+  float freq = SLIDERS[4]*0.025;
+  float tot = 1.0;
+  
+  ix *= freq;
+  iy *= freq;
+
+  //vec4 a = shader1(ix, iy);
+  float f = fbm(ix, iy);
+  vec4 a = vec4(f, f, f, 1.0);
+  
+  //float tot = 1.0;
+  //float f = 3.0 / freq;
+  //return (a + shader1(ix, iy+f) + shader1(ix+f, iy+f) + shader1(ix+f, iy)) / 4.0;
+  
+  for (int i=0; i<0; i++) {
+    float sz = float(i+2);
+    a += shader1(ix*sz, iy*sz);
+    tot += 1.0;
+  }
+  
+  return a / tot;
+}
+/*
+  fbm noise
+ on factor;
+  on period;
+  
+  off rounded;
+
+  comment: clear crand_mul, rand_off, c1, c2, c3, c4, permscale;
+  
+  rand_mul := seed1;
+  rand_off := 0.0;
+  c1 := seed1; c2 := seed1; c3 = seed1; c4 := seed1;
+  permscale := seed1;  
+  
+  load_package "avector";
+
+  procedure hash(seed);
+    cos(seed*RAND_MUL + RAND_OFF)*0.5 + 0.5;
+
+  procedure gradx(seed);
+    hash(seed)*2.0 - 1.0;
+
+  procedure grady(seed);
+    hash(seed*c1 + seed*c2)*2.0 - 1.0;
+
+  procedure myperm(seed);
+      hash(seed*permscale);
+  procedure hash2(x, y);
+    hash(x*seed1 + y*seed2);
+    
+  u := ix - floor(ix); v := iy - floor(iy);
+  x := floor(ix); y := floor(iy);
+  
+  a := hash2(x, y);
+  b := hash2(x+1, y);
+  c := hash2(x+1, y+1);
+  d := hash2(x+1, y);
+  
+  procedure smoothstep(s);
+    -cos(s*pi)*0.5 + 0.5;
+  
+  fa := a + (b - a)*v;
+  fb := d + (c - d)*v;
+  
+  ff := fa + (db - fa)*u;
+  
+  operator ifloor;
+  forall s let int(ifloor(kern), s) = ifloor(s);
+  forall s let df(ifloor(s), s) = floor(s);
+  //*/
+
+</script>
+<script type="application/javascript">
+'use strict';
+
+require.config({
+  baseUrl : "./js/"
+});
+var SLIDER_NAMES = [
+  "seed", "detail", "filter", "gain", "color", "mix"
+];
+
+var SLIDERS;
+
+window.T = 0;
+
+SLIDERS=[1.0,0.5,0.955714285714286,1.225285714285714,1.41857142857143,1.6779571428571414];
+
+var continued_fract_tmp = new Array(1024);
+function cfract_intern(n, max_steps) {
+  var floor = Math.floor;
+  max_steps = max_steps == undefined ? 1024 : max_steps;
+  
+  var list = continued_fract_tmp;
+  
+  for (var i=0; i<max_steps; i++) {
+    var f = floor(n)
+    list[i] = f;
+    
+    n -= f;
+    
+    if (f == 0) 
+      break;
+      
+    n = 1.0 / n
+  }
+  
+  var len = i;
+  
+  var f = 1;
+  for (var i=len-1; i >= 0; i--) {
+    f = list[i] + 1/f;
+  }
+  
+  return f;
+}
+
+function cfract(f, max) {
+    let sign = Math.sign(f);
+    
+    f = Math.abs(f);
+    
+    if (f < 1.0) {
+        f = cfract_intern(f+1.0, max) - 1.0;
+    } else {
+        f = cfract_intern(f, max);
+    }
+    
+    if (max == 1) {
+        f -= 1;
+    }
+    
+    return f*sign;
+}
+
+require(["util", "webgl", "sliders"], function(util, webgl, sliders) {
+  var Render = util.Class([
+    function constructor() {
+      this.buffer = new webgl.RenderBuffer();
+      this.regen = 1;
+    },
+    
+    function regen_buffers(gl) {
+      this.regen = 0;
+      var mesh = [
+        0, 0,   0, 1,   1, 1,
+        0, 0,   1, 1,   1, 0
+      ];
+      
+      var vbuf = this.vbuf = this.buffer.get(gl, "vertex")
+      
+      gl.bindBuffer(gl.ARRAY_BUFFER, vbuf);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(mesh), gl.STATIC_DRAW);
+   },
+    
+    function draw(gl) {
+      if (this.regen) {
+        this.regen_buffers(gl);
+        this.compile_shader(gl);
+      }
+      
+      var vbuf = this.vbuf;
+      var shader = this.shader;
+      
+      gl.enableVertexAttribArray(0);
+      gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+      
+      gl.disable(gl.DEPTH_TEST);
+      gl.disable(gl.DITHER);
+      
+      gl.viewport(0, 0, canvas.width, canvas.height);
+      
+      shader.bind(gl, {
+        iRes    : [canvas.width, canvas.height],
+        aspect  : canvas.height / canvas.width
+      });
+      
+      gl.uniform1f(shader.uniformloc("T"), window.T);
+      window.T++;
+      
+      let SLIDERS2 = SLIDERS.clone();
+      //SLIDERS2[0] = cfract(SLIDERS2[0], Math.max(Math.ceil(SLIDERS2[1]*10.0), 1));
+      
+      for (var i=0; i<SLIDERS2.length; i++) {
+        gl.uniform1f(shader.uniformloc("SLIDERS["+i+"]"), SLIDERS2[i]);
+      }
+      
+      gl.drawArrays(gl.TRIANGLES, 0, 6);
+    },
+    
+    function compile_shader(gl) {
+      var code = document.getElementById("fragment").text;
+      
+      var vshader = [
+        "//vertex",
+        "precision mediump float;",
+        "attribute vec2 co;",
+        "varying vec2 vCo;",
+        
+        "void main() {",
+        "  gl_Position = vec4((co-0.5)*2.0, 0.0, 1.0);",
+        "  vCo = co;",
+        "}"
+      ].join("\n");
+      
+      var fshader = [
+        "//fragment",
+        "precision mediump float;",
+        code,
+        "varying vec2 vCo;",
+        "void main() {",
+        "  vec2 p = vCo * iRes.xy;",
+        "  gl_FragColor = shader(p[0], p[1]);",
+        "}"
+      ].join("\n");
+      
+      var shader = new webgl.ShaderProgram(gl, vshader, fshader, ["co"]);
+      this.shader = shader;
+    }
+  ]);
+
+  var AppState = util.Class([
+    function constructor(gl, canvas, g, canvas2d) {
+      this.gl = gl; //3d api
+      this.g = g;   //2d api
+      
+      this.canvas2d = canvas2d;
+      this.canvas = canvas;
+      this.render = new Render();
+      
+      this.sliders = new sliders.SliderManager(50, 50, 25, 
+                                               window.innerHeight-150, SLIDERS, SLIDER_NAMES);
+      this.sliders.bind_events();
+    },
+    
+    function draw() {
+      this.render.draw(this.gl);
+      
+      this.g.clearRect(0, 0, this.canvas2d.width, this.canvas2d.height);
+      this.sliders.draw(this.canvas2d, this.g);
+      
+      window.T += 0.0001;
+      redraw_all();
+    }
+  ]);
+  
+  function start() {
+    console.log("init!");
+    
+    var canvas = document.getElementById("canvas");
+    var canvas2d = document.getElementById("canvas2d");
+    
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    
+    canvas2d.width = window.innerWidth;
+    canvas2d.height = window.innerHeight;
+    var g = canvas2d.getContext("2d");
+    
+    var gl = webgl.init_webgl(canvas, {});
+    gl.clearColor(0.2, 0.4, 0.9, 1.0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    
+    window._appstate = new AppState(gl, canvas, g, canvas2d);
+    
+    var animreq = undefined;
+    function do_draw() {
+      animreq = undefined;
+      _appstate.draw();
+    }
+    
+    window.redraw_all = function() {
+      if (animreq == undefined) {
+        animreq = requestAnimationFrame(do_draw);
+      }
+    }
+    
+    redraw_all();
+  }
+  
+  start();
+});
+
+</script>
+<style>
+#canvas {
+  position : absolute;
+  z-index  : 0;
+}
+
+#canvas2d {
+  position : absolute;
+  z-index  : 1;
+}
+</style>
+</head>
+<body>
+<canvas id="canvas">
+</canvas>
+<canvas id="canvas2d">
+</canvas>
+</body>
+</html>

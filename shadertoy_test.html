@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html>
+<head><title>WebGL Noise Tester</title>
+<script type="application/javascript" src="js/require.js">
+</script>
+<script type="application/x-fragment-shader" id="fragment">
+uniform vec2 iRes;
+uniform float aspect;
+uniform float SLIDERS[6];
+uniform float T;
+
+#define PI 3.141592654
+
+float tent(float f) {
+  return 1.0 - abs(fract(f)-0.5)*2.0;
+}
+float cos1(float f) { 
+  return cos(f*3.141592654)*0.5 + 0.5;
+}
+float sin1(float f) {
+  return sin(f*3.141592654)*0.5 + 0.5;
+}
+
+float tent2(float f) {
+  return tent(f+0.5);
+}
+
+
+/*
+// tuto by Etienne Jacob https://necessarydisorder.wordpress.com/2017/11/15/drawing-from-noise-and-then-making-animated-loopy-gifs-from-there/
+// -> ref: direct costly displacement U=D(P): https://www.shadertoy.com/view/MdyyWK
+// Usual pixel-procedural displacement P=D(U) is cheap but look bad: https://shadertoy.com/view/MsGyWK
+
+// So I try to inverse U=D(P), with  D(P) = P + k(P).perlin(P)
+// First naive try (folds don't work) here: https://www.shadertoy.com/view/MsVyWV
+// Here, I want to really solve the inverse, using Newton solver. 
+// WIP.
+
+// Why doesn't it work ?
+// - grad(fbm) is ok (see tests)
+// - NB: same-time shape is identical to https://www.shadertoy.com/view/MdyyWK
+// - NB: tmp tunings are slow to help convergence
+
+// --- pseudo perlin noise 3D
+*/
+
+int MOD = 1;  // type of Perlin noise
+
+#define rot(a) mat2(cos(a),-sin(a),sin(a),cos(a))
+
+//#define hash31(p) fract(sin(dot(p,vec3(127.1,311.7, 74.7)))*43758.5453123)
+#define hash31(p) fract(sin(dot(p,vec3(127.1,311.7, 74.7)))*437.5453123)
+
+float noise3(vec3 p) {
+    vec3 i = floor(p);
+    vec3 f = fract(p); f = f*f*(3.-2.*f); // smoothstep
+
+    float v= mix( mix( mix(hash31(i+vec3(0,0,0)),hash31(i+vec3(1,0,0)),f.x),
+                       mix(hash31(i+vec3(0,1,0)),hash31(i+vec3(1,1,0)),f.x), f.y), 
+                  mix( mix(hash31(i+vec3(0,0,1)),hash31(i+vec3(1,0,1)),f.x),
+                       mix(hash31(i+vec3(0,1,1)),hash31(i+vec3(1,1,1)),f.x), f.y), f.z);
+	return   MOD==0 ? v
+	       : MOD==1 ? 2.*v-1.
+           : MOD==2 ? abs(2.*v-1.)
+                    : 1.-abs(2.*v-1.);
+}
+vec3 dnoise3(vec3 p) {  // --- grad(noise)
+    vec3 i = floor(p);
+    vec3 g, f0 = fract(p), f = f0*f0*(3.-2.*f0), df = 6.*f0*(1.-f0); // smoothstep
+    
+#define dmix(a,b,x) x*(b-a)
+    g.x = mix(  mix(dmix(hash31(i+vec3(0,0,0)),hash31(i+vec3(1,0,0)),df.x),
+                    dmix(hash31(i+vec3(0,1,0)),hash31(i+vec3(1,1,0)),df.x), f.y), 
+                mix(dmix(hash31(i+vec3(0,0,1)),hash31(i+vec3(1,0,1)),df.x),
+                    dmix(hash31(i+vec3(0,1,1)),hash31(i+vec3(1,1,1)),df.x), f.y), f.z);
+    g.y = mix( dmix( mix(hash31(i+vec3(0,0,0)),hash31(i+vec3(1,0,0)),f.x),
+                     mix(hash31(i+vec3(0,1,0)),hash31(i+vec3(1,1,0)),f.x), df.y), 
+               dmix( mix(hash31(i+vec3(0,0,1)),hash31(i+vec3(1,0,1)),f.x),
+                     mix(hash31(i+vec3(0,1,1)),hash31(i+vec3(1,1,1)),f.x), df.y), f.z);
+    g.z = dmix( mix( mix(hash31(i+vec3(0,0,0)),hash31(i+vec3(1,0,0)),f.x),
+                     mix(hash31(i+vec3(0,1,0)),hash31(i+vec3(1,1,0)),f.x), f.y), 
+                mix( mix(hash31(i+vec3(0,0,1)),hash31(i+vec3(1,0,1)),f.x),
+                     mix(hash31(i+vec3(0,1,1)),hash31(i+vec3(1,1,1)),f.x), f.y), df.z);
+	return 2.*g; // <><><>only MOD=1 <><><>
+}
+
+/*
+on factor;
+f := (cos(k1*x + k2*y + k3*z) + cos(k4*x + k5*y + k6*z) + cos(k7*x + k8*y + k9*z) + cos(k10*x + k11*y + k12*z))*0.125 + 0.5;
+*/
+float fbm3(vec3 p) {
+    p *= 0.5;
+    float k1 = 7.0, k2 = 2.0, k3 = 3.0, k4 = 3.0, k5=-4.0, k6 = 3.0, k7 = 6.0, k8 = 10.0, k9=5.0, k10=-15.0, k11=5.0, k12=4.0;
+    float x = p.x, y = p.y, z = p.z;
+    return (cos(k1*x + k2*y + k3*z) + cos(k4*x + k5*y + k6*z) + cos(k7*x + k8*y + k9*z) + cos(k10*x + k11*y + k12*z))*0.125 + 0.25;
+    
+    float v = 0.,  a = .5;
+    mat2 R = rot(.37);
+
+    for (int i = 0; i < 1; i++)  {
+        p.xy *= R, p.yz *= R,
+        v += a * noise3(p);
+        
+        p*=2.;
+        a/=2.;
+    }
+    return v/.75;
+}
+
+vec3 dfbm3(vec3 p) {  // --- grad(fbm) 
+    p *= 0.5;
+    float k1 = 7.0, k2 = 2.0, k3 = 3.0, k4 = 3.0, k5=-4.0, k6 = 3.0, k7 = 6.0, k8 = 10.0, k9=5.0, k10=-15.0, k11=5.0, k12=4.0;
+    float x = p.x, y = p.y, z = p.z;
+    
+    float dx = ((((sin(k8*y+k9*z+k7*x)+4.0*k7*x)*k4+sin(k5*y+k6*z+k4*x)*k7)*k1+
+             sin(k2*y+k3*z+k1*x)*k4*k7)*k10+sin(k11*y+k12*z+k10*x)*k1*k4*k7)/(8.0*k1*k10*k4*k7);
+
+    float dy = ((((sin(k8*y+k9*z+k7*x)+4.0*k8*y)*k5+sin(k5*y+k6*z+k4*x)*k8)
+               *k2+sin(k2*y+k3*z+k1*x)*k5*k8)*k11+sin(k11*y+k12*z+k10*x)*k2*k5*k8)/(8.0*k11*k2*k5*k8);
+
+                  
+    float dz = ((((sin(k8*y+k9*z+k7*x)+4.0*k9*z)*k6+sin(k5*y+k6*z+k4*x)*k9)*k3
+               +sin(k2*y+k3*z+k1*x)*k6*k9)*k12+sin(k11*y+k12*z+k10*x)*k3*k6*k9)/(8.0*k12*k3*k6*k9);
+
+
+    return vec3(dx, dy, dz);
+    
+    vec3 g = vec3(0),dn;
+    mat2 R = rot(.37);
+    mat3 R3 = mat3(R[0],0, R[1],0, 0,0,1) * mat3(1,0,0, 0,R[0], 0,R[1]),
+         R3t = R3;
+
+    for (int i = 0; i < 1; i++)  {
+        p *= R3, //p.xy *= R, p.yz *= R,
+        dn = dnoise3(p),
+        dn = R3t * dn, // dn.xy = R * dn.xy,dn.yz = R * dn.yz, 
+        g += dn;
+        
+        p*=2.;
+        R3t*=R3;
+    }
+    return .5*g/.75;
+}
+// -------------------------------------
+
+vec4 shader( float ix, float iy)
+{
+    vec2 U = vec2(ix, iy);
+    
+    vec4 O = vec4(0.0, 0.0, 0.0, 1.0);
+    vec2 R = iRes.xy, V,V0=vec2(1e9),_V,P;
+    
+    U = ( U+U - R ) / R.y;
+    O -= O;
+    
+#if 0                                  // --- test grad(noise)
+    U *= 2.;
+    O += .5 + 1.*fbm3(vec3(U, 0));
+    vec3 g = .5*dfbm3(vec3(U, 0));
+    //g.xy = .5* vec2(dFdx(O.x),dFdy(O.y))/(4./R.y); // validation: compare to HW gradient
+    O.r = length(g.xy); 
+    O.w = 1.0;
+    //O.xyz = g.xyz;
+    //return vec4(abs(g), 1.0);
+    //O.r = O.g = O.b = abs(g.z);
+    //float v = sin(30.*O.g) ; 
+    //O = clamp(O,0.,1.) + smoothstep(1.5,0.,abs(v)/fwidth(v));
+    return O;
+#endif   
+    
+    float a=1.,d, t = 1800.*T, K=1.5, S=2.;
+    
+    mat2 I = mat2(1,0, 0,1);    
+#define  F(U) U + K* pow(max(1.-length(U),0.), 3.0) * vec2(  fbm3(vec3(S*U, t)),  fbm3(vec3(S*U+15., t)) )/S
+#define dF(U) I + K* max(1.-length(U),0.) * mat2( dfbm3(vec3(S*U, t)), dfbm3(vec3(S*U+15., t)) )
+         // NB: dF is approximate: assumes (1.-length(U)) is slow  
+
+    //U = F(U);
+    float ufac = clamp(1.0 - length(U), 0.0, 1.0);
+    const int N=2;                        // NxN loop: in case of folds
+    for (int i=0; i<2; i++) {           //    solution is not unique 
+        V = U + .1*vec2(mod(float(i), float(N))-float(N)*0.5, float(i)/float(N)-float(N)*0.5); //    -> try different starts around.
+        for (int k=0; k< 25; k++) {        // Newton solving of U = F(V) for V
+            // if(abs(determinant(dF(V)))<.01) return;  // local extrema !
+            // d = abs(determinant(dF(V))); a = d>.1 ? 1. : 1.*d; 
+            // if (k>1) P = -.01*( F(V) - U )/ (F(V)-(F(_V))), V += P*(V-_V); else // secant
+            mat2 dmat = dF(V); //inverse(dF(V));
+            vec2 ff = F(V);
+            
+            vec2 f = ((ff - pow(abs(U), vec2(1.0))*sign(U)) * a) / (dot(dmat[0], dmat[0]) + dot(dmat[1], dmat[1]));
+            
+            V -= 0.5*f*dmat[0];
+            V -= 0.5*f*dmat[1];
+            
+            //V -= 0.5*( F(V) - U ) * a * dmat;
+            _V = V;
+        }
+        
+        if (true) { //length(V-V0)>.01 && length(F(V)-U) < .1 ) { // if converged (and new)
+                P = sin(260.*V); P = smoothstep(1.5,0.,abs(P)/0.5); // draw grid
+                O += P.x*P.y*1.5;           // * if you want points 
+                //if (abs(V.x)<.03) O.r +=P.x; else O += P.x; // draw red/green axes
+                //if (abs(V.y)<.03) O.g +=P.y; else O += P.y;
+        };
+        
+        V0 = V;
+    }
+    
+    O.w = 1.0;
+    return O;
+}
+</script>
+<script type="application/javascript">
+'use strict';
+
+require.config({
+  baseUrl : "./js/"
+});
+var SLIDER_NAMES = [
+  "seed", "detail", "filter", "gain", "color", "mix"
+];
+
+var SLIDERS;
+
+window.T = 0;
+
+SLIDERS = [0.234, 0.5, 0.1, 1, 1];
+SLIDERS=[0.2511428571428571, 0.5, 1.6971428571428566,2.639999999999999,1];
+SLIDERS = [0.234, 0.5, 0.1, 1, 1];
+SLIDERS=[1.6654285714285686,0.5,1.4442857142857144,2.2157142857142853,1.0328571428571425];
+SLIDERS=[1.2111428571428542,0.5,-0.15571428571428572,0.1,1, 0.001];
+SLIDERS=[1.2597142857142833,0.5,2.4142857142857093,1.1171428571428585,2.5742857142857147,0.001];
+
+SLIDERS=[-1.2717142857142902,0.5,4.7199999999999935,1.0685714285714305,6.565714285714276,7.170999999999998];
+SLIDERS=[-1.1817142857142935,0.5,4.5842857142857065,0.7357142857142854,8.87857142857143,9.732428571428569];
+//SLIDERS=[-1.1817142857142935,0.5,4.5842857142857065,0.7357142857142854,3.5,9.319571428571427];
+
+//SLIDERS=[-1.1817142857142935,0.5,0.1,0.7357142857142854,0.11285714285714109,7.909571428571425];
+SLIDERS=[-1.2474285714285787,0.5,1.6628571428571428,3.5128571428571416,0.33857142857142625,7.991];
+SLIDERS[0] = 1.234
+SLIDERS=[-1.9631428571428569,0.5,1.6628571428571428,3.5128571428571416,0.33857142857142625,7.991];
+SLIDERS=[-1.9631428571428569,0.5,0.955714285714286,3.5128571428571416,0.33857142857142625,7.991];
+SLIDERS=[-1.948857142857143,0.5,0.955714285714286,0.4528571428571403,1.5214285714285691,12.135285714285724];
+SLIDERS=[-1.3074285714285728,0.5,0.955714285714286,1.22528571428571403,0.647142857142858,12.135285714285724];
+
+SLIDERS=[1.2566370614359172,0.5,0.955714285714286,1.225285714285714,1.41857142857143,15.56528571428572/10];
+SLIDERS=[3.915208490007334,0.5,0.955714285714286,1.225285714285714,1.41857142857143,15.56528571428572/10];
+SLIDERS=[1.0,0.5,0.955714285714286,1.225285714285714,1.41857142857143,1.6779571428571414];
+
+var continued_fract_tmp = new Array(1024);
+function cfract_intern(n, max_steps) {
+  var floor = Math.floor;
+  max_steps = max_steps == undefined ? 1024 : max_steps;
+  
+  var list = continued_fract_tmp;
+  
+  for (var i=0; i<max_steps; i++) {
+    var f = floor(n)
+    list[i] = f;
+    
+    n -= f;
+    
+    if (f == 0) 
+      break;
+      
+    n = 1.0 / n
+  }
+  
+  var len = i;
+  
+  var f = 1;
+  for (var i=len-1; i >= 0; i--) {
+    f = list[i] + 1/f;
+  }
+  
+  return f;
+}
+
+function cfract(f, max) {
+    let sign = Math.sign(f);
+    
+    f = Math.abs(f);
+    
+    if (f < 1.0) {
+        f = cfract_intern(f+1.0, max) - 1.0;
+    } else {
+        f = cfract_intern(f, max);
+    }
+    
+    if (max == 1) {
+        f -= 1;
+    }
+    
+    return f*sign;
+}
+
+require(["util", "webgl", "sliders"], function(util, webgl, sliders) {
+  var Render = util.Class([
+    function constructor() {
+      this.buffer = new webgl.RenderBuffer();
+      this.regen = 1;
+    },
+    
+    function regen_buffers(gl) {
+      this.regen = 0;
+      var mesh = [
+        0, 0,   0, 1,   1, 1,
+        0, 0,   1, 1,   1, 0
+      ];
+      
+      var vbuf = this.vbuf = this.buffer.get(gl, "vertex")
+      
+      gl.bindBuffer(gl.ARRAY_BUFFER, vbuf);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(mesh), gl.STATIC_DRAW);
+   },
+    
+    function draw(gl) {
+      if (this.regen) {
+        this.regen_buffers(gl);
+        this.compile_shader(gl);
+      }
+      
+      var vbuf = this.vbuf;
+      var shader = this.shader;
+      
+      gl.enableVertexAttribArray(0);
+      gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+      
+      gl.disable(gl.DEPTH_TEST);
+      gl.disable(gl.DITHER);
+      
+      gl.viewport(0, 0, canvas.width, canvas.height);
+      
+      shader.bind(gl, {
+        iRes    : [canvas.width, canvas.height],
+        aspect  : canvas.height / canvas.width
+      });
+      
+      gl.uniform1f(shader.uniformloc("T"), window.T);
+      
+      let SLIDERS2 = SLIDERS.clone();
+      //SLIDERS2[0] = cfract(SLIDERS2[0], Math.max(Math.ceil(SLIDERS2[1]*10.0), 1));
+      
+      for (var i=0; i<SLIDERS2.length; i++) {
+        gl.uniform1f(shader.uniformloc("SLIDERS["+i+"]"), SLIDERS2[i]);
+      }
+      
+      gl.drawArrays(gl.TRIANGLES, 0, 6);
+    },
+    
+    function compile_shader(gl) {
+      var code = document.getElementById("fragment").text;
+      
+      var vshader = [
+        "//vertex",
+        "precision mediump float;",
+        "attribute vec2 co;",
+        "varying vec2 vCo;",
+        
+        "void main() {",
+        "  gl_Position = vec4((co-0.5)*2.0, 0.0, 1.0);",
+        "  vCo = co;",
+        "}"
+      ].join("\n");
+      
+      var fshader = [
+        "//fragment",
+        "precision mediump float;",
+        code,
+        "varying vec2 vCo;",
+        "void main() {",
+        "  vec2 p = vCo * iRes.xy;",
+        "  gl_FragColor = shader(p[0], p[1]);",
+        "}"
+      ].join("\n");
+      
+      var shader = new webgl.ShaderProgram(gl, vshader, fshader, ["co"]);
+      this.shader = shader;
+    }
+  ]);
+
+  var AppState = util.Class([
+    function constructor(gl, canvas, g, canvas2d) {
+      this.gl = gl; //3d api
+      this.g = g;   //2d api
+      
+      this.canvas2d = canvas2d;
+      this.canvas = canvas;
+      this.render = new Render();
+      
+      this.sliders = new sliders.SliderManager(50, 50, 25, 
+                                               window.innerHeight-150, SLIDERS, SLIDER_NAMES);
+      this.sliders.bind_events();
+    },
+    
+    function draw() {
+      this.render.draw(this.gl);
+      
+      this.g.clearRect(0, 0, this.canvas2d.width, this.canvas2d.height);
+      this.sliders.draw(this.canvas2d, this.g);
+      
+      window.T += 0.0001;
+      redraw_all();
+    }
+  ]);
+  
+  function start() {
+    console.log("init!");
+    
+    var canvas = document.getElementById("canvas");
+    var canvas2d = document.getElementById("canvas2d");
+    
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    
+    canvas2d.width = window.innerWidth;
+    canvas2d.height = window.innerHeight;
+    var g = canvas2d.getContext("2d");
+    
+    var gl = webgl.init_webgl(canvas, {});
+    gl.clearColor(0.2, 0.4, 0.9, 1.0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    
+    window._appstate = new AppState(gl, canvas, g, canvas2d);
+    
+    var animreq = undefined;
+    function do_draw() {
+      animreq = undefined;
+      _appstate.draw();
+    }
+    
+    window.redraw_all = function() {
+      if (animreq == undefined) {
+        animreq = requestAnimationFrame(do_draw);
+      }
+    }
+    
+    redraw_all();
+  }
+  
+  start();
+});
+
+</script>
+<style>
+#canvas {
+  position : absolute;
+  z-index  : 0;
+}
+
+#canvas2d {
+  position : absolute;
+  z-index  : 1;
+}
+</style>
+</head>
+<body>
+<canvas id="canvas">
+</canvas>
+<canvas id="canvas2d">
+</canvas>
+</body>
+</html>
