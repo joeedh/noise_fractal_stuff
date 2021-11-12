@@ -7,7 +7,7 @@ var _ui = undefined;
 
 define([
   'util', 'dat.gui', 'vectormath', 'linear_algebra'
-], function ui(util, dat1, vectormath, linear_algebra) {
+], function ui(util, dat, vectormath, linear_algebra) {
   'use strict';
 
   var exports = _ui = {};
@@ -44,7 +44,7 @@ define([
       throw new Error("Bad call to binomial(n, i), i was > than n");
     }
 
-    if (i == 0 || i == n) {
+    if (i === 0 || i === n) {
       return 1;
     }
 
@@ -464,7 +464,7 @@ define([
       this.eidgen = util.IDGen.fromJSON(obj.eidgen);
       this.recalc = 1;
 
-      if (obj.deg != undefined)
+      if (obj.deg !== undefined)
         this.deg = obj.deg;
 
       for (var i = 0; i < obj.points.length; i++) {
@@ -774,8 +774,8 @@ define([
     }
   };
 
-  var CurveWidget = exports.CurveWidget = Class([
-    function constructor(bind_obj, setting_id, trigger_redraw) {
+  var CurveWidget = exports.CurveWidget = class CurveWidget {
+    constructor(bind_obj, setting_id, trigger_redraw) {
       this.curve = new Curve(this);
       this.setting_id = setting_id;
       this.bind_obj = bind_obj;
@@ -791,15 +791,32 @@ define([
       this.domparent = undefined;
       this.canvas = undefined;
       this.g = undefined;
-    },
+    }
 
-    function save() {
+    get closed() {
+      return this._closed;
+    }
+
+    set closed(val) {
+      //this.canvas.style["visibility"] = val ? "collapse" : "visible"
+      if (val && !this._closed) {
+        this.canvas.remove();
+        this.button.remove();
+      } else if (!val && this._closed) {
+        this.domparent.appendChild(this.canvas);
+        this.domparent.appendChild(this.button);
+      }
+
+      this._closed = val;
+    }
+
+    save() {
       localStorage[this.setting_id] = JSON.stringify(this.curve);
       this.bind_obj[this.setting_id.toUpperCase()] = this.curve;
-    },
+    }
 
     //default_preset is optional, undefined
-    function load(default_preset) {
+    load(default_preset) {
       if (this.setting_id in localStorage) {
         this.curve.loadJSON(JSON.parse(localStorage[this.setting_id]));
       } else if (default_preset != undefined) {
@@ -808,9 +825,9 @@ define([
 
       this.curve.update();
       this.bind_obj[this.setting_id.toUpperCase()] = this.curve;
-    },
+    }
 
-    function on_mousedown(e) {
+    on_mousedown(e) {
       console.log("canvas mdown");
 
       this.start_mpos.load(this.transform_mpos(e.x, e.y));
@@ -841,9 +858,9 @@ define([
 
         this
       }
-    },
+    }
 
-    function do_highlight(x, y) {
+    do_highlight(x, y) {
       var trans = this.draw_transform();
       var mindis = 1e17, minp = undefined;
       var limit = 19/trans[0], limitsqr = limit*limit;
@@ -863,9 +880,9 @@ define([
         this.draw();
       }
       //console.log(x, y, minp);
-    },
+    }
 
-    function do_transform(x, y) {
+    do_transform(x, y) {
       var off = new Vector2([x, y]).sub(this.start_mpos);
       this.curve.recalc = 1;
 
@@ -879,9 +896,9 @@ define([
 
       this.curve.update();
       this.draw();
-    },
+    }
 
-    function transform_mpos(x, y) {
+    transform_mpos(x, y) {
       var r = this.canvas.getClientRects()[0];
 
       x -= parseInt(r.left);
@@ -893,9 +910,9 @@ define([
       y = -y/trans[0] - trans[1][1];
 
       return [x, y];
-    },
+    }
 
-    function on_mousemove(e) {
+    on_mousemove(e) {
       var mpos = this.transform_mpos(e.x, e.y);
       var x = mpos[0], y = mpos[1];
 
@@ -909,13 +926,13 @@ define([
       } else {
         this.do_highlight(x, y);
       }
-    },
+    }
 
-    function on_mouseup(e) {
+    on_mouseup(e) {
       this.transforming = false;
-    },
+    }
 
-    function on_keydown(e) {
+    on_keydown(e) {
       console.log(e.keyCode);
 
       switch (e.keyCode) {
@@ -939,9 +956,9 @@ define([
           }
           break;
       }
-    },
+    }
 
-    function bind(dom) {
+    bind(dom) {
       this.canvas = document.createElement("canvas");
       this.canvas.width = 200;
       this.canvas.height = 200;
@@ -949,7 +966,7 @@ define([
 
       this.domparent = dom;
 
-      this.canvas.addEventListener("mousedown", this.on_mousedown.bind(this));
+      this.canvas.addEventListener("mousedown", this.on_mousedown.bind(this), {capture: true});
       this.canvas.addEventListener("mousemove", this.on_mousemove.bind(this));
       this.canvas.addEventListener("mouseup", this.on_mouseup.bind(this));
       this.canvas.addEventListener("keydown", this.on_keydown.bind(this));
@@ -986,9 +1003,9 @@ define([
           redraw_all();
         }
       });
-    },
+    }
 
-    function draw_transform(g) {
+    draw_transform(g) {
       var sz = Math.min(this.canvas.width, this.canvas.height);
       sz *= 0.8;
 
@@ -1001,26 +1018,9 @@ define([
       }
 
       return [sz, pan];
-    },
+    }
 
-    Class.getter(function closed() {
-      return this._closed;
-    }),
-
-    Class.setter(function closed(val) {
-      //this.canvas.style["visibility"] = val ? "collapse" : "visible"
-      if (val && !this._closed) {
-        this.canvas.remove();
-        this.button.remove();
-      } else if (!val && this._closed) {
-        this.domparent.appendChild(this.canvas);
-        this.domparent.appendChild(this.button);
-      }
-
-      this._closed = val;
-    }),
-
-    function draw() {
+    draw() {
       var g = this.g;
       var w = this.canvas.width, h = this.canvas.height;
 
@@ -1044,7 +1044,7 @@ define([
 
         //var xy = this.curve._evaluate2(f);
         //(i==0 ? g.moveTo : g.lineTo).call(g, xy[0], xy[1], w, w);
-        (i == 0 ? g.moveTo : g.lineTo).call(g, f, val, w, w);
+        (i === 0 ? g.moveTo : g.lineTo).call(g, f, val, w, w);
       }
 
       g.strokeStyle = "grey";
@@ -1071,12 +1071,12 @@ define([
             var val = this.curve.basis(f, si);
 
             if (ssi)
-              val /= (totbasis == 0 ? 1 : totbasis);
+              val /= (totbasis === 0 ? 1 : totbasis);
 
-            (i == 0 ? g.moveTo : g.lineTo).call(g, f, ssi ? val : val*0.5, w, w);
+            (i === 0 ? g.moveTo : g.lineTo).call(g, f, ssi ? val : val*0.5, w, w);
           }
 
-          var color, alpha = this.curve[si] === this.curve.highlight ? 1.0 : 0.3;
+          let color, alpha = this.curve[si] === this.curve.highlight ? 1.0 : 0.3;
 
           if (ssi) {
             color = "rgba(105, 25, 5," + alpha + ")";
@@ -1097,7 +1097,7 @@ define([
         g.beginPath();
 
         g.fillStyle = "orange";
-        if (p == this.curve.highlight) {
+        if (p === this.curve.highlight) {
           g.fillStyle = "green";
         } else if (p.flag & CurveFlags.SELECT) {
           g.fillStyle = "red";
@@ -1111,14 +1111,16 @@ define([
       g.stroke();
       g.restore();
     }
-  ]);
+  };
 
   var destroy_all_settings = exports.destroy_all_settings = function destroy_all_settings() {
     delete localStorage.startup_file_bn9;
   }
 
   var save_setting = exports.save_setting = function save_setting(key, val) {
-    window._appstate.save();
+    if (window._appstate) {
+      window._appstate.save();
+    }
   }
 
   var load_setting = exports.load_setting = function load_setting(key) {
@@ -1130,19 +1132,763 @@ define([
       return;
     }
 
-    if (window._appstate == undefined) return;
+    if (window._appstate === undefined) return;
     window._appstate.on_tick();
 
     last_update = util.time_ms();
   }, 200);
 
+  const GradFlags = exports.GradFlags = {
+    SELECT: 1
+  };
+
+  const GradTypes = exports.GradTypes = {
+    CONSTANT: 0,
+    LINEAR  : 1,
+    SMOOTH  : 2
+  };
+
+  let GradPoint = exports.GradPoint = class GradPoint {
+    constructor(color, t) {
+      this.color = [0, 0, 0, 1];
+      this.t = t !== undefined ? t : 0.0;
+      this.flag = 0;
+      this.type = GradTypes.SMOOTH;
+      this.id = -1;
+
+      if (color) {
+        this.color[0] = color[0];
+        this.color[1] = color[1];
+        this.color[2] = color[2];
+        this.color[3] = color[3];
+      }
+    }
+
+    toJSON() {
+      return {
+        color: this.color,
+        t    : this.t,
+        flag : this.flag,
+        type : this.type,
+        id   : this.id
+      }
+    }
+
+    loadJSON(json) {
+      this.color = json.color;
+      this.t = json.t;
+      this.type = json.type;
+      this.flag = json.flag;
+      this.id = json.id;
+
+      return this;
+    }
+  }
+
+  let grets = new util.cachering(() => [0, 0, 0, 0], 512);
+
+  let Gradient = exports.Gradient = class Gradient extends Array {
+    constructor() {
+      super();
+
+      this.cyclic = true;
+
+      this.brightness = 0.0;
+      this.contrast = 1.0;
+      this.postBrightness = 0.0;
+      this.postContrast = 1.0;
+
+      this.active = undefined;
+      this.highlight = undefined;
+      this.idgen = 1;
+
+      this.tableSteps = 255;
+      this.tables = undefined;
+
+      this.regen = 0;
+
+      this.idMap = new Map();
+
+      this.addStop([0, 0, 0, 1], 0.0);
+      this.addStop([1, 1, 1, 1], 1.0);
+    }
+
+    getTables() {
+      if (!this.tables || this.regen) {
+        let steps = this.tableSteps;
+
+        this.tables = [new Array(steps), new Array(steps), new Array(steps), new Array(steps)];
+
+        let t = 0, dt = 1.0/(steps - 1);
+        for (let i = 0; i < steps; i++, t += dt) {
+          let color = this.evaluate(t);
+
+          for (let j = 0; j < 4; j++) {
+            this.tables[j][i] = color[j];
+          }
+        }
+
+        this.regen = 0;
+      }
+
+      return this.tables;
+    }
+
+    removeStop(gp) {
+      this.idMap.delete(gp.id);
+      gp.id = -1;
+      this.regen = 1;
+
+      this.remove(gp);
+    }
+
+    addStop(color, t, setActive = false) {
+      let gp = new GradPoint(color, t);
+
+      gp.id = this.idgen++;
+      this.idMap.set(gp.id, gp);
+
+      this.push(gp);
+      this.resort();
+      this.regen = 1;
+
+      if (setActive) {
+        this.active = gp;
+      }
+
+      return gp;
+    }
+
+    resort() {
+      this.sort((a, b) => a.t - b.t);
+    }
+
+    toJSON() {
+      let stops = [];
+      for (let gp of this) {
+        stops.push(gp);
+      }
+
+      return {
+        stops,
+        brightness    : this.brightness,
+        contrast      : this.contrast,
+        postBrightness: this.postBrightness,
+        postContrast  : this.postContrast,
+        active        : this.active ? this.active.id : -1,
+        highlight     : this.highlight ? this.highlight.id : -1,
+        version       : 0.1
+      }
+    }
+
+    loadJSON(json) {
+      this.length = 0;
+
+      for (let jp of json.stops) {
+        let gp = new GradPoint();
+
+        gp.loadJSON(jp);
+
+        this.idMap.set(gp.id, gp);
+
+        this.push(gp);
+      }
+
+      this.brightness = json.brightness;// ?? 0.0;
+      this.contrast = json.contrast;// ?? 1.0;
+      this.postBrightness = json.postBrightness ?? 0.0;
+      this.postContrast = json.postContrast ?? 1.0;
+
+      this.highlight = this.idMap.get(this.highlight);
+      this.active = this.idMap.get(this.active);
+
+      return this;
+    }
+
+    evaluate(t, no_b_c) {
+      if (!no_b_c) {
+        //t = (t + this.brightness)*this.contrast;
+        t = t*this.contrast + this.brightness;
+      }
+
+      if (!this.cyclic) {
+        t = Math.min(Math.max(t, 0.0), 1.0);
+      } else {
+        t = Math.tent(t*0.5);
+      }
+      let gp1 = this[0];
+      let gp2 = this[1];
+
+      for (let i = 0; i < this.length; i++) {
+        gp2 = this[i];
+
+        if (this[i].t >= t) {
+          break;
+        }
+
+        gp1 = this[i];
+      }
+
+      if (t < gp1.t) {
+        return gp1.color;
+      }
+
+      if (t >= gp2.t) {
+        return gp2.color;
+      }
+
+      let s = (t - gp1.t)/(gp2.t - gp1.t);
+      let c = grets.next();
+
+      for (let i = 0; i < 4; i++) {
+        c[i] = gp1.color[i] + (gp2.color[i] - gp1.color[i])*s;
+        if (!no_b_c) {
+          c[i] = (c[i] + this.postBrightness)*this.postContrast;
+        }
+      }
+
+      return c;
+    }
+  }
+
+  let GradientWidget = exports.GradientWidget = class GradientWidget {
+    constructor(bind_obj, id, dat) {
+      this.dat = dat;
+      this.id = id;
+      this.bind_obj = bind_obj;
+      this.canvas = undefined;
+      this.g = undefined;
+      this.gradient = new Gradient();
+
+      this.mdown = false;
+      this.transforming = false;
+      this.transdata = undefined;
+      this.mpos = [0, 0];
+
+      this.gcanvas = document.createElement("canvas");
+      this.gcanvas.width = 255;
+      this.gcanvas.height = 1;
+      this.gimg = new ImageData(this.gcanvas.width, this.gcanvas.height);
+      this.gcanvas.g = this.gcanvas.getContext("2d");
+
+      this.lastT = 0.5;
+
+      this.__color = [0, 0, 0, 0];
+
+      this._animreq = undefined;
+      this.onchange = null;
+    }
+
+    get _color() {
+      let c = this.__color;
+      let gp = this.gradient.active;
+
+      if (!gp) {
+        c[0] = c[1] = c[2] = c[3] = 0.0;
+        return c;
+      }
+
+      c[0] = gp.color[0]*255;
+      c[1] = gp.color[1]*255;
+      c[2] = gp.color[2]*255;
+      c[3] = gp.color[3];
+
+      return c;
+    }
+
+    set _color(v) {
+      let c = this.__color;
+      let gp = this.gradient.active;
+
+      if (!gp) {
+        return;
+      }
+
+      gp.color[0] = v[0]/255.0;
+      gp.color[1] = v[1]/255.0;
+      gp.color[2] = v[2]/255.0;
+      gp.color[3] = v[3];
+
+      this.bind_obj[this.id] = this.gradient;
+
+      this.redraw();
+    }
+
+    get brightness() {
+      return this.gradient.brightness;
+    }
+
+    set brightness(v) {
+      this.gradient.brightness = v;
+    }
+
+    get contrast() {
+      return this.gradient.contrast;
+    }
+
+    set contrast(v) {
+      this.gradient.contrast = v;
+    }
+
+    get brightness2() {
+      return this.gradient.postBrightness;
+    }
+
+    set brightness2(v) {
+      this.gradient.postBrightness = v;
+    }
+
+    get contrast2() {
+      return this.gradient.postContrast;
+    }
+
+    set contrast2(v) {
+      this.gradient.postContrast = v;
+    }
+
+    get cyclic() {
+      return !!this.gradient.cyclic;
+    }
+
+    set cyclic(v) {
+      this.gradient.cyclic = !!v;
+    }
+
+    start() {
+      let canvas = this.canvas = document.createElement("canvas");
+      console.error(this.dat);
+
+      var l = this.dat.add({bleh: "name"}, "bleh");
+      var parent = l.domElement.parentElement.parentElement.parentElement;
+
+      //parent["class"] = parent.style["class"] = "closed";
+      l.domElement.parentElement.remove();
+
+      let g = this.g = canvas.getContext("2d");
+
+      this.updateCanvasSize();
+      this.draw();
+
+      parent.appendChild(canvas);
+
+      this.dat.addColor(this, "_color")
+        .name("Color")
+        .onChange(() => {
+          this.gradient.regen = 1;
+          this.save();
+        })
+        .listen();
+
+      this.dat.add(this, "brightness")
+        .min(-0.5)
+        .max(1.5)
+        .onChange(() => {
+          this.gradient.regen = 1;
+          this.save();
+        })
+        .listen();
+
+      this.dat.add(this, "contrast")
+        .min(0.0001)
+        .max(55.0)
+        .onChange(() => {
+          this.gradient.regen = 1;
+          this.save();
+        })
+        .listen();
+
+      this.dat.add({
+        cb: () => {
+          console.log("click")
+          let t = this.lastT;
+
+          this.gradient.addStop(this.gradient.evaluate(t, false), t, true);
+          this.redraw();
+          this.save();
+
+          if (this.onchange) {
+            this.onchange();
+          }
+        }
+      }, "cb").name("Add");
+
+      this.dat.add({
+        cb: () => {
+          console.log("click")
+          let t = this.lastT;
+
+          if (this.gradient.active) {
+            this.gradient.removeStop(this.gradient.active);
+          }
+
+          this.redraw();
+          this.save();
+
+          if (this.onchange) {
+            this.onchange();
+          }
+        }
+      }, "cb").name("X");
+
+      this.dat.add(this, "cyclic")
+        .onChange(() => {
+          this.gradient.regen = 1;
+          this.save();
+        })
+        .listen();
+
+      this.dat.add(this, "brightness2")
+        .min(-0.5)
+        .max(1.5)
+        .onChange(() => {
+          this.gradient.regen = 1;
+          this.save();
+        })
+        .listen();
+
+      this.dat.add(this, "contrast2")
+        .min(0.0001)
+        .max(3.0)
+        .onChange(() => {
+          this.gradient.regen = 1;
+          this.save();
+        })
+        .listen();
+
+
+      this.startEvents();
+    }
+
+    save() {
+      this.bind_obj[this.id] = this.gradient;
+      save_setting(this.id, this.gradient);
+
+      console.log("save gradient");
+
+      return this;
+    }
+
+    load() {
+      this.gradient = this.bind_obj[this.id];
+
+      if (!this.gradient) {
+        this.gradient = this.bind_obj[this.id] = new Gradient();
+      } else if (!(this.gradient instanceof Gradient)) {
+        this.gradient = this.bind_obj[this.id] = new Gradient().loadJSON(this.gradient);
+      }
+
+      this.gradient.regen = 1;
+      this.redraw();
+
+      if (this.onchange) {
+        this.onchange();
+      }
+
+      return this;
+    }
+
+    redraw() {
+      if (this._animreq !== undefined) {
+        return;
+      }
+
+      this._animreq = requestAnimationFrame(() => {
+        this._animreq = undefined;
+        this.draw();
+      });
+    }
+
+    draw() {
+      let g = this.g, canvas = this.canvas;
+
+      g.clearRect(0, 0, canvas.width, canvas.height);
+
+      let cellsize = 10;
+      let steps = Math.ceil(canvas.width/cellsize);
+      let x = 0, y = 0;
+
+      let rows = Math.ceil(canvas.height/cellsize);
+
+      for (let row = 0; row < rows; row++) {
+        for (let step = 0; step < 2; step++) {
+          g.beginPath();
+
+          x = 0;
+          g.fillStyle = step ? "rgb(200,200,200)" : "white";
+
+          for (let i = 0; i < steps; i++) {
+            if ((i + row)%2 === step) {
+              g.rect(x, y, cellsize, cellsize);
+            }
+
+            x += cellsize;
+          }
+          g.fill();
+        }
+        y += cellsize;
+      }
+
+      let gg = this.gcanvas.g;
+      let gw = this.gcanvas.width;
+      let idata = this.gimg.data;
+
+      for (let i = 0; i < gw; i++) {
+        let t = i/(gw - 1);
+
+        let c = this.gradient.evaluate(t, true);
+
+        idata[i*4 + 0] = c[0]*255;
+        idata[i*4 + 1] = c[1]*255;
+        idata[i*4 + 2] = c[2]*255;
+        idata[i*4 + 3] = c[3]*255;
+      }
+
+      gg.putImageData(this.gimg, 0, 0);
+      g.save();
+
+      g.drawImage(this.gcanvas, 0, 0, this.gcanvas.width, this.gcanvas.height, 0, 0, this.canvas.width, this.canvas.height);
+      g.restore();
+
+      let r = 3;
+
+      let pad = r;
+
+      for (let gp of this.gradient) {
+        //let x = gp.t * (this.canvas.width - pad*2.0) - r*0.5;
+        //x += pad;
+        let x = this.t2x(gp.t);
+
+        g.beginPath();
+
+        if (gp === this.gradient.active) {
+          g.fillStyle = "rgba(255, 255, 255, 1.0)";
+        } else if (gp !== this.gradient.highlight) {
+          g.fillStyle = "rgba(255, 150, 25, 1.0)";
+        } else {
+          g.fillStyle = "rgba(200, 200, 200, 1.0)";
+        }
+        g.rect(x, 0, r*2, this.canvas.height);
+        g.fill();
+      }
+    }
+
+    startEvents() {
+      this.canvas.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        return this.on_mousedown(e);
+      }, {capture : true});
+
+      this.canvas.addEventListener("mousemove", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        return this.on_mousemove(e);
+      });
+
+      this.canvas.addEventListener("mouseup", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        return this.on_mouseup(e);
+      });
+
+      let makeTouchEvent = (e) => {
+        return Object.assign({}, e, {
+          x : e.touches.length > 0 ? e.touches[0].pageX : this.mpos[0],
+          y : e.touches.length > 0 ? e.touches[0].pageY : this.mpos[1],
+          button : e.touches.length === 1 ? 0 : 1
+        })
+      }
+
+      this.canvas.addEventListener("touchstart", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.on_mousedown(makeTouchEvent(e));
+      }, {capture : true})
+
+      this.canvas.addEventListener("touchmove", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.on_mousemove(makeTouchEvent(e));
+      }, {capture : true})
+
+      this.canvas.addEventListener("touchend", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.on_mouseup(makeTouchEvent(e));
+      }, {capture : true})
+
+      this.canvas.addEventListener("touchcancel", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.on_mouseup(makeTouchEvent(e));
+      }, {capture : true})
+    }
+
+    getLocalMouse(x, y) {
+      let r = this.canvas.getBoundingClientRect();
+
+      let dpi = devicePixelRatio;
+
+      x -= r.x;
+      y -= r.y;
+
+      x *= dpi;
+      y *= dpi;
+
+      return [x, y];
+    }
+
+    on_mousedown(e) {
+      let mpos = this.getLocalMouse(e.x, e.y);
+
+      this.mpos[0] = mpos[0];
+      this.mpos[1] = mpos[1];
+
+      let t = this.x2t(mpos[0]);
+      this.lastT = t;
+
+      if (this.gradient.highlight) {
+        this.gradient.active = this.gradient.highlight;
+      } else {
+        this.gradient.active = undefined;
+      }
+
+      this.redraw();
+
+      if (e.button === 0) {
+        this.mdown = true;
+        this.startTransform(mpos);
+      }
+    }
+
+    on_mousemove_transform(e) {
+      let mpos = this.getLocalMouse(e.x, e.y);
+
+      this.mpos[0] = mpos[0];
+      this.mpos[1] = mpos[1];
+
+      //let dx = mpos[0] - this.transdata.start_mpos[0];
+      let start_t = this.x2t(this.transdata.start_mpos[0]);
+      let t = this.x2t(mpos[0]);
+
+      let dt = t - start_t;
+
+      let gp = this.transdata.gp;
+      gp.t = this.transdata.startT;
+
+      gp.t += dt;
+      gp.t = Math.min(Math.max(gp.t, 0.0), 1.0);
+
+      this.gradient.regen = 1;
+      this.gradient.resort();
+
+      this.redraw();
+      this.save();
+
+      this.bind_obj[this.id] = this.gradient;
+
+      if (this.onchange) {
+        this.onchange();
+      }
+    }
+
+    startTransform(mpos) {
+      if (!this.gradient.active) {
+        return;
+      }
+
+      this.transdata = {
+        start_mpos: [mpos[0], mpos[1]],
+        last_mpos : [mpos[0], mpos[1]],
+        gp        : this.gradient.active,
+        startT    : this.gradient.active.t
+      }
+
+      this.transforming = true;
+    }
+
+    on_mousemove(e) {
+      if (this.transforming) {
+        this.on_mousemove_transform(e);
+        return;
+      }
+
+      let mpos = this.getLocalMouse(e.x, e.y);
+
+      if (this.mdown) {
+
+      } else {
+        let t = this.x2t(mpos[0]);
+        let mingp, mindis = 1e17;
+
+        for (let gp of this.gradient) {
+          if (Math.abs(gp.t - t) < mindis) {
+            mindis = Math.abs(gp.t - t);
+            mingp = gp;
+          }
+        }
+
+        let limit = 0.25;
+        if (mindis > limit) {
+          mingp = undefined;
+        }
+
+        if (mingp !== this.gradient.highlight) {
+          console.log(mingp, "t", t);
+          this.gradient.highlight = mingp;
+          this.redraw();
+        }
+      }
+
+      this.mpos[0] = mpos[0];
+      this.mpos[1] = mpos[1];
+    }
+
+    on_mouseup() {
+      this.mdown = false;
+      this.transforming = false;
+      this.transdata = undefined;
+    }
+
+    x2t(x) {
+      let pad = 3;
+      let r = 3;
+
+      x -= pad;
+      x += r*0.5;
+
+      x /= (this.canvas.width - pad*2.0);
+
+      return x;
+    }
+
+    t2x(t) {
+      let pad = 3;
+      let r = 3;
+
+      return t*(this.canvas.width - pad*2.0) - r*0.5 + pad;
+    }
+
+    updateCanvasSize() {
+      let dpi = devicePixelRatio;
+      let w = ~~(240*dpi), h = ~~(50*dpi);
+
+      this.canvas.width = w;
+      this.canvas.height = h;
+
+      this.canvas.style["width"] = (w/dpi) + "px";
+      this.canvas.style["height"] = (h/dpi) + "px";
+    }
+  }
+
   var UI = exports.UI = class UI {
     constructor(bind_obj, dat_obj) {
-      this.dat = dat_obj == undefined ? new dat.GUI() : dat_obj;
+      this.dat = dat_obj === undefined ? new dat.GUI() : dat_obj;
       this.bind_obj = bind_obj;
 
       this.folders = [];
       this.curve_widgets = [];
+      this.gradient_widgets = [];
     }
 
     listen() {
@@ -1150,7 +1896,7 @@ define([
     }
 
     on_tick() {
-      if (this.dat == undefined) {
+      if (this.dat === undefined) {
         console.log("warning, dead ui panel");
         return;
       }
@@ -1166,6 +1912,18 @@ define([
 
         cvw.closed = closed;
       }
+    }
+
+    load() {
+      for (let grad of this.gradient_widgets) {
+        grad.load();
+      }
+
+      for (let f of this.folders) {
+        f.load();
+      }
+
+      return this;
     }
 
     curve(id, name, default_preset, trigger_redraw) {
@@ -1240,24 +1998,24 @@ define([
     check(id, name, is_param) {
       var ret = {};
 
-      var upperid = id.toUpperCase();
+      var id = id.toUpperCase();
 
-      var val = load_setting(upperid);
+      var val = load_setting(id);
       if (val != undefined) {
-        this.bind_obj[upperid] = val;
+        this.bind_obj[id] = val;
       }
 
       var this2 = this;
 
       Object.defineProperty(ret, id, {
         get: function () {
-          return !!this2.bind_obj[upperid];
+          return !!this2.bind_obj[id];
         },
 
         set: function (val) {
-          if (!!this2.bind_obj[upperid] != !!val) {
-            this2.bind_obj[upperid] = val;
-            save_setting(upperid, val);
+          if (!!this2.bind_obj[id] != !!val) {
+            this2.bind_obj[id] = val;
+            save_setting(id, val);
             window.redraw_all();
           }
         }
@@ -1266,29 +2024,99 @@ define([
       return this.dat.add(ret, id).name(name).listen();
     }
 
-    slider(id, name, defval, min, max, step, is_int, do_redraw) {
+    color(id, name, defval, do_redraw = true) {
       var ret = {};
 
-      var upperid = id.toUpperCase();
 
-      var val = load_setting(upperid);
-      if (val != undefined) {
-        this.bind_obj[upperid] = val;
+      var val = load_setting(id);
+      if (val !== undefined) {
+        this.bind_obj[id] = val;
       }
 
       var this2 = this;
       Object.defineProperty(ret, id, {
         get: function () {
-          return Number(this2.bind_obj[upperid]);
+          let c = this2.bind_obj[id];
+          if (!c) {
+            return [0, 0, 0, 1];
+          }
+
+          //make copy
+          c = c.concat([]);
+
+          c[0] *= 255;
+          c[1] *= 255;
+          c[2] *= 255;
+
+          return c;
         },
 
         set: function (val) {
-          if (do_redraw && this2.bind_obj[upperid] != val) {
+          let c = this2.bind_obj[id];
+
+          if (!c) {
+            c = this2.bind_obj[id] = [0, 0, 0, 0];
+          }
+
+          if (do_redraw) {
+            let dr = c[0] - val[0]/255;
+            let dg = c[1] - val[1]/255;
+            let db = c[2] - val[2]/255;
+            let da = c.length > 3 ? c[3] - val[3] : 0.0;
+            da = isNaN(da) ? 1.0 : da;
+
+            if (Math.abs(dr*dr + dg*dg + db*db + da*da) > 0.001) {
+              window.redraw_all();
+            }
+          }
+
+          c[0] = val[0]/255.0;
+          c[1] = val[1]/255.0;
+          c[2] = val[2]/255.0;
+
+          if (c.length > 3 && val.length > 3) {
+            c[3] = val[3];
+          }
+
+          save_setting(id, c);
+        }
+      });
+
+      return this.dat.addColor(ret, id).name(name).listen();
+    }
+
+    gradient(id, name) {
+      let panel = this.dat.addFolder(name);
+      panel.open();
+
+      let grad = new GradientWidget(this.bind_obj, id, panel);
+      grad.start();
+
+      this.gradient_widgets.push(grad);
+      grad.load();
+    }
+
+    slider(id, name, defval, min, max, step, is_int, do_redraw) {
+      var ret = {};
+
+      var val = load_setting(id);
+      if (val !== undefined) {
+        this.bind_obj[id] = val;
+      }
+
+      var this2 = this;
+      Object.defineProperty(ret, id, {
+        get: function () {
+          return Number(this2.bind_obj[id]);
+        },
+
+        set: function (val) {
+          if (do_redraw && this2.bind_obj[id] != val) {
             window.redraw_all();
           }
 
-          this2.bind_obj[upperid] = val;
-          save_setting(upperid, val);
+          this2.bind_obj[id] = val;
+          save_setting(id, val);
         }
       });
 

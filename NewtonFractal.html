@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <html>
 <head><title>WebGL Noise Tester</title>
-<script type="application/javascript" src="js/require.js">
-</script>
-<script type="application/x-fragment-shader" id="fragment">
+  <script type="application/javascript" src="js/require.js">
+  </script>
+  <script type="application/x-fragment-shader" id="fragment">
 uniform vec2 iRes;
 uniform float aspect;
 uniform float SLIDERS[11];
@@ -326,7 +326,7 @@ vec4 shader(float ix, float iy) {
   vec2 uv = vec2(ix, iy) / iRes;
   vec4 color;
   
-#if 1
+#ifdef OLD_GRADIENT
   f = mix(f*1.5, pow(f, 1.0 / SLIDERS[2]), 0.5);
   f = tent(f*SLIDERS[7]+0.5);
   
@@ -354,541 +354,544 @@ vec4 shader(float ix, float iy) {
   vec4 old = texture(rgba, uv);
   return color + old*enableAccum;
 }
-</script>
-<script type="application/javascript">
-'use strict';
 
-Math.fract = f => f - Math.floor(f);
-Math.tent = f => 1.0 - Math.abs(Math.fract(f)-0.5)*2.0;
+  </script>
+  <script type="application/javascript">
+    'use strict';
 
-window.DEBUG = {};
+    Math.fract = f => f - Math.floor(f);
+    Math.tent = f => 1.0 - Math.abs(Math.fract(f) - 0.5)*2.0;
 
-require.config({
-  baseUrl : "./js/"
-});
+    window.DEBUG = {};
 
-let SLIDER_NAMES = [
-  {name: "steps", integer: true, range:[5, 5555]},
-  {name: "offset", range: [0.0, 5.0]}, 
-  "gain", "color",
-  {name : "scale", range: [0.001, 1000000.0]},
-  "x", "y", "colorscale", 
-  {name: "brightness", range: [0.001, 10.0]},
-  {name: "hoff", range: [0.0001, 10.0]},
-  {name: "poff", range: [0.0, 4.0]}
-];
+    require.config({
+      baseUrl: "./js/"
+    });
 
-const LOCAL_STORAGE_KEY = "s_newton_fractal";
+    let SLIDER_NAMES = [
+      {name: "steps", integer: true, range: [5, 5555]},
+      {name: "offset", range: [0.0, 5.0]},
+      "gain", "color",
+      {name: "scale", range: [0.001, 1000000.0]},
+      "x", "y", "colorscale",
+      {name: "brightness", range: [0.001, 10.0]},
+      {name: "hoff", range: [0.0001, 10.0]},
+      {name: "poff", range: [0.0, 4.0]}
+    ];
 
-let SLIDERS;
+    const LOCAL_STORAGE_KEY = "s_newton_fractal";
 
-window.T = 0;
+    let SLIDERS;
 
-SLIDERS = [55, 0.0, 1.0, 1.0, 0.25, 0.0, 0.0, 1.0, 1.0, 0.2, 0.0];
+    window.T = 0;
 
-//SLIDERS = [142.9910714285717, 1.0124999999999995, 2.4535714285714283, 6.747142857142873, 664.1731807714872, 1207.3880358051968, -1469.7663367402351, 4.500000000000001, 0.944642857142858, 0.2]
-//SLIDERS=[143.9732142857144,1.024999999,0.18750000000000028,1.703214318411691,5.2441348995084605,4.492312812495602,-7.554459806904133,4.414285714285716,1.3706428571428535, 0.2];
-//SLIDERS = [234.8214285714288, 1.0124999999999995, 2.4535714285714283, 6.747142857142873, 345.9292832795721, 693.1711001944254, -867.729561420194, 4.500000000000001, 0.944642857142858, 0.2]
-//SLIDERS=[143.9732142857144, 1.0125, 0.18750000000000028, 1.703214318411691, 34.28756782192009, 26.63696481081162, -51.10978608361746, 5.864285714285717, 1, 0.2];
+    SLIDERS = [55, 0.0, 1.0, 1.0, 0.25, 0.0, 0.0, 1.0, 1.0, 0.2, 0.0];
 
-//SLIDERS = [210.75892857142856, 1.0125, 0.18750000000000028, 1.703214318411691, 1909.8517115074794, -1812.4628747289303, -555.0500970832212, 5.864285714285717, 1];
+    //SLIDERS = [142.9910714285717, 1.0124999999999995, 2.4535714285714283, 6.747142857142873, 664.1731807714872, 1207.3880358051968, -1469.7663367402351, 4.500000000000001, 0.944642857142858, 0.2]
+    //SLIDERS=[143.9732142857144,1.024999999,0.18750000000000028,1.703214318411691,5.2441348995084605,4.492312812495602,-7.554459806904133,4.414285714285716,1.3706428571428535, 0.2];
+    //SLIDERS = [234.8214285714288, 1.0124999999999995, 2.4535714285714283, 6.747142857142873, 345.9292832795721, 693.1711001944254, -867.729561420194, 4.500000000000001, 0.944642857142858, 0.2]
+    //SLIDERS=[143.9732142857144, 1.0125, 0.18750000000000028, 1.703214318411691, 34.28756782192009, 26.63696481081162, -51.10978608361746, 5.864285714285717, 1, 0.2];
 
-//SLIDERS = [210.75892857142856, 0.9946428571428572, 0.18750000000000028, 1.703214318411691, 2.905224824824826, 2.1884738665642733, 0.14429498021302922, 5.864285714285717, 1, 0.2]
+    //SLIDERS = [210.75892857142856, 1.0125, 0.18750000000000028, 1.703214318411691, 1909.8517115074794, -1812.4628747289303, -555.0500970832212, 5.864285714285717, 1];
 
-//SLIDERS = [210.75892857142856, 0.9946428571428572, 0.18750000000000028, 1.703214318411691, 1, 0, 0, 5.864285714285717, 1, 0.2]
-//SLIDERS =  [95.84821428571426, 0.9767857142857139, 0.18750000000000028, 1.703214318411691, 2524.560176697589, 1002.7293396666025, -1755.8241494145964, 5.864285714285717, 1, 0.2];
+    //SLIDERS = [210.75892857142856, 0.9946428571428572, 0.18750000000000028, 1.703214318411691, 2.905224824824826, 2.1884738665642733, 0.14429498021302922, 5.864285714285717, 1, 0.2]
 
-SLIDERS =  [95.84821428571426, 0.9767857142857139, 0.18750000000000028, 1.703214318411691, 0.5, 0, 0, 5.864285714285717, 1, 0.2];
-//SLIDERS= [112.54464285714286, 0.9767857142857139, 0.18750000000000028, 1.703214318411691, 213.8822849029874, 273.9839237749515, 19.300310122408185, 6.596428571428576, 1, 0.2];
-//SLIDERS= [168.13391208648684, 0.9920535714285709, 0.18750000000000028, 1.703214318411691, 6211.793717195564, -7806.111585297848, -77.8748106180099, 6.596428571428576, 0.7017857142857142, 0.2]
+    //SLIDERS = [210.75892857142856, 0.9946428571428572, 0.18750000000000028, 1.703214318411691, 1, 0, 0, 5.864285714285717, 1, 0.2]
+    //SLIDERS =  [95.84821428571426, 0.9767857142857139, 0.18750000000000028, 1.703214318411691, 2524.560176697589, 1002.7293396666025, -1755.8241494145964, 5.864285714285717, 1, 0.2];
 
-//SLIDERS = [122.85714285714286, 0.9767857142857139, 0.18750000000000028, 1.703214318411691, 173.81324375172892, -254.0360532896516, -275.7863544203954, 3.037500000000006, 0.897499990463256, 0.07688571428571428]
+    SLIDERS = [95.84821428571426, 0.9767857142857139, 0.18750000000000028, 1.703214318411691, 0.5, 0, 0,
+               5.864285714285717, 1, 0.2];
+    //SLIDERS= [112.54464285714286, 0.9767857142857139, 0.18750000000000028, 1.703214318411691, 213.8822849029874, 273.9839237749515, 19.300310122408185, 6.596428571428576, 1, 0.2];
+    //SLIDERS= [168.13391208648684, 0.9920535714285709, 0.18750000000000028, 1.703214318411691, 6211.793717195564, -7806.111585297848, -77.8748106180099, 6.596428571428576, 0.7017857142857142, 0.2]
 
-//SLIDERS = [165.55357142857142, 1.4929464285714282, 0.18750000000000028, 1.703214318411691, 44.09879760618848, 25.25295436609055, 1.6766015727644565, 5.864285714285717, 1, 0.10545714285714287]
-//SLIDERS = [165.55357142857142, 1.848303571428571, 0.18750000000000028, 1.703214318411691, 32.28700277258628, -44.62170557975985, 7.766630577419785, 5.864285714285717, 1, 0.10545714285714287]
+    //SLIDERS = [122.85714285714286, 0.9767857142857139, 0.18750000000000028, 1.703214318411691, 173.81324375172892, -254.0360532896516, -275.7863544203954, 3.037500000000006, 0.897499990463256, 0.07688571428571428]
 
-//SLIDERS = [218.08035714285708, 0.5357142857142856, 0.18750000000000028, 1.703214318411691, 74.4492995164945, 69.31136391025414, -104.23912139341301, 5.896428571428575, 1.5813571428571425, 0.2590285714285714, 0.39285714285714257]
-//SLIDERS = [218.08035714285708, 0.5357142857142856, 0.18750000000000028, 1.703214318411691, 90.61091827209286, 36.44740342885476, -71.87469545099766, 5.896428571428575, 1.5813571428571425, 0.31795714285714344, 0.39285714285714257];
-//SLIDERS = [218.08035714285708, 0.5357142857142856, 0.18750000000000028, 1.703214318411691, 7.164838838374205, 1.7176390515946043, -6.14911515900138, 5.896428571428575, 1.5813571428571425, 0.31795714285714344, 0.39285714285714257];
-//SLIDERS = [218.08035714285708, 0.5357142857142856, 0.18750000000000028, 1.703214318411691, 1672.9778006948582, 533.1913796170645, -1369.4896222264827, 5.896428571428575, 1.5813571428571425, 0.31795714285714344, 0.39285714285714257]
+    //SLIDERS = [165.55357142857142, 1.4929464285714282, 0.18750000000000028, 1.703214318411691, 44.09879760618848, 25.25295436609055, 1.6766015727644565, 5.864285714285717, 1, 0.10545714285714287]
+    //SLIDERS = [165.55357142857142, 1.848303571428571, 0.18750000000000028, 1.703214318411691, 32.28700277258628, -44.62170557975985, 7.766630577419785, 5.864285714285717, 1, 0.10545714285714287]
 
-//SLIDERS =  [141.02455357142856, 0.5357142857142856, 0.18750000000000028, 1.703214318411691, 72.5141670544459, -41.26995147236086, -56.679514207268404, 5.896428571428575, 1.5813571428571425, 0.13581428571428636, 0.39285714285714257]
+    //SLIDERS = [218.08035714285708, 0.5357142857142856, 0.18750000000000028, 1.703214318411691, 74.4492995164945, 69.31136391025414, -104.23912139341301, 5.896428571428575, 1.5813571428571425, 0.2590285714285714, 0.39285714285714257]
+    //SLIDERS = [218.08035714285708, 0.5357142857142856, 0.18750000000000028, 1.703214318411691, 90.61091827209286, 36.44740342885476, -71.87469545099766, 5.896428571428575, 1.5813571428571425, 0.31795714285714344, 0.39285714285714257];
+    //SLIDERS = [218.08035714285708, 0.5357142857142856, 0.18750000000000028, 1.703214318411691, 7.164838838374205, 1.7176390515946043, -6.14911515900138, 5.896428571428575, 1.5813571428571425, 0.31795714285714344, 0.39285714285714257];
+    //SLIDERS = [218.08035714285708, 0.5357142857142856, 0.18750000000000028, 1.703214318411691, 1672.9778006948582, 533.1913796170645, -1369.4896222264827, 5.896428571428575, 1.5813571428571425, 0.31795714285714344, 0.39285714285714257]
 
-//SLIDERS =  [505.49107142857144, 0.40678571428571525, 0.18750000000000028, 1.703214318411691, 23.863339902760213, 8.208694404452228, -7.3150383917304715, 5.896428571428575, 1.5813571428571425, 0.13581428571428636, 0.9635714122227251]
+    //SLIDERS =  [141.02455357142856, 0.5357142857142856, 0.18750000000000028, 1.703214318411691, 72.5141670544459, -41.26995147236086, -56.679514207268404, 5.896428571428575, 1.5813571428571425, 0.13581428571428636, 0.39285714285714257]
 
-//SLIDERS = [505.49107142857144, 0.40678571428571525, 0.18750000000000028, 1.703214318411691, 218.86902540241812, 225.16709215347998, 46.63325655830616, 5.896428571428575, 1.5813571428571425, 0.13581428571428636, 0.9635714122227251]
+    //SLIDERS =  [505.49107142857144, 0.40678571428571525, 0.18750000000000028, 1.703214318411691, 23.863339902760213, 8.208694404452228, -7.3150383917304715, 5.896428571428575, 1.5813571428571425, 0.13581428571428636, 0.9635714122227251]
 
-//SLIDERS = [505.49107142857144, 0.40678571428571525, 0.18750000000000028, 1.703214318411691, 296.81855972779033, 45.814179901364675, -16.096686199735252, 5.896428571428575, 1.5813571428571425, 0.13581428571428636, 0.9635714122227251]
+    //SLIDERS = [505.49107142857144, 0.40678571428571525, 0.18750000000000028, 1.703214318411691, 218.86902540241812, 225.16709215347998, 46.63325655830616, 5.896428571428575, 1.5813571428571425, 0.13581428571428636, 0.9635714122227251]
 
-//SLIDERS = [148.70535714285714, 0.40937500000000104, 0.18750000000000028, 1.703214318411691, 2135.64031675207, 290.52889138853396, -18.46276812938317, 5.896428571428575, 1.5813571428571425, 0.13581428571428636, 0.9635714122227251]
+    //SLIDERS = [505.49107142857144, 0.40678571428571525, 0.18750000000000028, 1.703214318411691, 296.81855972779033, 45.814179901364675, -16.096686199735252, 5.896428571428575, 1.5813571428571425, 0.13581428571428636, 0.9635714122227251]
 
-//SLIDERS = [138.79464285714286, 0.0683035714285724, 0.18750000000000028, 1.703214318411691, 3453.5449087279094, 1313.7115428892575, -1038.5758274262691, 5.896428571428575, 1.5813571428571425, 0.13581428571428636, 1.7849999836512958]
-//SLIDERS = [138.79464285714286, 0.0683035714285724, 0.18750000000000028, 1.703214318411691, 23991.034608322116, 9127.225043302906, -7213.735604221987, 5.896428571428575, 1.5813571428571425, 0.13581428571428636, 1.7849999836512958]
+    //SLIDERS = [148.70535714285714, 0.40937500000000104, 0.18750000000000028, 1.703214318411691, 2135.64031675207, 290.52889138853396, -18.46276812938317, 5.896428571428575, 1.5813571428571425, 0.13581428571428636, 0.9635714122227251]
 
-// [138.79464285714286, 0.04312496730259482, 0.18750000000000028, 1.703214318411691, 194.12303243331695, 71.45118050162856, -8.146172431070598, 5.896428571428575, 1.5813571428571425, 0.13581428571428636, 2.676071412222723]
+    //SLIDERS = [138.79464285714286, 0.0683035714285724, 0.18750000000000028, 1.703214318411691, 3453.5449087279094, 1313.7115428892575, -1038.5758274262691, 5.896428571428575, 1.5813571428571425, 0.13581428571428636, 1.7849999836512958]
+    //SLIDERS = [138.79464285714286, 0.0683035714285724, 0.18750000000000028, 1.703214318411691, 23991.034608322116, 9127.225043302906, -7213.735604221987, 5.896428571428575, 1.5813571428571425, 0.13581428571428636, 1.7849999836512958]
 
-//SLIDERS = [138.79464285714286, 0.04312496730259482, 0.18750000000000028, 1.703214318411691, 26.44442281037317, -6.263647476679338, -11.964067062458309, 5.896428571428575, 1.5813571428571425, 0.13581428571428636, 2.676071412222723]
+    // [138.79464285714286, 0.04312496730259482, 0.18750000000000028, 1.703214318411691, 194.12303243331695, 71.45118050162856, -8.146172431070598, 5.896428571428575, 1.5813571428571425, 0.13581428571428636, 2.676071412222723]
 
-//SLIDERS = [138.79464285714286, 0.04312496730259482, 0.18750000000000028, 1.703214318411691, 207.3423491945681, 76.18185798687021, -8.431233545247746, 5.896428571428575, 1.5813571428571425, 0.13581428571428636, 2.676071412222723]
+    //SLIDERS = [138.79464285714286, 0.04312496730259482, 0.18750000000000028, 1.703214318411691, 26.44442281037317, -6.263647476679338, -11.964067062458309, 5.896428571428575, 1.5813571428571425, 0.13581428571428636, 2.676071412222723]
 
-//SLIDERS =  [75.36607142857143, 0, 0.18750000000000028, 1.703214318411691, 51.20875171284011, -19.703738146334267, 32.230303095243954, 5.896428571428575, 1.5813571428571425, 0.13581428571428636, 3.256428555079866]
+    //SLIDERS = [138.79464285714286, 0.04312496730259482, 0.18750000000000028, 1.703214318411691, 207.3423491945681, 76.18185798687021, -8.431233545247746, 5.896428571428575, 1.5813571428571425, 0.13581428571428636, 2.676071412222723]
 
-// [214.1160714285714, 0.5017857142857144, 0.18750000000000028, 1.703214318411691, 6.865195590268386, 6.856305835136788, -5.747427139229283, 5.896428571428575, 1.5813571428571425, 0.13581428571428636, 0.7875000000000004]
+    //SLIDERS =  [75.36607142857143, 0, 0.18750000000000028, 1.703214318411691, 51.20875171284011, -19.703738146334267, 32.230303095243954, 5.896428571428575, 1.5813571428571425, 0.13581428571428636, 3.256428555079866]
 
-//[214.1160714285714, 0.5017857142857144, 0.18750000000000028, 1.703214318411691, 328.9223418483428, 377.3390277404351, -283.60260388699226, 5.896428571428575, 1.5813571428571425, 0.13581428571428636, 0.7875000000000004]
+    // [214.1160714285714, 0.5017857142857144, 0.18750000000000028, 1.703214318411691, 6.865195590268386, 6.856305835136788, -5.747427139229283, 5.896428571428575, 1.5813571428571425, 0.13581428571428636, 0.7875000000000004]
 
-// [133.83928571428567, 0.6089285714285713, 0.18750000000000028, 1.7085714612688336, 1784.1720750183626, 2770.557072404935, -800.4963652768986, 9.836785643441342, 2.49635707746233, 2.250457164655413, 0.35]
+    //[214.1160714285714, 0.5017857142857144, 0.18750000000000028, 1.703214318411691, 328.9223418483428, 377.3390277404351, -283.60260388699226, 5.896428571428575, 1.5813571428571425, 0.13581428571428636, 0.7875000000000004]
 
-while (SLIDERS.length < SLIDER_NAMES.length) {
-  SLIDERS.push(0.0);
-}
+    //SLIDERS = [133.83928571428567, 0.6089285714285713, 0.18750000000000028, 1.7085714612688336, 1784.1720750183626, 2770.557072404935, -800.4963652768986, 9.836785643441342, 2.49635707746233, 2.250457164655413, 0.35]
 
-let DEFAULT_SLIDERS = SLIDERS.concat([]);
+    while (SLIDERS.length < SLIDER_NAMES.length) {
+      SLIDERS.push(0.0);
+    }
 
-var continued_fract_tmp = new Array(1024);
-function cfract_intern(n, max_steps) {
-  var floor = Math.floor;
-  max_steps = max_steps == undefined ? 1024 : max_steps;
-  
-  var list = continued_fract_tmp;
-  
-  for (var i=0; i<max_steps; i++) {
-    var f = floor(n)
-    list[i] = f;
-    
-    n -= f;
-    
-    if (f == 0) 
-      break;
-      
-    n = 1.0 / n
-  }
-  
-  var len = i;
-  
-  var f = 1;
-  for (var i=len-1; i >= 0; i--) {
-    f = list[i] + 1/f;
-  }
-  
-  return f;
-}
+    let DEFAULT_SLIDERS = SLIDERS.concat([]);
 
-function cfract(f, max) {
-    let sign = Math.sign(f);
-    
-    f = Math.abs(f);
-    
-    if (f < 1.0) {
-        f = cfract_intern(f+1.0, max) - 1.0;
-    } else {
+    var continued_fract_tmp = new Array(1024);
+
+    function cfract_intern(n, max_steps) {
+      var floor = Math.floor;
+      max_steps = max_steps == undefined ? 1024 : max_steps;
+
+      var list = continued_fract_tmp;
+
+      for (var i = 0; i < max_steps; i++) {
+        var f = floor(n)
+        list[i] = f;
+
+        n -= f;
+
+        if (f == 0)
+          break;
+
+        n = 1.0/n
+      }
+
+      var len = i;
+
+      var f = 1;
+      for (var i = len - 1; i >= 0; i--) {
+        f = list[i] + 1/f;
+      }
+
+      return f;
+    }
+
+    function cfract(f, max) {
+      let sign = Math.sign(f);
+
+      f = Math.abs(f);
+
+      if (f < 1.0) {
+        f = cfract_intern(f + 1.0, max) - 1.0;
+      } else {
         f = cfract_intern(f, max);
-    }
-    
-    if (max == 1) {
+      }
+
+      if (max == 1) {
         f -= 1;
-    }
-    
-    return f*sign;
-}
-
-require(["util", "webgl", "sliders", "ui"], function(util, webgl, sliders, ui) {
-  class TempStack extends Array {
-    constructor(cls, count=512) {
-      super();
-      
-      this.cur = 0;
-      
-      for (let i=0; i<8; i++) {
-        super.push(util.cachering.fromConstructor(cls, count));
       }
-    }
-    
-    push() {
-      this.cur++;
-      return this;
-    }
-    
-    pop() {
-      this.cur--;
-      return this;
-    }
-    
-    next() {
-      return this[this.cur].next();
-    }
-    
-    get() {
-      return this[this.cur];
-    }
-  }
-  
-  let vstack, mstack;
-  
-  class Vec2 {
-    constructor(x, y) {
-      this.x = x;
-      this.y = y;
-    }
-    
-    load(b) {
-      this.x = b.x;
-      this.y = b.y;
-      
-      return this;
-    }
-    
-    loadXY(x, y) {
-      this.x = x;
-      this.y = y;
-      return this;
-    }
-    
-    get xy() {
-      return vstack.next().loadXY(this.x, this.y);
-    }
-    
-    set xy(b) {
-      this.load(b);
-      return this;
-    }
-    
-    get yx() {
-      return vstack.next().loadXY(this.y, this.x);
-    }
-    
-    set yx(b) {
-      this.x = b.y;
-      this.y = b.x;
-      return this;
-    }
-    
-    dot(b) {
-      return this.x*b.x + this.y*b.y;
-    }
-    
-    length() {
-      return Math.sqrt(this.x*this.x + this.y*this.y);
-    }
-    
-    mul(b) {
-      let c = vstack.next().load(this);
-      
-      c.x = this.x * b.x;
-      c.y = this.y * b.y;
-      
-      return c;
-    }
-    
-    negate() {
-      let c = vstack.next().load(this);
-      
-      c[0] = -this[0];
-      c[1] = -this[1];
-      
-      return c;
-    }
-    
-    inegate() {
-      this[0] = -this[0];
-      this[1] = -this[1];
-      
-      return this;
-    }
-    
-    mulScalar(b) {
-      let c = vstack.next().load(this);
-      
-      c.x = this.x * b;
-      c.y = this.y * b;
-      
-      return c;
-    }
-    
-    div(b) {
-      let c = vstack.next().load(this);
-      
-      c.x = this.x / b.x;
-      c.y = this.y / b.y;
-      
-      return c;
+
+      return f*sign;
     }
 
-    divScalar(b) {
-      let c = vstack.next().load(this);
-      
-      c.x = this.x / b;
-      c.y = this.y / b;
-      
-      return c;
-    }
-    
-    /* inplace operators */
-    iadd(b) {
-      this.x += b.x;
-      this.y += b.y;
-      return this;
-    }
-    
-    iaddScalar(b) {
-      this.x += b;
-      this.y += b;
-      return this;
-    }
+    require(["util", "webgl", "sliders", "ui"], function (util, webgl, sliders, ui) {
+      class TempStack extends Array {
+        constructor(cls, count = 512) {
+          super();
 
-    isub(b) {
-      
-      this.x -= b.x;
-      this.y -= b.y;
-      
-      return this;
-    }
-    
-    isubScalar(b) {
-      this.x -= b;
-      this.y -= b;
-      return this;
-    }
+          this.cur = 0;
 
-    imul(b) {
-      this.x *= b.x;
-      this.y *= b.y;
-      return this;
-    }
-    
-    imulScalar(b) {
-      this.x *= b;
-      this.y *= b;
-      return this;
-    }
+          for (let i = 0; i < 8; i++) {
+            super.push(util.cachering.fromConstructor(cls, count));
+          }
+        }
 
-    idiv(b) {
-      this.x /= b.x;
-      this.y /= b.y;
-      return this;
-    }
-    
-    idivScalar(b) {
-      this.x /= b;
-      this.y /= b;
-      return this;
-    }
-    
-    add(b) {
-      let c = vstack.next().load(this);
-      
-      c.x = this.x + b.x;
-      c.y = this.y + b.y;
-      
-      return c;
-    }
-    
-    addScalar(b) {
-      let c = vstack.next().load(this);
-      c.x = this.x + b;
-      c.y = this.y + b;
-      return c;
-    }
+        push() {
+          this.cur++;
+          return this;
+        }
 
-    subScalar(b) {
-      let c = vstack.next().load(this);
-      c.x = this.x - b;
-      c.y = this.y - b;
-      return c;
-    }
+        pop() {
+          this.cur--;
+          return this;
+        }
 
-    sub(b) {
-      let c = vstack.next().load(this);
-      
-      c.x = this.x - b.x;
-      c.y = this.y - b.y;
-      
-      return c;
-    }
-    
-    normalize() {
-      let l = this.length();
-      
-      if (l >= 0.00000001) {
-        this.imulScalar(1.0 / l);
+        next() {
+          return this[this.cur].next();
+        }
+
+        get() {
+          return this[this.cur];
+        }
       }
-      
-      return this;
-    }
-    
-    get 0() {
-      return this.x;
-    }
-    
-    set 0(v) {
-      this.x = v;
-    }
-    
-    get 1() {
-      return this.y;
-    }
-    
-    set 1(v) {
-      this.y = v;
-    }
-    
-    clone() {
-      return vstack.next().load(this);
-    }
-  }
-  
-  class Mat2 extends Array {
-    constructor(row1=new Vec2().loadXY(1, 0), row2=new Vec2().loadXY(0, 1)) {
-      super();
-      
-      this.push(row1);
-      this.push(row2);
-    }
-    
-    load(m) {
-      this.loadRows(m[0], m[1]);
-      return this;
-    }
-    
-    clone() {
-      return mstack.next().load(this);
-    }
-    
-    loadCols(c1, c2) {
-      this[0].x = c1.x;
-      this[1].x = c1.y;
-      
-      this[0].y = c2.x;
-      this[1].y = c2.y;
-      
-      return this;
-    }
-    
-    loadRows(r1, r2) {
-      this[0].load(r1);
-      this[1].load(r2);
-      
-      return this;
-    }
-    
-    mul(b) {
-      let c = mstack.next();
-      
-      let r1 = this[0], i1 = b[0];
-      let r2 = this[1], i2 = b[1];
-      
-      let r1x = r1.x, r1y = r1.y;
-      let r2x = r2.x, r2y = r2.y;
-      let i1x = i1.x, i1y = i1.y;
-      let i2x = i2.x, i2y = i2.y;
-      
-      c[0].x = i1x*r1x + i2x*r1y;
-      c[0].y = i1y*r1x + i2y*r1y;
-      c[1].x = i1x*r2x + i2x*r2y;
-      c[1].y = i1y*r2x + i2y*r2y;
-      
-      return c;
-    }
-    
-    itranspose() {
-      let t = this[0].y;
-      this[0].y = this[1].x;
-      this[1].x = t;
-      
-      return this;
-    }
-    
-    mulVec(b) {
-      let c = vstack.next();
-      
-      c.x = this[0].x*b.x + this[0].y*b.y;
-      c.y = this[1].x*b.x + this[1].y*b.y;
-      
-      return c;
-    }
-    
-    det() {
-      return this[0].x*this[1].y - this[0].y*this[1].x;
-    }
-    
-    inverse() {
-      let r1 = this[0];
-      let r2 = this[1];
-      
-      let r1x = r1.x, r1y = r1.y;
-      let r2x = r2.x, r2y = r2.y;
-      
-      let ret = mstack.next();
-      
-      let invDet = 1.0 / (r1x*r2y - r1y*r2x);
-      
-      ret[0].x =  r2y * invDet;
-      ret[0].y = -r1y * invDet;
-      ret[1].x = -r2x * invDet;
-      ret[1].y =  r1x * invDet;
-      
-      return ret;
-      
-      /*
-      on factor;
-      off period;
-      
-      im := mat((i1x, i1y), (i2x, i2y));
-      m  := mat((r1x, r1y), (r2x, r2y));
-      m2 := m*im;
-      
-      f1 := m2(1, 1) - 1;
-      f2 := m2(2, 2) - 1;
-      f3 := m2(1, 2);
-      f4 := m2(2, 1);
-      
-      ff := solve({f1, f2, f3, f4}, {i1x, i1y, i2x, i2y});
-      
-      */
-    }
-    
-    print() {
-      console.log(this.toString());
-    }
-    
-    toString(d=4) {
-      return `
+
+      let vstack, mstack;
+
+      class Vec2 {
+        constructor(x, y) {
+          this.x = x;
+          this.y = y;
+        }
+
+        load(b) {
+          this.x = b.x;
+          this.y = b.y;
+
+          return this;
+        }
+
+        loadXY(x, y) {
+          this.x = x;
+          this.y = y;
+          return this;
+        }
+
+        get xy() {
+          return vstack.next().loadXY(this.x, this.y);
+        }
+
+        set xy(b) {
+          this.load(b);
+          return this;
+        }
+
+        get yx() {
+          return vstack.next().loadXY(this.y, this.x);
+        }
+
+        set yx(b) {
+          this.x = b.y;
+          this.y = b.x;
+          return this;
+        }
+
+        dot(b) {
+          return this.x*b.x + this.y*b.y;
+        }
+
+        length() {
+          return Math.sqrt(this.x*this.x + this.y*this.y);
+        }
+
+        mul(b) {
+          let c = vstack.next().load(this);
+
+          c.x = this.x*b.x;
+          c.y = this.y*b.y;
+
+          return c;
+        }
+
+        negate() {
+          let c = vstack.next().load(this);
+
+          c[0] = -this[0];
+          c[1] = -this[1];
+
+          return c;
+        }
+
+        inegate() {
+          this[0] = -this[0];
+          this[1] = -this[1];
+
+          return this;
+        }
+
+        mulScalar(b) {
+          let c = vstack.next().load(this);
+
+          c.x = this.x*b;
+          c.y = this.y*b;
+
+          return c;
+        }
+
+        div(b) {
+          let c = vstack.next().load(this);
+
+          c.x = this.x/b.x;
+          c.y = this.y/b.y;
+
+          return c;
+        }
+
+        divScalar(b) {
+          let c = vstack.next().load(this);
+
+          c.x = this.x/b;
+          c.y = this.y/b;
+
+          return c;
+        }
+
+        /* inplace operators */
+        iadd(b) {
+          this.x += b.x;
+          this.y += b.y;
+          return this;
+        }
+
+        iaddScalar(b) {
+          this.x += b;
+          this.y += b;
+          return this;
+        }
+
+        isub(b) {
+
+          this.x -= b.x;
+          this.y -= b.y;
+
+          return this;
+        }
+
+        isubScalar(b) {
+          this.x -= b;
+          this.y -= b;
+          return this;
+        }
+
+        imul(b) {
+          this.x *= b.x;
+          this.y *= b.y;
+          return this;
+        }
+
+        imulScalar(b) {
+          this.x *= b;
+          this.y *= b;
+          return this;
+        }
+
+        idiv(b) {
+          this.x /= b.x;
+          this.y /= b.y;
+          return this;
+        }
+
+        idivScalar(b) {
+          this.x /= b;
+          this.y /= b;
+          return this;
+        }
+
+        add(b) {
+          let c = vstack.next().load(this);
+
+          c.x = this.x + b.x;
+          c.y = this.y + b.y;
+
+          return c;
+        }
+
+        addScalar(b) {
+          let c = vstack.next().load(this);
+          c.x = this.x + b;
+          c.y = this.y + b;
+          return c;
+        }
+
+        subScalar(b) {
+          let c = vstack.next().load(this);
+          c.x = this.x - b;
+          c.y = this.y - b;
+          return c;
+        }
+
+        sub(b) {
+          let c = vstack.next().load(this);
+
+          c.x = this.x - b.x;
+          c.y = this.y - b.y;
+
+          return c;
+        }
+
+        normalize() {
+          let l = this.length();
+
+          if (l >= 0.00000001) {
+            this.imulScalar(1.0/l);
+          }
+
+          return this;
+        }
+
+        get 0() {
+          return this.x;
+        }
+
+        set 0(v) {
+          this.x = v;
+        }
+
+        get 1() {
+          return this.y;
+        }
+
+        set 1(v) {
+          this.y = v;
+        }
+
+        clone() {
+          return vstack.next().load(this);
+        }
+      }
+
+      class Mat2 extends Array {
+        constructor(row1 = new Vec2().loadXY(1, 0), row2 = new Vec2().loadXY(0, 1)) {
+          super();
+
+          this.push(row1);
+          this.push(row2);
+        }
+
+        load(m) {
+          this.loadRows(m[0], m[1]);
+          return this;
+        }
+
+        clone() {
+          return mstack.next().load(this);
+        }
+
+        loadCols(c1, c2) {
+          this[0].x = c1.x;
+          this[1].x = c1.y;
+
+          this[0].y = c2.x;
+          this[1].y = c2.y;
+
+          return this;
+        }
+
+        loadRows(r1, r2) {
+          this[0].load(r1);
+          this[1].load(r2);
+
+          return this;
+        }
+
+        mul(b) {
+          let c = mstack.next();
+
+          let r1 = this[0], i1 = b[0];
+          let r2 = this[1], i2 = b[1];
+
+          let r1x = r1.x, r1y = r1.y;
+          let r2x = r2.x, r2y = r2.y;
+          let i1x = i1.x, i1y = i1.y;
+          let i2x = i2.x, i2y = i2.y;
+
+          c[0].x = i1x*r1x + i2x*r1y;
+          c[0].y = i1y*r1x + i2y*r1y;
+          c[1].x = i1x*r2x + i2x*r2y;
+          c[1].y = i1y*r2x + i2y*r2y;
+
+          return c;
+        }
+
+        itranspose() {
+          let t = this[0].y;
+          this[0].y = this[1].x;
+          this[1].x = t;
+
+          return this;
+        }
+
+        mulVec(b) {
+          let c = vstack.next();
+
+          c.x = this[0].x*b.x + this[0].y*b.y;
+          c.y = this[1].x*b.x + this[1].y*b.y;
+
+          return c;
+        }
+
+        det() {
+          return this[0].x*this[1].y - this[0].y*this[1].x;
+        }
+
+        inverse() {
+          let r1 = this[0];
+          let r2 = this[1];
+
+          let r1x = r1.x, r1y = r1.y;
+          let r2x = r2.x, r2y = r2.y;
+
+          let ret = mstack.next();
+
+          let invDet = 1.0/(r1x*r2y - r1y*r2x);
+
+          ret[0].x = r2y*invDet;
+          ret[0].y = -r1y*invDet;
+          ret[1].x = -r2x*invDet;
+          ret[1].y = r1x*invDet;
+
+          return ret;
+
+          /*
+          on factor;
+          off period;
+
+          im := mat((i1x, i1y), (i2x, i2y));
+          m  := mat((r1x, r1y), (r2x, r2y));
+          m2 := m*im;
+
+          f1 := m2(1, 1) - 1;
+          f2 := m2(2, 2) - 1;
+          f3 := m2(1, 2);
+          f4 := m2(2, 1);
+
+          ff := solve({f1, f2, f3, f4}, {i1x, i1y, i2x, i2y});
+
+          */
+        }
+
+        print() {
+          console.log(this.toString());
+        }
+
+        toString(d = 4) {
+          return `
 ${this[0].x.toFixed(d)}, ${this[0].y.toFixed(d)}
 ${this[1].x.toFixed(d)}, ${this[1].y.toFixed(d)}
 `.trim();
-    }
-  }
-  
-  window.Mat2 = Mat2;
-  window.Vec2 = Vec2;
-  
-  function vec2(x, y) {
-    return vstack.next().loadXY(x, y);
-  }
-  
-  function mat2(r1, r2) {
-    //return mstack.next().loadCols(r1, r2);
-    return mstack.next().loadRows(r1, r2);
-  }
-  
-  function normalize(v) {
-    return vstack.next().load(v).normalize();
-  }
-  
-  function length(v) {
-    return v.length();
-  }
-  
-  function inverse(m) {
-    return m.inverse().itranspose();
-  }
-  
-  vstack = new TempStack(Vec2, 8000);
-  mstack = new TempStack(Mat2, 512);
-  
-  let ShaderDef = {
-    Final : {
-      vertex : `
+        }
+      }
+
+      window.Mat2 = Mat2;
+      window.Vec2 = Vec2;
+
+      function vec2(x, y) {
+        return vstack.next().loadXY(x, y);
+      }
+
+      function mat2(r1, r2) {
+        //return mstack.next().loadCols(r1, r2);
+        return mstack.next().loadRows(r1, r2);
+      }
+
+      function normalize(v) {
+        return vstack.next().load(v).normalize();
+      }
+
+      function length(v) {
+        return v.length();
+      }
+
+      function inverse(m) {
+        return m.inverse().itranspose();
+      }
+
+      vstack = new TempStack(Vec2, 8000);
+      mstack = new TempStack(Mat2, 512);
+
+      let ShaderDef = {
+        Final: {
+          vertex: `
       #version 300 es
       precision highp float;
       in vec2 co;
@@ -898,8 +901,8 @@ ${this[1].x.toFixed(d)}, ${this[1].y.toFixed(d)}
         gl_Position = vec4((co-0.5)*2.0, 0.0, 1.0);
         vCo = co;
       }`.trim(),
-      
-      fragment : `
+
+          fragment  : `
         #version 300 es
         precision highp float;
         
@@ -909,11 +912,43 @@ ${this[1].x.toFixed(d)}, ${this[1].y.toFixed(d)}
         
         in vec2 vCo;
         out vec4 fragColor;
-        
+
+        #ifndef OLD_GRADIENT
+        uniform float rgrad[GRAD_STEPS];
+        uniform float ggrad[GRAD_STEPS];
+        uniform float bgrad[GRAD_STEPS];
+        uniform float agrad[GRAD_STEPS];
+        #endif
+
+#ifndef OLD_GRADIENT
+        float evalgrad(float t, float grad[GRAD_STEPS]) {
+          float t1 = floor(t*float(GRAD_STEPS));
+          float t2 = ceil(t*float(GRAD_STEPS));
+          float s = fract(t*float(GRAD_STEPS));
+
+          int i1 = int(t1);
+          int i2 = int(t2);
+
+          i2 = max(0, min(i2, GRAD_STEPS-1));
+
+          return mix(grad[i1], grad[i2], s);
+        }
+#endif
+
         vec4 fsample(vec2 uv) {
           vec4 color = texture(rgba, uv).rgba;
           
           color.rgb /= color.a;
+
+#ifndef OLD_GRADIENT
+          float f = color.r;
+
+          color.r = evalgrad(f, rgrad);
+          color.g = evalgrad(f, ggrad);
+          color.b = evalgrad(f, bgrad);
+          color.a = 1.0;
+#endif
+
           return color;
         }
         
@@ -933,134 +968,162 @@ ${this[1].x.toFixed(d)}, ${this[1].y.toFixed(d)}
                     
           fragColor /= w1+w2+w3+w4+w5;
         }`.trim(),
-      attributes : ["co"]
-    }
-  };
-  
-  let Shaders = window._Shaders = {};
-  
-  function loadShaders(gl) {
-    for (let k in ShaderDef) {
-      let def = ShaderDef[k];
-      Shaders[k] = new webgl.ShaderProgram(gl, def.vertex, def.fragment, def.attributes);
-    }
-  }
-  
-  var Render = util.Class([
-    function constructor(fbos) {
-      this.buffer = new webgl.RenderBuffer();
-      this.regen = 1;
-      this.fbos = fbos;
-      
-      this._last_update_key = '';
-      
-      this.drawGen = 0;
-      this.lastDrawGen = 0;
-    },
-    
-    function regen_buffers(gl) {
-      this.regen = 0;
-      var mesh = [
-        0, 0,   0, 1,   1, 1,
-        0, 0,   1, 1,   1, 0
-      ];
-      
-      var vbuf = this.vbuf = this.buffer.get(gl, "vertex")
-      
-      gl.bindBuffer(gl.ARRAY_BUFFER, vbuf);
-      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(mesh), gl.STATIC_DRAW);
-   },
-        
-   function draw(gl) {
-      if (this.regen) {
-        this.regen_buffers(gl);
-        this.compile_shader(gl);
-      }
-            
-      let defines = {};
-      
-      if (config.USE_MONTY_SHARPNESS) {
-        defines.USE_SHARPNESS = null;
-      }
-      
-      if (config.PER_PIXEL_RANDOM) {
-        defines.PER_PIXEL_RANDOM = null;
-      }
-      
-      let updatekey = JSON.stringify(defines) + ":" + config.FILTER_WIDTH;
-      
-      if (updatekey !== this._last_update_key) {
-        this.drawGen++;
-      }
-      
-      this._last_update_key = updatekey;
-
-      let enableAccum = 1.0;
-      
-      if (this.drawGen !== this.lastDrawGen) {
-        enableAccum = 0.0;
-        window.T = 0.0;
-      }
-      
-      this.lastDrawGen = this.drawGen;
-      
-      var vbuf = this.vbuf;
-      var shader = this.shader;
-      
-      gl.enableVertexAttribArray(0);
-      gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
-      
-      gl.disable(gl.DEPTH_TEST);
-      gl.disable(gl.DITHER);
-      
-      gl.viewport(0, 0, canvas.width, canvas.height);
-      
-      _appstate.glSize[0] = canvas.width;
-      _appstate.glSize[1] = canvas.height;
-      
-      let uniforms = {
-        iRes    : [canvas.width, canvas.height],
-        aspect  : canvas.width / canvas.height,
-        rgba    : this.fbos[1].texColor,
-        enableAccum,
-        T : window.T,
-        filterWidth : config.FILTER_WIDTH,
-        sharpness : config.SHARPNESS
+          attributes: ["co"]
+        }
       };
-        
-      //SLIDERS2[0] = cfract(SLIDERS2[0], Math.max(Math.ceil(SLIDERS2[1]*10.0), 1));
-      
-      for (var i=0; i<SLIDERS.length; i++) {
-        uniforms["SLIDERS["+i+"]"] = SLIDERS[i];
+
+      let Shaders = window._Shaders = {};
+
+      function loadShaders(gl) {
+        for (let k in ShaderDef) {
+          let def = ShaderDef[k];
+          Shaders[k] = new webgl.ShaderProgram(gl, def.vertex, def.fragment, def.attributes);
+        }
       }
 
-      shader.bind(gl, uniforms, defines);
-      
-      this.fbos[0].bind(gl);
-      gl.drawArrays(gl.TRIANGLES, 0, 6);
-      this.fbos[0].unbind(gl);
-      
-      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-      
-      shader = Shaders.Final;
-      shader.bind(gl, {
-        iRes    : [canvas.width, canvas.height],
-        aspect  : canvas.width / canvas.height,
-        rgba    : this.fbos[0].texColor,
-        sharpness : config.USE_SHARPNESS ? config.SHARPNESS*0.99 : 0.0,
-        enableAccum
-      }, defines);
-      gl.drawArrays(gl.TRIANGLES, 0, 6);
-      
-      let t = this.fbos[0];
-      this.fbos[0] = this.fbos[1];
-      this.fbos[1] = t;
-    },
-    
-    function compile_shader(gl) {
-      var code = document.getElementById("fragment").text;
-      
-      let vshader = `
+      var Render = util.Class([
+        function constructor(fbos) {
+          this.buffer = new webgl.RenderBuffer();
+          this.regen = 1;
+          this.fbos = fbos;
+
+          this._last_update_key = '';
+
+          this.drawGen = 0;
+          this.sample = 0;
+          this.lastDrawGen = 0;
+        },
+
+        function regen_buffers(gl) {
+          this.regen = 0;
+          var mesh = [
+            0, 0, 0, 1, 1, 1,
+            0, 0, 1, 1, 1, 0
+          ];
+
+          var vbuf = this.vbuf = this.buffer.get(gl, "vertex")
+
+          gl.bindBuffer(gl.ARRAY_BUFFER, vbuf);
+          gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(mesh), gl.STATIC_DRAW);
+        },
+
+        function draw(gl) {
+          if (this.regen) {
+            this.regen_buffers(gl);
+            this.compile_shader(gl);
+          }
+
+          let defines = {};
+
+          if (config.OLD_GRADIENT) {
+            defines.OLD_GRADIENT = null;
+          } else {
+            defines.GRAD_STEPS = config.GRADIENT.tableSteps;
+          }
+
+          if (config.USE_MONTY_SHARPNESS) {
+            defines.USE_SHARPNESS = null;
+          }
+
+          if (config.PER_PIXEL_RANDOM) {
+            defines.PER_PIXEL_RANDOM = null;
+          }
+
+          let updatekey = JSON.stringify(defines) + ":" + config.FILTER_WIDTH;
+
+          if (updatekey !== this._last_update_key) {
+            this.drawGen++;
+          }
+
+          this._last_update_key = updatekey;
+
+          let enableAccum = 1.0;
+
+          if (this.drawGen !== this.lastDrawGen) {
+            enableAccum = 0.0;
+            window.T = 0.0;
+            this.sample = 0;
+          }
+          this.lastDrawGen = this.drawGen;
+
+          let skip = this.sample > config.MAX_SAMPLES;
+          this.sample++;
+
+          var vbuf = this.vbuf;
+          var shader = this.shader;
+
+          gl.enableVertexAttribArray(0);
+          gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+
+          gl.disable(gl.DEPTH_TEST);
+          gl.disable(gl.DITHER);
+
+          gl.viewport(0, 0, canvas.width, canvas.height);
+
+          _appstate.glSize[0] = canvas.width;
+          _appstate.glSize[1] = canvas.height;
+
+          let uniforms = {
+            iRes       : [canvas.width, canvas.height],
+            aspect     : canvas.width/canvas.height,
+            rgba       : this.fbos[1].texColor,
+            enableAccum,
+            T          : window.T,
+            filterWidth: config.FILTER_WIDTH,
+            sharpness  : config.SHARPNESS
+          };
+
+          //SLIDERS2[0] = cfract(SLIDERS2[0], Math.max(Math.ceil(SLIDERS2[1]*10.0), 1));
+
+          for (let i = 0; i < SLIDERS.length; i++) {
+            uniforms["SLIDERS[" + i + "]"] = SLIDERS[i];
+          }
+
+          if (!skip) {
+            shader.bind(gl, uniforms, defines);
+
+            this.fbos[0].bind(gl);
+            gl.drawArrays(gl.TRIANGLES, 0, 6);
+            this.fbos[0].unbind(gl);
+          }
+
+          gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+
+          let final_uniforms = {
+            iRes     : [canvas.width, canvas.height],
+            aspect   : canvas.width/canvas.height,
+            rgba     : this.fbos[0].texColor,
+            sharpness: config.USE_SHARPNESS ? config.SHARPNESS*0.99 : 0.0,
+            enableAccum
+          };
+
+          if (!config.OLD_GRADIENT) {
+            let tables = config.GRADIENT.getTables();
+            let steps = config.GRADIENT.tableSteps;
+
+            for (let i=0; i<steps; i++) {
+              final_uniforms[`rgrad[${i}]`] = tables[0][i];
+              final_uniforms[`ggrad[${i}]`] = tables[1][i];
+              final_uniforms[`bgrad[${i}]`] = tables[2][i];
+              //final_uniforms[`agrad[${i}]`] = tables[3][i];
+            }
+          }
+
+          shader = Shaders.Final;
+          shader.bind(gl, final_uniforms, defines);
+          gl.drawArrays(gl.TRIANGLES, 0, 6);
+
+          if (!skip) {
+            let t = this.fbos[0];
+            this.fbos[0] = this.fbos[1];
+            this.fbos[1] = t;
+          }
+        },
+
+        function compile_shader(gl) {
+          var code = document.getElementById("fragment").text;
+
+          let vshader = `
       #version 300 es
       precision highp float;
       in vec2 co;
@@ -1070,8 +1133,8 @@ ${this[1].x.toFixed(d)}, ${this[1].y.toFixed(d)}
         gl_Position = vec4((co-0.5)*2.0, 0.0, 1.0);
         vCo = co;
       }`.trim();
-      
-      let fshader = `
+
+          let fshader = `
         #version 300 es
         precision highp float;
         ${code}
@@ -1084,1024 +1147,1039 @@ ${this[1].x.toFixed(d)}, ${this[1].y.toFixed(d)}
           fragColor = shader(p[0], p[1]);
         }
       `.trim();
-      
-      var shader = new webgl.ShaderProgram(gl, vshader, fshader, ["co"]);
-      shader.init(gl);
-      this.shader = shader;
-    }
-  ]);
 
-  class AnimJob {
-    constructor(cb, id, steps) {
-      this.cb = cb;
-      this.id = id;
-      this.steps = steps;
-      this.timerid = undefined;
-      this.promise = undefined;
-    }
-    
-    finish() {
-      if (this.timerid === undefined) {
-        console.log("not running");
-        return;
-      }
-      
-      this.cb(1.0);
-      this._accept();
-      
-      this.stop();
-    }
-    
-    stop() {
-      if (this.timerid === undefined) {
-        console.log("not running");
-        return;
-      }
+          var shader = new webgl.ShaderProgram(gl, vshader, fshader, ["co"]);
+          shader.init(gl);
+          this.shader = shader;
+        }
+      ]);
 
-      window.clearInterval(this.timerid);
-      this.timerid = undefined;
-      this.promise = undefined;
-      this._accept = undefined;
-    }
-    
-    start(cb, steps) {
-      let i = 0;
-      
-      this.cb = cb;
-      this.steps = steps;
-      
-      this.timerid = window.setInterval(() => {
-        if (this.steps > 0 && i >= this.steps) {
+      class AnimJob {
+        constructor(cb, id, steps) {
+          this.cb = cb;
+          this.id = id;
+          this.steps = steps;
+          this.timerid = undefined;
+          this.promise = undefined;
+        }
+
+        finish() {
+          if (this.timerid === undefined) {
+            console.log("not running");
+            return;
+          }
+
+          this.cb(1.0);
+          this._accept();
+
+          this.stop();
+        }
+
+        stop() {
+          if (this.timerid === undefined) {
+            console.log("not running");
+            return;
+          }
+
           window.clearInterval(this.timerid);
           this.timerid = undefined;
-          this._accept();
+          this.promise = undefined;
+          this._accept = undefined;
         }
-        
-        let t = i / (this.steps - 1);
-        this.cb(t);
-        
-        i++;
-      }, 5);
-      
-      this.promise = new Promise((accept, reject) => {
-        this._accept = accept;
-      });
-      
-      return this.promise;
-    }
-  }
-  
-  class Animator {
-    constructor() {
-      this.tasks = [];
-      this.task_idmap = new Map();
-    }
-    
-    run(id, cb, steps=16, finishExisting=true) {
-      let anim = this.task_idmap.get(id);
-      
-      if (!anim) {
-        anim = new AnimJob(cb, id, steps);
-        
-        this.task_idmap.set(id, anim);
-        this.tasks.push(anim);
-      } else {
-        if (finishExisting) {
-          anim.finish();
-        } else {
-          anim.stop();
+
+        start(cb, steps) {
+          let i = 0;
+
+          this.cb = cb;
+          this.steps = steps;
+
+          this.timerid = window.setInterval(() => {
+            if (this.steps > 0 && i >= this.steps) {
+              window.clearInterval(this.timerid);
+              this.timerid = undefined;
+              this._accept();
+            }
+
+            let t = i/(this.steps - 1);
+            this.cb(t);
+
+            i++;
+          }, 5);
+
+          this.promise = new Promise((accept, reject) => {
+            this._accept = accept;
+          });
+
+          return this.promise;
         }
       }
-      
-      return anim.start(cb, steps);
-    }
-    
-    finish(id) {
-      if (this.task_idmap.has(id)) {
-        this.task_idmap.get(id).finish();
-      }
-    }
-    
-    stop(id) {
-      if (this.task_idmap.has(id)) {
-        this.task_idmap.get(id).stop();
-      }
-    }
-    
-    stopAll() {
-      for (let task of this.tasks) {
-        task.stop();
-      }
-    }    
-    
-    finishAll() {
-      for (let task of this.tasks) {
-        task.finish();
-      }
-    }
-  }
 
-  const pow = Math.pow, sqrt = Math.sqrt, floor = Math.floor;
-  const fract = Math.fract, tent = Math.tent;
+      class Animator {
+        constructor() {
+          this.tasks = [];
+          this.task_idmap = new Map();
+        }
 
-  function cmul(a, b) {
-      return vec2(
+        run(id, cb, steps = 16, finishExisting = true) {
+          let anim = this.task_idmap.get(id);
+
+          if (!anim) {
+            anim = new AnimJob(cb, id, steps);
+
+            this.task_idmap.set(id, anim);
+            this.tasks.push(anim);
+          } else {
+            if (finishExisting) {
+              anim.finish();
+            } else {
+              anim.stop();
+            }
+          }
+
+          return anim.start(cb, steps);
+        }
+
+        finish(id) {
+          if (this.task_idmap.has(id)) {
+            this.task_idmap.get(id).finish();
+          }
+        }
+
+        stop(id) {
+          if (this.task_idmap.has(id)) {
+            this.task_idmap.get(id).stop();
+          }
+        }
+
+        stopAll() {
+          for (let task of this.tasks) {
+            task.stop();
+          }
+        }
+
+        finishAll() {
+          for (let task of this.tasks) {
+            task.finish();
+          }
+        }
+      }
+
+      const pow = Math.pow, sqrt = Math.sqrt, floor = Math.floor;
+      const fract = Math.fract, tent = Math.tent;
+
+      function cmul(a, b) {
+        return vec2(
           a.x*b.x - a.y*b.y,
           a.x*b.y + b.x*a.y
-      );
-  }
-  
-  function fsample(z, p) {
-      const d = 1.0;
-      
-      //(z-1)(z+1)(z-p)
-      let a = z.sub(vec2(d, 0.0));
-      let b = z.add(vec2(d, 0.0));
-      let c = z.sub(p);
-      
-      return cmul(cmul(a, b), c);
-  }
-  
-  class PathPoint {
-    constructor(startx, starty) {
-      this.co = new Vec2();
-      this.t = 0;
-      this.w = 0;
-    }
-  }
-  
-  class Path extends Array {
-    constructor(startx, starty) {
-      super();
-      
-      this.co = new Vec2().loadXY(startx, starty);
-      this.tmp = [0, 0];
-    }
-    
-    pathRun(uv, iRes) {
-      let seed, dr, di, f=0.0, dist=0.0, z;
-      
-      let startuv = uv.clone();
-      
-      let tm = 0.0;
-      let tm2 = 0.0;
-      
-      seed = uv.clone();
-      //seed = vec2(0.2, 0.4132432);
-      
-      //return tent(uv.y*1.23423);
-      
-      tm = SLIDERS[1];
-      tm = pow(tm, 1.0/1.0);
-      let toff = pow(tm, 0.25);
-      
-      mstack.push();
-      vstack.push();
-      
-      //for (let i=0; i<steps; i++) {
+        );
+      }
+
+      function fsample(z, p) {
+        const d = 1.0;
+
+        //(z-1)(z+1)(z-p)
+        let a = z.sub(vec2(d, 0.0));
+        let b = z.add(vec2(d, 0.0));
+        let c = z.sub(p);
+
+        return cmul(cmul(a, b), c);
+      }
+
+      class PathPoint {
+        constructor(startx, starty) {
+          this.co = new Vec2();
+          this.t = 0;
+          this.w = 0;
+        }
+      }
+
+      class Path extends Array {
+        constructor(startx, starty) {
+          super();
+
+          this.co = new Vec2().loadXY(startx, starty);
+          this.tmp = [0, 0];
+        }
+
+        pathRun(uv, iRes) {
+          let seed, dr, di, f = 0.0, dist = 0.0, z;
+
+          let startuv = uv.clone();
+
+          let tm = 0.0;
+          let tm2 = 0.0;
+
+          seed = uv.clone();
+          //seed = vec2(0.2, 0.4132432);
+
+          //return tent(uv.y*1.23423);
+
+          tm = SLIDERS[1];
+          tm = pow(tm, 1.0/1.0);
+          let toff = pow(tm, 0.25);
+
+          mstack.push();
+          vstack.push();
+
+          //for (let i=0; i<steps; i++) {
           z = cmul(uv, vec2(0.333333 + tm*0.5, 0.0 + tm)); //0.85*toff));
-          
+
           let a = fsample(z, seed);
-          
+
           //anayltical derivatives
           let p = seed;
-          
+
           let zx = z.x, zy = z.y;
           let px = p.x, py = p.y;
-          
-          dr = vec2(0,0);
-          di = vec2(0,0);
-          
-          dr.x = -(2.0*((px-zx)*zx-(py-zy)*zy)+zy*zy+1.0-zx*zx);
-          dr.y = -2.0*((py-zy-zy)*zx+(px-zx)*zy);
-        
-          di.x = 2.0*((py-zy-zy)*zx+(px-zx)*zy);
-          di.y = -(2.0*((px-zx)*zx-(py-zy)*zy)+zy*zy+1.0-zx*zx);
-  
+
+          dr = vec2(0, 0);
+          di = vec2(0, 0);
+
+          dr.x = -(2.0*((px - zx)*zx - (py - zy)*zy) + zy*zy + 1.0 - zx*zx);
+          dr.y = -2.0*((py - zy - zy)*zx + (px - zx)*zy);
+
+          di.x = 2.0*((py - zy - zy)*zx + (px - zx)*zy);
+          di.y = -(2.0*((px - zx)*zx - (py - zy)*zy) + zy*zy + 1.0 - zx*zx);
+
           //heissan matrices
-          let rxm = mat2( vec2(4.0*(px-3.0*zx)*(px-3.0*zx),-4.0*(px-3.0*zx)*(py-3.0*zy)),
-                         vec2(-4.0*(px-3.0*zx)*(py-3.0*zy), 4.0*(py-3.0*zy)*(py-3.0*zy)));
+          let rxm = mat2(vec2(4.0*(px - 3.0*zx)*(px - 3.0*zx), -4.0*(px - 3.0*zx)*(py - 3.0*zy)),
+            vec2(-4.0*(px - 3.0*zx)*(py - 3.0*zy), 4.0*(py - 3.0*zy)*(py - 3.0*zy)));
 
-          let rym = mat2(vec2(4.0*(py-3.0*zy)*(py-3.0*zy), 4.0*(px-3.0*zx)*(py-3.0*zy)),
-                          vec2(4.0*(px-3.0*zx)*(py-3.0*zy), 4.0*(px-3.0*zx)*(px-3.0*zx)));
+          let rym = mat2(vec2(4.0*(py - 3.0*zy)*(py - 3.0*zy), 4.0*(px - 3.0*zx)*(py - 3.0*zy)),
+            vec2(4.0*(px - 3.0*zx)*(py - 3.0*zy), 4.0*(px - 3.0*zx)*(px - 3.0*zx)));
 
-          let ixm = mat2(vec2(4.0*(py-3.0*zy)*(py-3.0*zy), 4.0*(px-3.0*zx)*(py-3.0*zy)),
-                          vec2(4.0*(px-3.0*zx)*(py-3.0*zy), 4.0*(px-3.0*zx)*(px-3.0*zx)));
+          let ixm = mat2(vec2(4.0*(py - 3.0*zy)*(py - 3.0*zy), 4.0*(px - 3.0*zx)*(py - 3.0*zy)),
+            vec2(4.0*(px - 3.0*zx)*(py - 3.0*zy), 4.0*(px - 3.0*zx)*(px - 3.0*zx)));
 
-          let iym = mat2(vec2(4.0*(px-3.0*zx)*(px-3.0*zx), -4.0*(px-3.0*zx)*(py-3.0*zy)),
-                          vec2(-4.0*(px-3.0*zx)*(py-3.0*zy), 4.0*(py-3.0*zy)*(py-3.0*zy))); 
-          
+          let iym = mat2(vec2(4.0*(px - 3.0*zx)*(px - 3.0*zx), -4.0*(px - 3.0*zx)*(py - 3.0*zy)),
+            vec2(-4.0*(px - 3.0*zx)*(py - 3.0*zy), 4.0*(py - 3.0*zy)*(py - 3.0*zy)));
+
           let m = inverse(mat2(dr, di));
-          
+
           let off = m.mulVec(a).negate();
           //off.xy += vec2(-off.y, off.x)*0.35;
           off.iadd(vec2(-off.y, off.x).imulScalar(SLIDERS[10]));
-          
-          dist += 2.0 * length(off) / (0.2 + length(iym.mul(rxm).mulVec(off)));
-          
+
+          dist += 2.0*length(off)/(0.2 + length(iym.mul(rxm).mulVec(off)));
+
           //dist += 0.12 / (0.1 + length(rym*off));
-          
+
           //dist += (determinant(rxm) + determinant(rym) + determinant(ixm) + determinant(iym))*1000.0;
           //dist += determinant(rxm*rym*ixm*iym)*100000.0;
           //dist += (abs(off[0]) + abs(off[1]))*0.5;
           //dist += max(abs(off[0]), abs(off[1]));
-          
+
           //off.imulScalar(0.5);
           uv.iadd(off);
-      //}
-      
-      mstack.pop();
-      vstack.pop();
-      
-      let d1 = length(uv.sub(vec2(-1.0, 0.0)));
-      let d2 = length(uv.sub(vec2(1.0, 0.0)));
-      let d3 = length(uv.sub(seed));
-      
-      //find closest root shade
-      f = d1 < d2 ? 1.0 : 0.75;
-      f = d3 < d2 && d3 < d1 ? 0.5 : f;
-      
-      let tfac = pow(1.0 - toff, 0.25);
-      let dfract;
-      dfract = tent(dist*0.004);
-      f = sqrt(dfract)*0.5;
-      
-      return f;
-    }
-    
-    step(state) {
-      let p = new PathPoint();
-      p.co.x = this.co.x;
-      p.co.y = this.co.y;
-      
-      this.push(p);
-      
-      this.pathRun(this.co, vec2(state.glSize[0], state.glSize[1]));
-    }
-    
-    draw(state, g) {
-      g.strokeStyle = "rgba(255, 150, 5, 0.025)";
-      let r = 1.25;
-      
-      let tmp = this.tmp;
-      let first = true;
-      
-      g.beginPath();
-      
-      for (let p of this) {
-        tmp[0] = p.co.x;
-        tmp[1] = p.co.y;
-        state.untransform(tmp);
-        
-        if (first) {
-          g.moveTo(tmp[0], tmp[1]);
-          first = false;
-        } else {
-          g.lineTo(tmp[0], tmp[1]);
+          //}
+
+          mstack.pop();
+          vstack.pop();
+
+          let d1 = length(uv.sub(vec2(-1.0, 0.0)));
+          let d2 = length(uv.sub(vec2(1.0, 0.0)));
+          let d3 = length(uv.sub(seed));
+
+          //find closest root shade
+          f = d1 < d2 ? 1.0 : 0.75;
+          f = d3 < d2 && d3 < d1 ? 0.5 : f;
+
+          let tfac = pow(1.0 - toff, 0.25);
+          let dfract;
+          dfract = tent(dist*0.004);
+          f = sqrt(dfract)*0.5;
+
+          return f;
         }
-      }
-      
-      g.stroke();
-      
-      g.strokeStyle = "rgba(25, 255, 105, 0.25)";
-      tmp[0] = this.co.x;
-      tmp[1] = this.co.y;
-      
-      state.untransform(this.tmp);
-      let x = this.tmp[0], y = this.tmp[1];
-      
-      g.beginPath();
-      g.arc(x, y, r, -Math.PI, Math.PI);
-      g.stroke();
-      //g.fill();
-    }
-  }
-  
-  let animManager = new Animator();
-  function calcViewKey(sliders=SLIDERS) {
-    return "" + sliders[4].toFixed(4) + ":" + sliders[5].toFixed(4) + ":" + sliders[6].toFixed(4);
-  }
-  
-  var config = window.config = {
-      SHOW_SLIDERS : true,
-      SHARPNESS : 0.5,
-      USE_SHARPNESS : true,
-      USE_MONTY_SHARPNESS : false,
-      FILTER_WIDTH : 1.5,
-      PER_PIXEL_RANDOM : true
-  };
-  
-  class AppState {
-    constructor(gl, canvas, g, canvas2d) {
-      this.gl = gl; //3d api
-      this.g = g;   //2d api
-      this.mdown = false;
-      
-      this.image = undefined;
-      
-      this.gui = new ui.UI(config);
-      this.makeGui();
-      this.gui.listen();
-      
-      this.undoStack = [];
-      this.undoCur = 0;
-      
-      this.paths = [];
-      this._last_view_key = calcViewKey();
-      
-      this.fbos = new Array(2);
-      for (let i=0; i<this.fbos.length; i++) {
-        this.fbos[i] = new webgl.FBO(gl, canvas.width, canvas.height);
-        this.fbos[i].create(gl);
-      }
-      
-      this.sliderUndoGen = 0;
-      
-      this.glSize = [512, 512];
-      
-      this.drawrect = undefined;
-      
-      this.canvas2d = canvas2d;
-      this.canvas = canvas;
-      this.render = new Render(this.fbos);
-      
-      this.mpos = [0, 0];
-      
-      this.sliders = new sliders.SliderManager(50, 50, 25, 
-                                               window.innerHeight-150, SLIDERS, SLIDER_NAMES);      
-      this.sliders.onchange = () => {
-        this.render.drawGen++;
-      }
-      
-      this.sliders.onchange_start = () => {
-        this.undoPush(this.sliderUndoGen, true);
-      }
-      
-      this.sliders.onchange_end = () => {
-        this.sliderUndoGen++;
-      }
-      
-      this.sliders.pad = 6;
-      this.sliders.localStorageKey = LOCAL_STORAGE_KEY + "_params";
-      this.load();
-      
-      window.addEventListener("keydown", (e) => this.on_keydown(e));
-      
-      let dotouch = (e) => {
-        let x = e.touches.length > 0 ? e.touches[0].pageX : this.mpos[0];
-        let y = e.touches.length > 0 ? e.touches[0].pageY : this.mpos[1];
-        
-        return Object.assign({x, y, button : 0}, e);
-      }
-      
-      let dom = this.canvas2d;
-      
-      dom.addEventListener("mousedown", (e) => {
-        return this.on_mousedown(e);
-      });
-      dom.addEventListener("mousemove", (e) => {
-        return this.on_mousemove(e);
-      });
-      dom.addEventListener("mouseup", (e) => {
-        return this.on_mouseup(e);
-      });
-      
-      dom.addEventListener("touchstart", (e) => {
-        e.preventDefault();
-        return this.on_mousedown(dotouch(e));
-      });
-      dom.addEventListener("touchend", (e) => {
-        e.preventDefault();
-        return this.on_mouseup(dotouch(e));
-      });
-      dom.addEventListener("touchmove", (e) => {
-        e.preventDefault();
-        return this.on_mousemove(dotouch(e));
-      });
 
-      this.sliders.bind_events(dom);
-      
-      this.undoPush();
-    }
-        
-    makeGui() {
-      let gui = this.gui;
-      
-      gui.slider("FILTER_WIDTH", "Filter", 1.5, 0.01, 15.0, 0.001);
+        step(state) {
+          let p = new PathPoint();
+          p.co.x = this.co.x;
+          p.co.y = this.co.y;
 
-      gui.check("SHOW_SLIDERS", "Show Sliders");
-      gui.check("USE_SHARPNESS", "Sharpness Filter");
-      gui.slider("SHARPNESS", "Sharpness", 0.0, 0.0, 1.0, 0.001, false, false);
-      gui.check("USE_MONTY_SHARPNESS", "Monty Sharpness");
-      
-      gui.check("PER_PIXEL_RANDOM", "PixelRand");
-    }
-    
-    undoPush(combineId, combine=false) {
-      animManager.finish("zoom");
-      
-      if (combine && this.undoCur > 0) {
-        let head = this.undoStack[this.undoCur-1];
-        if (head.id == combineId) {
-          for (let i=0; i<SLIDERS.length; i++) {
-            head.sliders[i] = SLIDERS[i];
+          this.push(p);
+
+          this.pathRun(this.co, vec2(state.glSize[0], state.glSize[1]));
+        }
+
+        draw(state, g) {
+          g.strokeStyle = "rgba(255, 150, 5, 0.025)";
+          let r = 1.25;
+
+          let tmp = this.tmp;
+          let first = true;
+
+          g.beginPath();
+
+          for (let p of this) {
+            tmp[0] = p.co.x;
+            tmp[1] = p.co.y;
+            state.untransform(tmp);
+
+            if (first) {
+              g.moveTo(tmp[0], tmp[1]);
+              first = false;
+            } else {
+              g.lineTo(tmp[0], tmp[1]);
+            }
           }
-          
-          console.log("found undo head");
-          return;
+
+          g.stroke();
+
+          g.strokeStyle = "rgba(25, 255, 105, 0.25)";
+          tmp[0] = this.co.x;
+          tmp[1] = this.co.y;
+
+          state.untransform(this.tmp);
+          let x = this.tmp[0], y = this.tmp[1];
+
+          g.beginPath();
+          g.arc(x, y, r, -Math.PI, Math.PI);
+          g.stroke();
+          //g.fill();
         }
       }
-      
-      this.undoStack.length = this.undoCur;
-      this.undoCur++;
-      this.undoStack.push({
-        sliders : SLIDERS.concat([]),
-        id      : combineId
-      });
-    }
-    
-    undo() {
-      console.log("undo", this.undoCur, this.undoStack);
 
-      if (this.undoCur <= 0) {
-        return;
-      }
-      
-      animManager.finish("zoom");
-      
-      this.undoCur--;
-      let sliders = this.undoStack[this.undoCur].sliders;
-      
-      for (let i=0; i<sliders.length; i++) {
-        let t = SLIDERS[i];
-        SLIDERS[i] = sliders[i];
-        sliders[i] = t;
-      }
-      
-      this.render.drawGen++;
-      this.save();
-      this.checkPaths();
-    }
-    
-    redo() {
-      console.log("redo", this.undoCur, this.undoStack);
+      let animManager = new Animator();
 
-      if (this.undoCur >= this.undoStack.length) {
-        return;
+      function calcViewKey(sliders = SLIDERS) {
+        return "" + sliders[4].toFixed(4) + ":" + sliders[5].toFixed(4) + ":" + sliders[6].toFixed(4);
       }
-      
-      animManager.finish("zoom");
-      
-      let sliders = this.undoStack[this.undoCur].sliders;
-      
-      for (let i=0; i<sliders.length; i++) {
-        let t = SLIDERS[i];
-        SLIDERS[i] = sliders[i];
-        sliders[i] = t;
-      }
-      
-      this.undoCur++;
-      this.render.drawGen++;
-      this.save();
-      this.checkPaths();
-    }
-    
-    on_mousedown(e) {
-      this.mdown = e.button === 0;
-      this.drawrect = [[e.x*devicePixelRatio, e.y*devicePixelRatio], [e.x*devicePixelRatio, e.y*devicePixelRatio]];
-    }
-    
-    on_mousemove(e) {
-      if (this.mdown && this.drawrect) {
-        this.drawrect[1][0] = e.x*devicePixelRatio;
-        this.drawrect[1][1] = e.y*devicePixelRatio;
-      }
-    }
-    
-    transform(p, sliders=SLIDERS, size=this.glSize) {
-        p[0] /= size[0];
-        p[1] = (size[1] - p[1]) / size[1];
-        
-        p[0] = p[0]*2.0 - 1.0;
-        p[1] = p[1]*2.0 - 1.0;
-        
-        p[0] *= canvas.width / canvas.height;
-        
-        p[0] += sliders[5];
-        p[1] += sliders[6];
-        
-        p[0] /= SLIDERS[4];
-        p[1] /= SLIDERS[4];
-    }
-    
-    untransform(p, sliders=SLIDERS) {
-      p[0] *= SLIDERS[4];
-      p[1] *= SLIDERS[4];
 
-      p[0] -= sliders[5];
-      p[1] -= sliders[6];
-      
-      p[0] *= canvas.height / canvas.width;
+      var config = window.config = {
+        GRADIENT           : new ui.Gradient(),
+        SHOW_SLIDERS       : true,
+        SHARPNESS          : 0.5,
+        USE_SHARPNESS      : true,
+        USE_MONTY_SHARPNESS: false,
+        FILTER_WIDTH       : 1.5,
+        PER_PIXEL_RANDOM   : true,
+        MAX_SAMPLES        : 100,
+        OLD_GRADIENT       : false
+      };
 
-      p[0] = p[0]*0.5 + 0.5;
-      p[1] = p[1]*0.5 + 0.5;
-      
-      p[0] *= this.glSize[0];
-      p[1] *= this.glSize[1];
-      
-      p[1] = this.glSize[1] - p[1];
-      //console.log(p);
-    }
-    
-    viewChanged() {
-    
-    }
-    
-    zoom() {
-      let r = this.drawrect;
-      let minx = Math.min(r[0][0], r[1][0]);
-      let miny = Math.min(r[0][1], r[1][1]);
-      let maxx = Math.max(r[0][0], r[1][0]);
-      let maxy = Math.max(r[0][1], r[1][1]);
-      let w = maxx - minx;
-      let h = maxy - miny;
-      
-      if (w === 0 || h === 0) {
-        return;
-      }
-      
-      let cx = (minx + maxx)*0.5;
-      let cy = (miny + maxy)*0.5;
-      // fix aspect
-      
-      let size = Math.max(w, h);
-      
-      minx = cx - size*0.5;
-      miny = cy - size*0.5;
-      
-      maxx = cx + size*0.5;
-      maxy = cy + size*0.5;
-      
-      let min = [minx, miny];
-      let max = [maxx, maxy];
+      //config.GRADIENT = '{"stops":[{"color":[1,1,1,1],"t":-0.03401360544217687,"flag":0,"type":2,"id":1},{"color":[0.023529411764705882,0.2124567474048444,0.3803921568627451,1],"t":0.07908158075241817,"flag":0,"type":2,"id":3},{"color":[0,0.025374855824682917,0.21568627450980393,1],"t":0.14285709095649976,"flag":0,"type":2,"id":3},{"color":[1,0.3529411764705883,0,1],"t":0.3767006283714658,"flag":0,"type":2,"id":7},{"color":[1,1,1,1],"t":0.6955781793918738,"flag":0,"type":2,"id":5},{"color":[1,0.588235294117647,0,1],"t":0.7083332814326901,"flag":0,"type":2,"id":3},{"color":[0,0.5098039215686274,0.42352941176470593,1],"t":1.005952329051738,"flag":0,"type":2,"id":6}],"brightness":-0.03460148015718023,"contrast":6.650181530849846,"active":1,"highlight":7,"version":0.1}'
 
-      let s = this.glSize;
-      
-      this.transform(min, undefined, s);
-      this.transform(max, undefined, s);
-      
-      cx = ((min[0]+max[0])*0.5);
-      cy = ((min[1]+max[1])*0.5);
-      
-      let startx = SLIDERS[5] / SLIDERS[4];
-      let starty = SLIDERS[6] / SLIDERS[4];
-      
-      let scale = 1.0 / (max[0] - min[0]);
-      let startscale = SLIDERS[4];
-      
-      console.log("SCALE", scale);
-      if (isNaN(scale)) {
-        return;
-      }
-      
-      animManager.finish("zoom");
-      this.undoPush();
-      this.clearPaths();
+      class AppState {
+        constructor(gl, canvas, g, canvas2d) {
+          this.gl = gl; //3d api
+          this.g = g;   //2d api
+          this.mdown = false;
 
-      if (0) {
-        SLIDERS[5] = cx;
-        SLIDERS[6] = cy;
-      } else {
-        animManager.run("zoom", (t) => {
-          console.log(t);
-          SLIDERS[4] = startscale + (scale - startscale)*t*t*t;
-          
-          let cx2 = cx;//*SLIDERS[4];
-          let cy2 = cy;//*SLIDERS[4];
-          
-          SLIDERS[5] = (startx + (cx2 - startx)*t)*SLIDERS[4];
-          SLIDERS[6] = (starty + (cy2 - starty)*t)*SLIDERS[4];
+          this.image = undefined;
+
+          this.gui = new ui.UI(config);
+          this.makeGui();
+          this.gui.listen();
+
+          this.undoStack = [];
+          this.undoCur = 0;
+
+          this.paths = [];
+          this._last_view_key = calcViewKey();
+
+          this.fbos = new Array(2);
+          for (let i = 0; i < this.fbos.length; i++) {
+            this.fbos[i] = new webgl.FBO(gl, canvas.width, canvas.height);
+            this.fbos[i].create(gl);
+          }
+
+          this.sliderUndoGen = 0;
+
+          this.glSize = [512, 512];
+
+          this.drawrect = undefined;
+
+          this.canvas2d = canvas2d;
+          this.canvas = canvas;
+          this.render = new Render(this.fbos);
+
+          this.mpos = [0, 0];
+
+          this.sliders = new sliders.SliderManager(50, 50, 25,
+            window.innerHeight - 150, SLIDERS, SLIDER_NAMES);
+          this.sliders.onchange = () => {
+            this.render.drawGen++;
+          }
+
+          this.sliders.onchange_start = () => {
+            this.undoPush(this.sliderUndoGen, true);
+          }
+
+          this.sliders.onchange_end = () => {
+            this.sliderUndoGen++;
+          }
+
+          this.sliders.pad = 6;
+          this.sliders.localStorageKey = LOCAL_STORAGE_KEY + "_params";
+          this.load();
+
+          window.addEventListener("keydown", (e) => this.on_keydown(e));
+
+          let dotouch = (e) => {
+            let x = e.touches.length > 0 ? e.touches[0].pageX : this.mpos[0];
+            let y = e.touches.length > 0 ? e.touches[0].pageY : this.mpos[1];
+
+            return Object.assign({x, y, button: 0}, e);
+          }
+
+          let dom = this.canvas2d;
+
+          dom.addEventListener("mousedown", (e) => {
+            return this.on_mousedown(e);
+          });
+          dom.addEventListener("mousemove", (e) => {
+            return this.on_mousemove(e);
+          });
+          dom.addEventListener("mouseup", (e) => {
+            return this.on_mouseup(e);
+          });
+
+          dom.addEventListener("touchstart", (e) => {
+            e.preventDefault();
+            return this.on_mousedown(dotouch(e));
+          });
+          dom.addEventListener("touchend", (e) => {
+            e.preventDefault();
+            return this.on_mouseup(dotouch(e));
+          });
+          dom.addEventListener("touchmove", (e) => {
+            e.preventDefault();
+            return this.on_mousemove(dotouch(e));
+          });
+
+          this.sliders.bind_events(dom);
+
+          this.undoPush();
+        }
+
+        makeGui() {
+          let gui = this.gui;
+
+          gui.gradient("GRADIENT", "Gradient");
+
+          gui.slider("FILTER_WIDTH", "Filter", 1.5, 0.01, 15.0, 0.001);
+          gui.slider("MAX_SAMPLES", "Samples", 100, 1, 1500, 1, true);
+
+          gui.check("SHOW_SLIDERS", "Show Sliders");
+          gui.check("USE_SHARPNESS", "Sharpness Filter");
+          gui.slider("SHARPNESS", "Sharpness", 0.0, 0.0, 1.0, 0.001, false, false);
+          gui.check("USE_MONTY_SHARPNESS", "Monty Sharpness");
+
+          gui.check("PER_PIXEL_RANDOM", "PixelRand");
+          gui.check("OLD_GRADIENT", "Old Gradient");
+        }
+
+        undoPush(combineId, combine = false) {
+          animManager.finish("zoom");
+
+          if (combine && this.undoCur > 0) {
+            let head = this.undoStack[this.undoCur - 1];
+            if (head.id === combineId) {
+              for (let i = 0; i < SLIDERS.length; i++) {
+                head.sliders[i] = SLIDERS[i];
+              }
+
+              console.log("found undo head");
+              return;
+            }
+          }
+
+          this.undoStack.length = this.undoCur;
+          this.undoCur++;
+          this.undoStack.push({
+            sliders: SLIDERS.concat([]),
+            id     : combineId
+          });
+        }
+
+        undo() {
+          console.log("undo", this.undoCur, this.undoStack);
+
+          if (this.undoCur <= 0) {
+            return;
+          }
+
+          animManager.finish("zoom");
+
+          this.undoCur--;
+          let sliders = this.undoStack[this.undoCur].sliders;
+
+          for (let i = 0; i < sliders.length; i++) {
+            let t = SLIDERS[i];
+            SLIDERS[i] = sliders[i];
+            sliders[i] = t;
+          }
+
+          this.render.drawGen++;
+          this.save();
+          this.checkPaths();
+        }
+
+        redo() {
+          console.log("redo", this.undoCur, this.undoStack);
+
+          if (this.undoCur >= this.undoStack.length) {
+            return;
+          }
+
+          animManager.finish("zoom");
+
+          let sliders = this.undoStack[this.undoCur].sliders;
+
+          for (let i = 0; i < sliders.length; i++) {
+            let t = SLIDERS[i];
+            SLIDERS[i] = sliders[i];
+            sliders[i] = t;
+          }
+
+          this.undoCur++;
+          this.render.drawGen++;
+          this.save();
+          this.checkPaths();
+        }
+
+        on_mousedown(e) {
+          this.mdown = e.button === 0;
+          this.drawrect = [[e.x*devicePixelRatio, e.y*devicePixelRatio], [e.x*devicePixelRatio, e.y*devicePixelRatio]];
+        }
+
+        on_mousemove(e) {
+          if (this.mdown && this.drawrect) {
+            this.drawrect[1][0] = e.x*devicePixelRatio;
+            this.drawrect[1][1] = e.y*devicePixelRatio;
+          }
+        }
+
+        transform(p, sliders = SLIDERS, size = this.glSize) {
+          p[0] /= size[0];
+          p[1] = (size[1] - p[1])/size[1];
+
+          p[0] = p[0]*2.0 - 1.0;
+          p[1] = p[1]*2.0 - 1.0;
+
+          p[0] *= canvas.width/canvas.height;
+
+          p[0] += sliders[5];
+          p[1] += sliders[6];
+
+          p[0] /= SLIDERS[4];
+          p[1] /= SLIDERS[4];
+        }
+
+        untransform(p, sliders = SLIDERS) {
+          p[0] *= SLIDERS[4];
+          p[1] *= SLIDERS[4];
+
+          p[0] -= sliders[5];
+          p[1] -= sliders[6];
+
+          p[0] *= canvas.height/canvas.width;
+
+          p[0] = p[0]*0.5 + 0.5;
+          p[1] = p[1]*0.5 + 0.5;
+
+          p[0] *= this.glSize[0];
+          p[1] *= this.glSize[1];
+
+          p[1] = this.glSize[1] - p[1];
+          //console.log(p);
+        }
+
+        viewChanged() {
+
+        }
+
+        zoom() {
+          let r = this.drawrect;
+          let minx = Math.min(r[0][0], r[1][0]);
+          let miny = Math.min(r[0][1], r[1][1]);
+          let maxx = Math.max(r[0][0], r[1][0]);
+          let maxy = Math.max(r[0][1], r[1][1]);
+          let w = maxx - minx;
+          let h = maxy - miny;
+
+          if (w === 0 || h === 0) {
+            return;
+          }
+
+          let cx = (minx + maxx)*0.5;
+          let cy = (miny + maxy)*0.5;
+          // fix aspect
+
+          let size = Math.max(w, h);
+
+          minx = cx - size*0.5;
+          miny = cy - size*0.5;
+
+          maxx = cx + size*0.5;
+          maxy = cy + size*0.5;
+
+          let min = [minx, miny];
+          let max = [maxx, maxy];
+
+          let s = this.glSize;
+
+          this.transform(min, undefined, s);
+          this.transform(max, undefined, s);
+
+          cx = ((min[0] + max[0])*0.5);
+          cy = ((min[1] + max[1])*0.5);
+
+          let startx = SLIDERS[5]/SLIDERS[4];
+          let starty = SLIDERS[6]/SLIDERS[4];
+
+          let scale = 1.0/(max[0] - min[0]);
+          let startscale = SLIDERS[4];
+
+          console.log("SCALE", scale);
+          if (isNaN(scale)) {
+            return;
+          }
+
+          animManager.finish("zoom");
+          this.undoPush();
+          this.clearPaths();
+
+          if (0) {
+            SLIDERS[5] = cx;
+            SLIDERS[6] = cy;
+          } else {
+            animManager.run("zoom", (t) => {
+              console.log(t);
+              SLIDERS[4] = startscale + (scale - startscale)*t*t*t;
+
+              let cx2 = cx;//*SLIDERS[4];
+              let cy2 = cy;//*SLIDERS[4];
+
+              SLIDERS[5] = (startx + (cx2 - startx)*t)*SLIDERS[4];
+              SLIDERS[6] = (starty + (cy2 - starty)*t)*SLIDERS[4];
+              this.save();
+              this.render.drawGen++;
+            }).then(() => {
+            });
+          }
+
           this.save();
           this.render.drawGen++;
-        }).then(() => {
-        });
-      }
-      
-      this.save();
-      this.render.drawGen++;
-    }
-    
-    toJSON() {
-      return config;
-    }
-    
-    save() {
-      localStorage[LOCAL_STORAGE_KEY] = JSON.stringify(this);
-      this.sliders.save();
-    }
-    
-    load() {
-      this.sliders.load();
-      
-      let json = localStorage[LOCAL_STORAGE_KEY];
-      if (json === undefined) {
-        return;
-      }
-      
-      json = JSON.parse(json);
-      for (let k in json) {
-        config[k] = json[k];
-      }
-    }
-    
-    on_tick() {
-      
-    }
-    
-    on_mouseup(e) {
-      this.mdown = false;
-      
-      if (this.drawrect) {
-        this.zoom();
-      }
-      this.drawrect = undefined;
-    }
-    
-    internalRun(uv, iRes, steps=~~SLIDERS[0]) {      
-      //uv = uv.divScalar(iRes.x).mulScalar(2.0).subScalar(1.0);
-      uv.idiv(iRes).imulScalar(2.0).isubScalar(1.0);
-      uv.x *= iRes.x/iRes.y;
-      
-      uv.x += SLIDERS[5];
-      uv.y += SLIDERS[6]; // + 0.5*SLIDERS[4];
+        }
 
-      uv.idivScalar(SLIDERS[4]);
+        toJSON() {
+          return config;
+        }
 
-      let seed, dr, di, f=0.0, dist=0.0, z;
-      
-      let startuv = uv.clone();
-      
-      let tm = 0.0;
-      let tm2 = 0.0;
-      
-      seed = uv.clone();
-      //seed = vec2(0.2, 0.4132432);
-      
-      //return tent(uv.y*1.23423);
-      
-      tm = SLIDERS[1];
-      tm = pow(tm, 1.0/1.0);
-      let toff = pow(tm, 0.25);
-      
-      mstack.push();
-      vstack.push();
-      
-      for (let i=0; i<steps; i++) {
-          let z = cmul(uv, vec2(0.333333 + tm*0.5, 0.0 + tm)); //0.85*toff));
-          
-          let a = fsample(z, seed);
-          
-          //anayltical derivatives
-          let p = seed;
-          
-          let zx = z.x, zy = z.y;
-          let px = p.x, py = p.y;
-          
-          dr = vec2(0,0);
-          di = vec2(0,0);
-          
-          dr.x = -(2.0*((px-zx)*zx-(py-zy)*zy)+zy*zy+1.0-zx*zx);
-          dr.y = -2.0*((py-zy-zy)*zx+(px-zx)*zy);
-        
-          di.x = 2.0*((py-zy-zy)*zx+(px-zx)*zy);
-          di.y = -(2.0*((px-zx)*zx-(py-zy)*zy)+zy*zy+1.0-zx*zx);
-  
-          //heissan matrices
-          let rxm = mat2( vec2(4.0*(px-3.0*zx)*(px-3.0*zx),-4.0*(px-3.0*zx)*(py-3.0*zy)),
-                         vec2(-4.0*(px-3.0*zx)*(py-3.0*zy), 4.0*(py-3.0*zy)*(py-3.0*zy)));
+        save() {
+          localStorage[LOCAL_STORAGE_KEY] = JSON.stringify(this);
+          this.sliders.save();
+        }
 
-          let rym = mat2(vec2(4.0*(py-3.0*zy)*(py-3.0*zy), 4.0*(px-3.0*zx)*(py-3.0*zy)),
-                          vec2(4.0*(px-3.0*zx)*(py-3.0*zy), 4.0*(px-3.0*zx)*(px-3.0*zx)));
+        load() {
+          this.sliders.load();
 
-          let ixm = mat2(vec2(4.0*(py-3.0*zy)*(py-3.0*zy), 4.0*(px-3.0*zx)*(py-3.0*zy)),
-                          vec2(4.0*(px-3.0*zx)*(py-3.0*zy), 4.0*(px-3.0*zx)*(px-3.0*zx)));
+          let json = localStorage[LOCAL_STORAGE_KEY];
+          if (json === undefined) {
+            return;
+          }
 
-          let iym = mat2(vec2(4.0*(px-3.0*zx)*(px-3.0*zx), -4.0*(px-3.0*zx)*(py-3.0*zy)),
-                          vec2(-4.0*(px-3.0*zx)*(py-3.0*zy), 4.0*(py-3.0*zy)*(py-3.0*zy))); 
-          
-          let m = inverse(mat2(dr, di));
-          
-          let off = m.mulVec(a).negate();
-          off.iadd(vec2(-off.y, off.x).imulScalar(SLIDERS[10]));
-          
-          dist += 2.0 * length(off) / (0.2 + length(iym.mul(rxm).mulVec(off)));
-          
-          //dist += 0.12 / (0.1 + length(rym*off));
-          
-          //dist += (determinant(rxm) + determinant(rym) + determinant(ixm) + determinant(iym))*1000.0;
-          //dist += determinant(rxm*rym*ixm*iym)*100000.0;
-          //dist += (abs(off[0]) + abs(off[1]))*0.5;
-          //dist += max(abs(off[0]), abs(off[1]));
-          
-          uv.iadd(off);
-      }
-      
-      mstack.pop();
-      vstack.pop();
-      
-      let d1 = length(uv.sub(vec2(-1.0, 0.0)));
-      let d2 = length(uv.sub(vec2(1.0, 0.0)));
-      let d3 = length(uv.sub(seed));
-      
-      //find closest root shade
-      f = d1 < d2 ? 1.0 : 0.75;
-      f = d3 < d2 && d3 < d1 ? 0.5 : f;
-      
-      let tfac = pow(1.0 - toff, 0.25);
-      let dfract;
-      dfract = tent(dist*0.004);
-      f = sqrt(dfract)*0.5;
-      
-      return f;
-    }
-    
-    tracePaths() {
-      if (this.paths.length > 0) {
-        animManager.stop("paths");
-        this.paths.length = 0;
-        return;
-      }
-      
-      let totpoints = 1024*4;
-      this.paths.length = 0;
-      
-      let dimen = Math.ceil(Math.sqrt(totpoints));
-      let width = this.glSize[0], height = this.glSize[1];
-      
-      totpoints = dimen*dimen;
-      
-      let p = [0, 0];
+          json = JSON.parse(json);
+          for (let k in json) {
+            config[k] = json[k];
+          }
 
-      for (let i=0; i<totpoints; i++) {
-        let x = i % dimen, y = ~~(i / dimen);
-        
-        x += (util.random() - 0.5);
-        y += (util.random() - 0.5);
-        
-        x = (x / dimen) * width;
-        y = (y / dimen) * height;
-        
-        p[0] = x;
-        p[1] = y;
-        
-        this.transform(p);
-        
-        //this.untransform(p);
-        //console.log(p, x, y);
-        
-        let path = new Path(p[0], p[1]);
-        this.paths.push(path);
-      }
-      
-      let job = () => {
-        let t = util.time_ms();
-        while (util.time_ms() - t < 15) {
-          for (let path of this.paths) {
-            path.step(this);
+          if (this.gui) {
+            this.gui.load();
           }
         }
-      }
-      
-      animManager.stop("paths");
-      animManager.run("paths", job, -1)
-    }
-    
-    cpuRender() {
-      console.log("trace paths!");
-      
-      if (this.image) {
-        this.image = undefined;
-        animManager.stop("render");
-        return;
-      }
-      
-      animManager.stop("render");
-      
-      let size = 400;
-      
-      this.image = new ImageData(size, size);
-      let img = this.image.data;
-      
-      for (let i=0; i<size*size*4; i += 4) {
-        img[i] = img[i+1] = img[i+2] = 0;
-        img[i+3] = 255;
-      }
-      
-      let width = this.glSize[0];
-      let height = this.glSize[1];
-      
-      let i = 0;
-      let job = () => {
-        let t = util.time_ms();
-        while (util.time_ms() - t < 250) {
-          let iend = Math.min(i + 256, size*size);
-          
-          if (i >= size*size) {
-            animManager.stop("render");
-            break;
-          }
-          
-          for (; i<iend; i++) {
-            let ix = i % size, iy = ~~(i / size);
-            
-            let iRes = vec2(width, height);
-            let uv = vec2(ix, height - iy);
-            
-            vstack.push();
-            mstack.push();
-            
-            let f = this.internalRun(uv, iRes);
-            
-            vstack.pop();
-            mstack.pop();
-            
-            f = Math.floor(f*255);
-            
-            img[i*4] = img[i*4+1] = img[i*4+2] = f;
-            //let idx = (iy*size + ix) * 4;
-            //img[idx] = img[idx+1] = img[idx+2] = f;
-          }
+
+        on_tick() {
+
         }
-      }
-      
-      animManager.run("render", job, -1);
-    }
-    
-    checkPaths() {
-      if (calcViewKey() != this._last_view_key) {
-        this.clearPaths;
-        this._last_view_key = calcViewKey();
-      }
-    }
-    
-    clearPaths() {
-      this.paths = [];
-    }
-    
-    reset() {
-      this.image = undefined;
-      animManager.stop("render");
-      animManager.stop("paths");
-    
-      SLIDERS[4] = DEFAULT_SLIDERS[4];
-      SLIDERS[5] = DEFAULT_SLIDERS[5];
-      SLIDERS[6] = DEFAULT_SLIDERS[6];
-      this.render.drawGen++;
-      
-      this.clearPaths();
-    }
-    
-    on_keydown(e) {
-      console.log(e.keyCode);
-      
-      switch (e.keyCode) {
-        case 82: //rkey
-          //for (let i=0; i<DEFAULT_SLIDERS.length; i++) {
-            //SLIDERS[i] = DEFAULT_SLIDERS[i];
-            this.undoPush();
-            
-            if (e.shiftKey) {
-              for (let i=0; i<DEFAULT_SLIDERS.length; i++) {
-                SLIDERS[i] = DEFAULT_SLIDERS[i];
+
+        on_mouseup(e) {
+          this.mdown = false;
+
+          if (this.drawrect) {
+            this.zoom();
+          }
+          this.drawrect = undefined;
+        }
+
+        internalRun(uv, iRes, steps = ~~SLIDERS[0]) {
+          //uv = uv.divScalar(iRes.x).mulScalar(2.0).subScalar(1.0);
+          uv.idiv(iRes).imulScalar(2.0).isubScalar(1.0);
+          uv.x *= iRes.x/iRes.y;
+
+          uv.x += SLIDERS[5];
+          uv.y += SLIDERS[6]; // + 0.5*SLIDERS[4];
+
+          uv.idivScalar(SLIDERS[4]);
+
+          let seed, dr, di, f = 0.0, dist = 0.0, z;
+
+          let startuv = uv.clone();
+
+          let tm = 0.0;
+          let tm2 = 0.0;
+
+          seed = uv.clone();
+          //seed = vec2(0.2, 0.4132432);
+
+          //return tent(uv.y*1.23423);
+
+          tm = SLIDERS[1];
+          tm = pow(tm, 1.0/1.0);
+          let toff = pow(tm, 0.25);
+
+          mstack.push();
+          vstack.push();
+
+          for (let i = 0; i < steps; i++) {
+            let z = cmul(uv, vec2(0.333333 + tm*0.5, 0.0 + tm)); //0.85*toff));
+
+            let a = fsample(z, seed);
+
+            //anayltical derivatives
+            let p = seed;
+
+            let zx = z.x, zy = z.y;
+            let px = p.x, py = p.y;
+
+            dr = vec2(0, 0);
+            di = vec2(0, 0);
+
+            dr.x = -(2.0*((px - zx)*zx - (py - zy)*zy) + zy*zy + 1.0 - zx*zx);
+            dr.y = -2.0*((py - zy - zy)*zx + (px - zx)*zy);
+
+            di.x = 2.0*((py - zy - zy)*zx + (px - zx)*zy);
+            di.y = -(2.0*((px - zx)*zx - (py - zy)*zy) + zy*zy + 1.0 - zx*zx);
+
+            //heissan matrices
+            let rxm = mat2(vec2(4.0*(px - 3.0*zx)*(px - 3.0*zx), -4.0*(px - 3.0*zx)*(py - 3.0*zy)),
+              vec2(-4.0*(px - 3.0*zx)*(py - 3.0*zy), 4.0*(py - 3.0*zy)*(py - 3.0*zy)));
+
+            let rym = mat2(vec2(4.0*(py - 3.0*zy)*(py - 3.0*zy), 4.0*(px - 3.0*zx)*(py - 3.0*zy)),
+              vec2(4.0*(px - 3.0*zx)*(py - 3.0*zy), 4.0*(px - 3.0*zx)*(px - 3.0*zx)));
+
+            let ixm = mat2(vec2(4.0*(py - 3.0*zy)*(py - 3.0*zy), 4.0*(px - 3.0*zx)*(py - 3.0*zy)),
+              vec2(4.0*(px - 3.0*zx)*(py - 3.0*zy), 4.0*(px - 3.0*zx)*(px - 3.0*zx)));
+
+            let iym = mat2(vec2(4.0*(px - 3.0*zx)*(px - 3.0*zx), -4.0*(px - 3.0*zx)*(py - 3.0*zy)),
+              vec2(-4.0*(px - 3.0*zx)*(py - 3.0*zy), 4.0*(py - 3.0*zy)*(py - 3.0*zy)));
+
+            let m = inverse(mat2(dr, di));
+
+            let off = m.mulVec(a).negate();
+            off.iadd(vec2(-off.y, off.x).imulScalar(SLIDERS[10]));
+
+            dist += 2.0*length(off)/(0.2 + length(iym.mul(rxm).mulVec(off)));
+
+            //dist += 0.12 / (0.1 + length(rym*off));
+
+            //dist += (determinant(rxm) + determinant(rym) + determinant(ixm) + determinant(iym))*1000.0;
+            //dist += determinant(rxm*rym*ixm*iym)*100000.0;
+            //dist += (abs(off[0]) + abs(off[1]))*0.5;
+            //dist += max(abs(off[0]), abs(off[1]));
+
+            uv.iadd(off);
+          }
+
+          mstack.pop();
+          vstack.pop();
+
+          let d1 = length(uv.sub(vec2(-1.0, 0.0)));
+          let d2 = length(uv.sub(vec2(1.0, 0.0)));
+          let d3 = length(uv.sub(seed));
+
+          //find closest root shade
+          f = d1 < d2 ? 1.0 : 0.75;
+          f = d3 < d2 && d3 < d1 ? 0.5 : f;
+
+          let tfac = pow(1.0 - toff, 0.25);
+          let dfract;
+          dfract = tent(dist*0.004);
+          f = sqrt(dfract)*0.5;
+
+          return f;
+        }
+
+        tracePaths() {
+          if (this.paths.length > 0) {
+            animManager.stop("paths");
+            this.paths.length = 0;
+            return;
+          }
+
+          let totpoints = 1024*4;
+          this.paths.length = 0;
+
+          let dimen = Math.ceil(Math.sqrt(totpoints));
+          let width = this.glSize[0], height = this.glSize[1];
+
+          totpoints = dimen*dimen;
+
+          let p = [0, 0];
+
+          for (let i = 0; i < totpoints; i++) {
+            let x = i%dimen, y = ~~(i/dimen);
+
+            x += (util.random() - 0.5);
+            y += (util.random() - 0.5);
+
+            x = (x/dimen)*width;
+            y = (y/dimen)*height;
+
+            p[0] = x;
+            p[1] = y;
+
+            this.transform(p);
+
+            //this.untransform(p);
+            //console.log(p, x, y);
+
+            let path = new Path(p[0], p[1]);
+            this.paths.push(path);
+          }
+
+          let job = () => {
+            let t = util.time_ms();
+            while (util.time_ms() - t < 15) {
+              for (let path of this.paths) {
+                path.step(this);
               }
-              this.render.drawGen++;
-            } else {
-              this.reset();
             }
-            
-          //}
-          break;
-        case 90: //zkey
-          if (e.ctrlKey && !e.shiftKey) {
-            this.undo();
-          } else if (e.ctrlKey && e.shiftKey) {
-            this.redo();
           }
-          break;
-        case 83: //skey
-          this.save();
-          break;
-        case 75:
-          this.cpuRender();
-          break;
-        case 68: //dkey
-          this.tracePaths();
-          break;
-      }
-      if (this.drawrect) {
-        this.drawrect = undefined;
-      }
-    }
-    
-    draw() {
-      this.sliders.visible = config.SHOW_SLIDERS;
-      this.render.draw(this.gl);
-      
-      this.g.clearRect(0, 0, this.canvas2d.width, this.canvas2d.height);
-      
-      if (this.image) {
-        this.g.putImageData(this.image, 0, 0);
-      }
-      
-      for (let path of this.paths) {
-        path.draw(this, this.g);
-      }
-      
-      if (this.drawrect) {
-        this.g.save();
-        this.g.beginPath();
-        this.g.strokeStyle = "white";
-        this.g.lineWidth = 1;
-        
-        let r = this.drawrect;
-        let minx = Math.min(r[0][0], r[1][0]);
-        let miny = Math.min(r[0][1], r[1][1]);
-        let maxx = Math.max(r[0][0], r[1][0]);
-        let maxy = Math.max(r[0][1], r[1][1]);
-        let w = maxx - minx;
-        let h = maxy - miny;
-        
-        //this.g.moveTo(r[0][0], r[0][1]);
-        //this.g.lineTo(r[1][0], r[1][1]);
-        this.g.rect(minx, miny, w, h);
-        
-        this.g.stroke();
-        this.g.restore();
-      }
-      
-      this.sliders.draw(this.canvas2d, this.g);
-      
-      window.T += 0.0001;
-      redraw_all();
-    }
-  }
-  
-  function start() {
-    console.log("init!");
-    
-    let canvas = document.getElementById("canvas");
-    let canvas2d = document.getElementById("canvas2d");
-    let dpi = devicePixelRatio;
-    
-    canvas.width = ~~(window.innerWidth * dpi - 28);
-    canvas.height = ~~(window.innerHeight * dpi - 28);
-    canvas2d.width = canvas.width;
-    canvas2d.height = canvas.height;
-    
-    canvas.style["width"] = canvas2d.style["width"] = (canvas.width/dpi) + "px";
-    canvas.style["height"] = canvas2d.style["height"] = (canvas.height/dpi) + "px";
-    let g = canvas2d.getContext("2d");
-    
-    let gl = webgl.init_webgl(canvas, {}, true);
-    
-    loadShaders(gl);
-    
-    gl.clearColor(0.2, 0.4, 0.9, 1.0);
-    gl.clear(gl.COLOR_BUFFER_BIT);
-    
-    window._appstate = new AppState(gl, canvas, g, canvas2d);
-    _appstate.glSize = [canvas.width, canvas.height];
-    
-    let animreq = undefined;
-    function do_draw() {
-      animreq = undefined;
-      _appstate.draw();
-    }
-    
-    window.redraw_all = function() {
-      if (animreq == undefined) {
-        animreq = requestAnimationFrame(do_draw);
-      }
-    }
-    
-    redraw_all();
-  }
-  
-  start();
-});
 
-</script>
-<style>
-#canvas {
-  position : absolute;
-  z-index  : -3;
-}
+          animManager.stop("paths");
+          animManager.run("paths", job, -1)
+        }
 
-#canvas2d {
-  position : absolute;
-  z-index  : -2;
-}
-</style>
+        cpuRender() {
+          console.log("trace paths!");
+
+          if (this.image) {
+            this.image = undefined;
+            animManager.stop("render");
+            return;
+          }
+
+          animManager.stop("render");
+
+          let size = 400;
+
+          this.image = new ImageData(size, size);
+          let img = this.image.data;
+
+          for (let i = 0; i < size*size*4; i += 4) {
+            img[i] = img[i + 1] = img[i + 2] = 0;
+            img[i + 3] = 255;
+          }
+
+          let width = this.glSize[0];
+          let height = this.glSize[1];
+
+          let i = 0;
+          let job = () => {
+            let t = util.time_ms();
+            while (util.time_ms() - t < 250) {
+              let iend = Math.min(i + 256, size*size);
+
+              if (i >= size*size) {
+                animManager.stop("render");
+                break;
+              }
+
+              for (; i < iend; i++) {
+                let ix = i%size, iy = ~~(i/size);
+
+                let iRes = vec2(width, height);
+                let uv = vec2(ix, height - iy);
+
+                vstack.push();
+                mstack.push();
+
+                let f = this.internalRun(uv, iRes);
+
+                vstack.pop();
+                mstack.pop();
+
+                f = Math.floor(f*255);
+
+                img[i*4] = img[i*4 + 1] = img[i*4 + 2] = f;
+                //let idx = (iy*size + ix) * 4;
+                //img[idx] = img[idx+1] = img[idx+2] = f;
+              }
+            }
+          }
+
+          animManager.run("render", job, -1);
+        }
+
+        checkPaths() {
+          if (calcViewKey() != this._last_view_key) {
+            this.clearPaths;
+            this._last_view_key = calcViewKey();
+          }
+        }
+
+        clearPaths() {
+          this.paths = [];
+        }
+
+        reset() {
+          this.image = undefined;
+          animManager.stop("render");
+          animManager.stop("paths");
+
+          SLIDERS[4] = DEFAULT_SLIDERS[4];
+          SLIDERS[5] = DEFAULT_SLIDERS[5];
+          SLIDERS[6] = DEFAULT_SLIDERS[6];
+          this.render.drawGen++;
+
+          this.clearPaths();
+        }
+
+        on_keydown(e) {
+          console.log(e.keyCode);
+
+          switch (e.keyCode) {
+            case 82: //rkey
+              //for (let i=0; i<DEFAULT_SLIDERS.length; i++) {
+              //SLIDERS[i] = DEFAULT_SLIDERS[i];
+              this.undoPush();
+
+              if (e.shiftKey) {
+                for (let i = 0; i < DEFAULT_SLIDERS.length; i++) {
+                  SLIDERS[i] = DEFAULT_SLIDERS[i];
+                }
+                this.render.drawGen++;
+              } else {
+                this.reset();
+              }
+
+              //}
+              break;
+            case 90: //zkey
+              if (e.ctrlKey && !e.shiftKey) {
+                this.undo();
+              } else if (e.ctrlKey && e.shiftKey) {
+                this.redo();
+              }
+              break;
+            case 83: //skey
+              this.save();
+              break;
+            case 75:
+              this.cpuRender();
+              break;
+            case 68: //dkey
+              this.tracePaths();
+              break;
+          }
+          if (this.drawrect) {
+            this.drawrect = undefined;
+          }
+        }
+
+        draw() {
+          this.sliders.visible = config.SHOW_SLIDERS;
+          this.render.draw(this.gl);
+
+          this.g.clearRect(0, 0, this.canvas2d.width, this.canvas2d.height);
+
+          if (this.image) {
+            this.g.putImageData(this.image, 0, 0);
+          }
+
+          for (let path of this.paths) {
+            path.draw(this, this.g);
+          }
+
+          if (this.drawrect) {
+            this.g.save();
+            this.g.beginPath();
+            this.g.strokeStyle = "white";
+            this.g.lineWidth = 1;
+
+            let r = this.drawrect;
+            let minx = Math.min(r[0][0], r[1][0]);
+            let miny = Math.min(r[0][1], r[1][1]);
+            let maxx = Math.max(r[0][0], r[1][0]);
+            let maxy = Math.max(r[0][1], r[1][1]);
+            let w = maxx - minx;
+            let h = maxy - miny;
+
+            //this.g.moveTo(r[0][0], r[0][1]);
+            //this.g.lineTo(r[1][0], r[1][1]);
+            this.g.rect(minx, miny, w, h);
+
+            this.g.stroke();
+            this.g.restore();
+          }
+
+          this.sliders.draw(this.canvas2d, this.g);
+
+          window.T += 0.0001;
+          redraw_all();
+        }
+      }
+
+      function start() {
+        console.log("init!");
+
+        let canvas = document.getElementById("canvas");
+        let canvas2d = document.getElementById("canvas2d");
+        let dpi = devicePixelRatio;
+
+        canvas.width = ~~(window.innerWidth*dpi - 28);
+        canvas.height = ~~(window.innerHeight*dpi - 28);
+        canvas2d.width = canvas.width;
+        canvas2d.height = canvas.height;
+
+        canvas.style["width"] = canvas2d.style["width"] = (canvas.width/dpi) + "px";
+        canvas.style["height"] = canvas2d.style["height"] = (canvas.height/dpi) + "px";
+        let g = canvas2d.getContext("2d");
+
+        let gl = webgl.init_webgl(canvas, {}, true);
+
+        loadShaders(gl);
+
+        gl.clearColor(0.2, 0.4, 0.9, 1.0);
+        gl.clear(gl.COLOR_BUFFER_BIT);
+
+        window._appstate = new AppState(gl, canvas, g, canvas2d);
+        _appstate.glSize = [canvas.width, canvas.height];
+
+        let animreq = undefined;
+
+        function do_draw() {
+          animreq = undefined;
+          _appstate.draw();
+        }
+
+        window.redraw_all = function () {
+          if (animreq == undefined) {
+            animreq = requestAnimationFrame(do_draw);
+          }
+        }
+
+        redraw_all();
+      }
+
+      start();
+    });
+
+  </script>
+  <style>
+      #canvas {
+          position: absolute;
+          z-index: -3;
+      }
+
+      #canvas2d {
+          position: absolute;
+          z-index: -2;
+      }
+  </style>
 </head>
 <body>
 <canvas id="canvas">

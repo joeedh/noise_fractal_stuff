@@ -13,6 +13,59 @@ define([
 
   window.tm = 0.0;
 
+  let color2css = exports.color2css = function(c) {
+    let r = ~~(c[0]*255);
+    let g = ~~(c[1]*255);
+    let b = ~~(c[2]*255);
+
+    if (c.length === 4) {
+      let a = c[3].toFixed(4);
+
+      return `rgba(${r}, ${g}, ${b}, ${a})`;
+    } else {
+      return `rgba(${r}, ${g}, ${b})`;
+    }
+  }
+
+  window.color2css = color2css;
+
+  let css2color = exports.css2color = function(c) {
+    c = c.replace(/[ \t\r\n]/g, '');
+
+    if (c.startsWith("#")) {
+      c = c.slice(1, c.length);
+
+      let r,g,b, a = 1.0;
+
+      r = parseInt(c.slice(0, 2), 16) / 255.0;
+      g = parseInt(c.slice(2, 4), 16) / 255.0;
+      b = parseInt(c.slice(4, 6), 16) / 255.0;
+
+      if (c.length === 8) {
+        a = parseInt(c.slice(6, 8), 16) / 255.0;
+      }
+
+      return [r, g, b, a];
+    } else {
+      let i = c.search(/\(/);
+      c = c.slice(i+1, c.length-1);
+      c = c.split(",");
+
+      let r = parseInt(c[0]) / 255.0;
+      let g = parseInt(c[1]) / 255.0;
+      let b = parseInt(c[2]) / 255.0;
+      let a = 1.0;
+
+      if (c.length > 3) {
+        a = parseFloat(c[3]);
+      }
+
+      return [r, g, b, a];
+    }
+  }
+
+  window.css2color = css2color;
+
   var time_ms = exports.time_ms = function time_ms() {
     if (window.performance)
       return window.performance.now();
