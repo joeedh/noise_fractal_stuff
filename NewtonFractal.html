@@ -1535,6 +1535,8 @@ ${this[1].x.toFixed(d)}, ${this[1].y.toFixed(d)}
 
           this.sliders = new sliders.SliderManager(50, 50, 25,
             window.innerHeight - 150, SLIDERS, SLIDER_NAMES);
+          this.sliders.correctForDPI = true;
+          
           this.sliders.onchange = () => {
             this.render.drawGen++;
           }

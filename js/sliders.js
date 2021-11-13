@@ -13,6 +13,7 @@ define(['util'], function sliders(util) {
       this.names = [];
       this.sliderdef = [];
       
+      this.correctForDPI = false;
       this.localStorageKey = undefined;
       
       for (let def of names) {
@@ -194,11 +195,15 @@ define(['util'], function sliders(util) {
     reset() {
     }
     
+    getDPI() {
+      return this.correctForDPI ? devicePixelRatio : 1.0;
+    }
+    
     on_mousedown(e) {
       this.mdown = true;
       
-      this.last_mpos[0] = e.pageX*devicePixelRatio;
-      this.last_mpos[1] = e.pageY*devicePixelRatio;
+      this.last_mpos[0] = e.pageX*this.getDPI();
+      this.last_mpos[1] = e.pageY*this.getDPI();
       
       if (this.actslider >= 0) {
         if (this.onchange_start) {
@@ -249,7 +254,7 @@ define(['util'], function sliders(util) {
         
         for (let i=0; i<sliders.length; i++) {
           let box = this.get_slider_box(i);
-          let x = e.pageX*devicePixelRatio, y = e.pageY*devicePixelRatio;
+          let x = e.pageX*this.getDPI(), y = e.pageY*this.getDPI();
           
           if (x >= box[0][0] && x <= box[0][0]+box[1][0] && 
               y >= box[0][1] && y <= box[0][1]+box[1][1])
@@ -266,7 +271,7 @@ define(['util'], function sliders(util) {
           return;
         }
         
-        let dy = -(e.pageY*devicePixelRatio - this.last_mpos[1]) / 700.0;
+        let dy = -(e.pageY*this.getDPI() - this.last_mpos[1]) / 700.0;
         if (def.integer) {
           if (def.range[0] > -10000 && def.range[1] < 10000) {
             dy *= (def.range[1] - def.range[0])*0.5;
@@ -303,8 +308,8 @@ define(['util'], function sliders(util) {
         e.preventDefault()
       }
 
-      this.last_mpos[0] = e.pageX*devicePixelRatio;
-      this.last_mpos[1] = e.pageY*devicePixelRatio;
+      this.last_mpos[0] = e.pageX*this.getDPI();
+      this.last_mpos[1] = e.pageY*this.getDPI();
     }
 
     on_mouseup(e) {
