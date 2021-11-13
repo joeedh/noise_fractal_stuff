@@ -326,7 +326,7 @@ vec4 shader(float ix, float iy) {
   vec2 uv = vec2(ix, iy) / iRes;
   vec4 color;
   
-#ifdef OLD_GRADIENT
+#if defined(OLD_GRADIENT) && !defined(NO_GRADIENT)
   f = mix(f*1.5, pow(f, 1.0 / SLIDERS[2]), 0.5);
   f = tent(f*SLIDERS[7]+0.5);
   
@@ -369,14 +369,17 @@ vec4 shader(float ix, float iy) {
     });
 
     let SLIDER_NAMES = [
-      {name: "steps", integer: true, range: [5, 5555]},
-      {name: "offset", range: [0.0, 5.0]},
-      "gain", "color",
-      {name: "scale", range: [0.001, 1000000.0]},
-      "x", "y", "colorscale",
-      {name: "brightness", range: [0.001, 10.0]},
-      {name: "hoff", range: [0.0001, 10.0]},
-      {name: "poff", range: [0.0, 4.0]}
+      {name: "steps", integer: true, range: [5, 5555]}, //0
+      {name: "offset", range: [0.0, 5.0]}, //1
+      "gain",  //2
+      "color", //3
+      {name: "scale", range: [0.001, 1000000.0]}, //4
+      "x",  //5
+      "y",  //6
+      "colorscale", //7
+      {name: "brightness", range: [0.001, 10.0]}, //8
+      {name: "hoff", range: [0.0001, 10.0]}, //9
+      {name: "poff", range: [0.0, 4.0]} //10
     ];
 
     const LOCAL_STORAGE_KEY = "s_newton_fractal";
@@ -495,7 +498,7 @@ vec4 shader(float ix, float iy) {
       return f*sign;
     }
 
-    require(["util", "webgl", "sliders", "ui"], function (util, webgl, sliders, ui) {
+    require(["util", "webgl", "sliders", "ui", "undostack"], function (util, webgl, sliders, ui, undostack) {
       class TempStack extends Array {
         constructor(cls, count = 512) {
           super();
@@ -920,6 +923,7 @@ ${this[1].x.toFixed(d)}, ${this[1].y.toFixed(d)}
         uniform float agrad[GRAD_STEPS];
         #endif
 
+#ifndef NO_GRADIENT
 #ifndef OLD_GRADIENT
         float evalgrad(float t, float grad[GRAD_STEPS]) {
           float t1 = floor(t*float(GRAD_STEPS));
@@ -951,7 +955,14 @@ ${this[1].x.toFixed(d)}, ${this[1].y.toFixed(d)}
 
           return color;
         }
-        
+#else
+        vec4 fsample(vec2 uv) {
+          vec4 color = texture(rgba, uv).rgba;
+          float f = color.r / color.a;
+          
+          return vec4(f, f, f, 1.0);
+        }
+#endif        
         void main() {          
           float du = 1.0 / iRes.x;
           float dv = 1.0 / iRes.y;
@@ -1015,6 +1026,10 @@ ${this[1].x.toFixed(d)}, ${this[1].y.toFixed(d)}
 
           let defines = {};
 
+          if (config.NO_GRADIENT) {
+            defines.NO_GRADIENT = true;
+          }
+          
           if (config.OLD_GRADIENT) {
             defines.OLD_GRADIENT = null;
           } else {
@@ -1369,7 +1384,7 @@ ${this[1].x.toFixed(d)}, ${this[1].y.toFixed(d)}
           //dist += (abs(off[0]) + abs(off[1]))*0.5;
           //dist += max(abs(off[0]), abs(off[1]));
 
-          //off.imulScalar(0.5);
+          off.imulScalar(0.5);
           uv.iadd(off);
           //}
 
@@ -1447,6 +1462,7 @@ ${this[1].x.toFixed(d)}, ${this[1].y.toFixed(d)}
       }
 
       var config = window.config = {
+        NO_GRADIENT        : false,
         GRADIENT           : new ui.Gradient(),
         SHOW_SLIDERS       : true,
         SHARPNESS          : 0.5,
@@ -1458,8 +1474,17 @@ ${this[1].x.toFixed(d)}, ${this[1].y.toFixed(d)}
         OLD_GRADIENT       : false
       };
 
-      //config.GRADIENT = '{"stops":[{"color":[1,1,1,1],"t":-0.03401360544217687,"flag":0,"type":2,"id":1},{"color":[0.023529411764705882,0.2124567474048444,0.3803921568627451,1],"t":0.07908158075241817,"flag":0,"type":2,"id":3},{"color":[0,0.025374855824682917,0.21568627450980393,1],"t":0.14285709095649976,"flag":0,"type":2,"id":3},{"color":[1,0.3529411764705883,0,1],"t":0.3767006283714658,"flag":0,"type":2,"id":7},{"color":[1,1,1,1],"t":0.6955781793918738,"flag":0,"type":2,"id":5},{"color":[1,0.588235294117647,0,1],"t":0.7083332814326901,"flag":0,"type":2,"id":3},{"color":[0,0.5098039215686274,0.42352941176470593,1],"t":1.005952329051738,"flag":0,"type":2,"id":6}],"brightness":-0.03460148015718023,"contrast":6.650181530849846,"active":1,"highlight":7,"version":0.1}'
+      //config.GRADIENT = {"stops":[{"color":[1,1,1,1],"t":-0.03401360544217687,"flag":0,"type":2,"id":1},{"color":[0.023529411764705882,0.2124567474048444,0.3803921568627451,1],"t":0.07908158075241817,"flag":0,"type":2,"id":3},{"color":[0,0.025374855824682917,0.21568627450980393,1],"t":0.14285709095649976,"flag":0,"type":2,"id":3},{"color":[1,0.3529411764705883,0,1],"t":0.3767006283714658,"flag":0,"type":2,"id":7},{"color":[1,1,1,1],"t":0.6955781793918738,"flag":0,"type":2,"id":5},{"color":[1,0.588235294117647,0,1],"t":0.7083332814326901,"flag":0,"type":2,"id":3},{"color":[0,0.5098039215686274,0.42352941176470593,1],"t":1.005952329051738,"flag":0,"type":2,"id":6}],"brightness":-0.03460148015718023,"contrast":6.650181530849846,"active":1,"highlight":7,"version":0.1};
 
+      //config.GRADIENT = {"stops":[{"color":[0.6799913742377214,0.9078430474973193,0.8752928084602339,1],"t":0,"flag":0,"type":2,"id":1},{"color":[0.6627448586856617,1,0.9923351104246743,1.134127878884028],"t":0.1445576155266794,"flag":0,"type":2,"id":4},{"color":[0.6641316152164686,0.939215716193704,0,1.134127878884028],"t":0.2091842962771046,"flag":0,"type":2,"id":3},{"color":[0.6764705882352942,0,0,1],"t":0.27891099371877653,"flag":0,"type":2,"id":5},{"color":[0.12941176470588237,0,0.12941176470588237,1.7189662245208588],"t":0.3520402973200998,"flag":0,"type":2,"id":4},{"color":[0.1470588235294118,0,0,1.7189662245208588],"t":0.43027169363839307,"flag":0,"type":2,"id":3},{"color":[0.11169984350190419,0.021291727185648927,0.1392153571633732,1.3163097667251147],"t":0.4744894845145089,"flag":0,"type":2,"id":5},{"color":[0,0,0,1],"t":0.8605445290909332,"flag":0,"type":2,"id":6},{"color":[0.9078430474973193,0.9078430474973193,0.9078430474973193,1.6234856701158382],"t":1,"flag":0,"type":2,"id":3}],"brightness":0.060243144399212634,"contrast":4.466571313696291,"postBrightness":0.007306296684025826,"postContrast":2.3755393077499503,"active":-1,"highlight":-1,"version":0.1};
+      
+      //config.GRADIENT = {"stops":[{"color":[0.6799913742377214,0.9078430474973193,0.8752928084602339,1],"t":0,"flag":0,"type":2,"id":1},{"color":[0.6627448586856617,1,0.9923351104246743,1.134127878884028],"t":0.03911523105335882,"flag":0,"type":2,"id":4},{"color":[0.6641316152164686,0.939215716193704,0,1.134127878884028],"t":0.0867351090826956,"flag":0,"type":2,"id":3},{"color":[0.6764705882352942,0,0,1],"t":0.17687017739224592,"flag":0,"type":2,"id":5},{"color":[0.12941176470588237,0,0.12941176470588237,1.7189662245208588],"t":0.39625808819621583,"flag":0,"type":2,"id":4},{"color":[0.1470588235294118,0,0,1.7189662245208588],"t":0.47789079315808375,"flag":0,"type":2,"id":3},{"color":[0.3647058823529412,0.4477511818433717,0.9529411764705882,1.3163097667251147],"t":0.6139454744300062,"flag":0,"type":2,"id":5},{"color":[0,0,0,1],"t":0.8877555172459608,"flag":0,"type":2,"id":6},{"color":[0.9078430474973193,0.9078430474973193,0.9078430474973193,1.6234856701158382],"t":1,"flag":0,"type":2,"id":3}],"brightness":-0.36324759860240097,"contrast":4.4996583057368165,"postBrightness":-0.010338870474382977,"postContrast":1.627837652632059,"active":-1,"highlight":-1,"version":0.1}
+      //SLIDERS =  [188.34821428571422, 0.6982142857142852, 0.18750000000000028, 1.7085714612688336, 16.19987478917088, 6.747283968091449, 6.759060231398961, 9.836785643441342, 0.9617142312186068, 1.539385714285714, 0.2742857251848492]
+      
+      //config.GRADIENT = {"stops":[{"color":[0.6799913742377214,0.9078430474973193,0.8752928084602339,1],"t":0,"flag":0,"type":2,"id":1},{"color":[0.6627448586856617,1,0.9923351104246743,1.134127878884028],"t":0.03911523105335882,"flag":0,"type":2,"id":4},{"color":[0.8734639352702891,0.4823524624693627,1,1.134127878884028],"t":0.08333380043912099,"flag":0,"type":2,"id":3},{"color":[0.6764705882352942,0,0,1],"t":0.29251648779629036,"flag":0,"type":2,"id":5},{"color":[0.12941176470588237,0,0.12941176470588237,1.7189662245208588],"t":0.39625808819621583,"flag":0,"type":2,"id":4},{"color":[0.1470588235294118,0,0,1.7189662245208588],"t":0.505101521809896,"flag":0,"type":2,"id":3},{"color":[0.3647058823529412,0.4477511818433717,0.9529411764705882,1.3163097667251147],"t":0.756802513485863,"flag":0,"type":2,"id":5},{"color":[0,0,0,1],"t":0.8877555172459608,"flag":0,"type":2,"id":6},{"color":[0.9078430474973193,0.9078430474973193,0.9078430474973193,1.6234856701158382],"t":1,"flag":0,"type":2,"id":3}],"brightness":0.007306296684025826,"contrast":3.3416842614451854,"postBrightness":0.07788831155762155,"postContrast":1.9255944664320952,"active":3,"highlight":3,"version":0.1}
+      
+      //config.GRADIENT = {"stops":[{"color":[0,0,0,1],"t":0,"flag":0,"type":2,"id":8},{"color":[0.28431372549019607,0.030103772202623384,0.2679130833426107,1],"t":0.22363940388166983,"flag":0,"type":2,"id":12},{"color":[1,0,0,1],"t":0.42602040816326525,"flag":0,"type":2,"id":9},{"color":[1,0.6516555482978063,0.6516555482978063,1],"t":0.6360543698680644,"flag":0,"type":2,"id":11},{"color":[1,1,1,1],"t":1,"flag":0,"type":2,"id":10}],"brightness":1.0263305184016698,"contrast":8.304430165552176,"postBrightness":-0.05445246149038524,"postContrast":1.7270899238987378,"active":9,"highlight":9,"version":0.1,"idgen":13,"satOffset":1,"hueOffset":0}
+      
       class AppState {
         constructor(gl, canvas, g, canvas2d) {
           this.gl = gl; //3d api
@@ -1468,7 +1493,19 @@ ${this[1].x.toFixed(d)}, ${this[1].y.toFixed(d)}
 
           this.image = undefined;
 
-          this.gui = new ui.UI(config);
+          this.newUndoStack = new undostack.UndoStack();
+
+          this.newUndoStack.onpush = () => {
+            animManager.finish("zoom");
+          }
+          
+          this.newUndoStack.onundo = this.newUndoStack.onredo = () => {
+            animManager.stop("zoom");
+            this.render.drawGen++;
+            this.save();
+          }
+          
+          this.gui = new ui.UI(config, undefined, this.newUndoStack);
           this.makeGui();
           this.gui.listen();
 
@@ -1559,7 +1596,7 @@ ${this[1].x.toFixed(d)}, ${this[1].y.toFixed(d)}
           gui.gradient("GRADIENT", "Gradient");
 
           gui.slider("FILTER_WIDTH", "Filter", 1.5, 0.01, 15.0, 0.001);
-          gui.slider("MAX_SAMPLES", "Samples", 100, 1, 1500, 1, true);
+          gui.slider("MAX_SAMPLES", "Samples", 100, 1, 400, 1, true);
 
           gui.check("SHOW_SLIDERS", "Show Sliders");
           gui.check("USE_SHARPNESS", "Sharpness Filter");
@@ -1568,11 +1605,37 @@ ${this[1].x.toFixed(d)}, ${this[1].y.toFixed(d)}
 
           gui.check("PER_PIXEL_RANDOM", "PixelRand");
           gui.check("OLD_GRADIENT", "Old Gradient");
+          gui.check("NO_GRADIENT", "B/W");
         }
 
+        undoPushNew(combineId, combine = false) {
+          const type = "sliders";
+          const stack = this.newUndoStack;
+          let head;
+          
+          if (combine && (head = stack.head) && head.type == "sliders") {
+            for (let i = 0; i < SLIDERS.length; i++) {
+              head.data[i] = SLIDERS[i];
+            }
+            
+            console.log("found undo head");
+            return;
+          }
+          
+          stack.pushSwapper("sliders", SLIDERS.concat([]), (data) => {
+            for (let i=0; i<data.length; i++) {
+              let t = data[i];
+              
+              data[i] = SLIDERS[i];
+              SLIDERS[i] = t;
+            }
+          });
+        }
+        
         undoPush(combineId, combine = false) {
           animManager.finish("zoom");
-
+          this.undoPushNew();
+          
           if (combine && this.undoCur > 0) {
             let head = this.undoStack[this.undoCur - 1];
             if (head.id === combineId) {
@@ -1594,6 +1657,8 @@ ${this[1].x.toFixed(d)}, ${this[1].y.toFixed(d)}
         }
 
         undo() {
+          this.newUndoStack.undo();
+          return;
           console.log("undo", this.undoCur, this.undoStack);
 
           if (this.undoCur <= 0) {
@@ -1617,6 +1682,8 @@ ${this[1].x.toFixed(d)}, ${this[1].y.toFixed(d)}
         }
 
         redo() {
+          this.newUndoStack.redo();
+          return;
           console.log("redo", this.undoCur, this.undoStack);
 
           if (this.undoCur >= this.undoStack.length) {

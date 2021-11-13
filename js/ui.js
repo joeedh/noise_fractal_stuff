@@ -1164,6 +1164,17 @@ define([
       }
     }
 
+    copy() {
+      let gp = new GradPoint(this.color);
+      
+      gp.t = this.t;
+      gp.flag = this.flag;
+      gp.id = this.id;
+      gp.type = this.type;
+      
+      return gp;
+    }
+    
     toJSON() {
       return {
         color: this.color,
@@ -1198,6 +1209,9 @@ define([
       this.postBrightness = 0.0;
       this.postContrast = 1.0;
 
+      this.satOffset = 1.0;
+      this.hueOffset = 0.0;
+      
       this.active = undefined;
       this.highlight = undefined;
       this.idgen = 1;
@@ -1213,6 +1227,40 @@ define([
       this.addStop([1, 1, 1, 1], 1.0);
     }
 
+    copy() {
+      let g = new Gradient();
+      
+      g.regen = 1;
+      
+      g.idgen = this.idgen;
+     
+      g.cyclic = this.cyclic;
+      g.tableSteps = this.tableSteps;
+      
+      g.postBrightness = this.postBrightness;
+      g.postContrast = this.postContrast;
+      g.contrast = this.contrast;
+      g.brightness = this.brightness;
+      
+      for (let gp of this) {
+        let gp2 = gp.copy();
+        
+        g.idMap.set(gp2.id, gp2);
+        g.push(gp2);
+        
+        if (gp === this.active) {
+          g.active = gp2;
+        }
+        
+        if (gp === this.highlight) {
+          g.highlight = gp2;
+        }
+      }
+      g.resort();
+      
+      return g;
+    }
+    
     getTables() {
       if (!this.tables || this.regen) {
         let steps = this.tableSteps;
@@ -1234,8 +1282,17 @@ define([
       return this.tables;
     }
 
+    reset() {
+      this.length = 0;
+      
+      this.addStop([0, 0, 0, 1], 0);
+      this.addStop([1, 1, 1, 1], 1);
+      this.regen = 1;
+    }
+    
     removeStop(gp) {
       this.idMap.delete(gp.id);
+      
       gp.id = -1;
       this.regen = 1;
 
@@ -1277,13 +1334,28 @@ define([
         postContrast  : this.postContrast,
         active        : this.active ? this.active.id : -1,
         highlight     : this.highlight ? this.highlight.id : -1,
-        version       : 0.1
+        version       : 0.1,
+        idgen         : this.idgen,
+        satOffset     : this.satOffset,
+        hueOffset     : this.hueOffset
       }
     }
 
     loadJSON(json) {
       this.length = 0;
+      this.regen = 1;
+      this.idMap = new Map();
+      
+      this.idgen = json.idgen;
 
+      if (!("idgen" in json)) {
+        this.idgen = 0;
+        
+        for (let jp of json.stops) {
+          this.idgen = Math.max(this.idgen, jp.id + 1);
+        }
+      }
+      
       for (let jp of json.stops) {
         let gp = new GradPoint();
 
@@ -1299,8 +1371,11 @@ define([
       this.postBrightness = json.postBrightness ?? 0.0;
       this.postContrast = json.postContrast ?? 1.0;
 
-      this.highlight = this.idMap.get(this.highlight);
-      this.active = this.idMap.get(this.active);
+      this.hueOffset = json.hueOffset ?? 0.0;
+      this.satOffset = json.satOffset ?? 1.0;
+      
+      this.highlight = this.idMap.get(json.highlight);
+      this.active = this.idMap.get(json.active);
 
       return this;
     }
@@ -1316,9 +1391,11 @@ define([
       } else {
         t = Math.tent(t*0.5);
       }
+      
       let gp1 = this[0];
       let gp2 = this[1];
-
+      let i1 = 0;
+      
       for (let i = 0; i < this.length; i++) {
         gp2 = this[i];
 
@@ -1327,6 +1404,7 @@ define([
         }
 
         gp1 = this[i];
+        i1 = i;
       }
 
       if (t < gp1.t) {
@@ -1336,18 +1414,77 @@ define([
       if (t >= gp2.t) {
         return gp2.color;
       }
-
+      
       let s = (t - gp1.t)/(gp2.t - gp1.t);
-      let c = grets.next();
+      let cret = grets.next();
+      
+      let dosmooth = false;
+      
+      //s = s*s*(3.0 - 2.0*s);
+      switch (gp1.type) {
+        case GradTypes.CONSTANT:
+          s = s > 0.5 ? 1.0 : 0.0;
+          break;
+        case GradTypes.SMOOTH:
+          if (i1 > 0) {
+            dosmooth = true;
+          } else {
+            s = s*s*(3.0 - 2.0*s);
+          }
+          break;
+      }
+      
+      if (0&&dosmooth) {
+        let gp0 = this[i1-1];
+        let gp3 = i1 < this.length - 2 ? this[i1 + 2] : gp2;
+        
+        for (let i = 0; i < 4; i++) {
+          let p1 = gp1.color[i];
+          let p4 = gp2.color[i];
 
-      for (let i = 0; i < 4; i++) {
-        c[i] = gp1.color[i] + (gp2.color[i] - gp1.color[i])*s;
-        if (!no_b_c) {
-          c[i] = (c[i] + this.postBrightness)*this.postContrast;
+          let p2 = p1 + (gp1.color[i] - gp0.color[i]) / 3.0;
+          let p3 = p4 + (gp2.color[i] - gp3.color[i]) / 3.0;
+          
+          //p2 = p1;
+          //p3 = p4;
+          
+          let a = p1 + (p2 - p1)*s;
+          let b = p2 + (p3 - p2)*s;
+          let c = p3 + (p4 - p3)*s;
+          
+          let a2 = a + (b - a)*s;
+          let b2 = b + (c - b)*s;
+          
+          cret[i] = a2 + (b2 - a2)*s;
+          
+          if (!no_b_c) {
+            cret[i] = (cret[i] + this.postBrightness)*this.postContrast;
+          }
+        }
+      } else {        
+        for (let i = 0; i < 4; i++) {
+          cret[i] = gp1.color[i] + (gp2.color[i] - gp1.color[i])*s;
+          
+          if (!no_b_c) {
+            cret[i] = (cret[i] + this.postBrightness)*this.postContrast;
+          }
         }
       }
-
-      return c;
+      
+      if (1 || !no_b_c) {
+        let hsv = util.rgb_to_hsv(cret[0], cret[1], cret[2]);
+        
+        hsv[0] = Math.fract(hsv[0] + this.hueOffset);
+        hsv[1] *= this.satOffset;
+        
+        let rgb = util.hsv_to_rgb(hsv[0], hsv[1], hsv[2]);
+        
+        cret[0] = rgb[0];
+        cret[1] = rgb[1];
+        cret[2] = rgb[2];
+      }
+      
+      return cret;
     }
   }
 
@@ -1360,6 +1497,8 @@ define([
       this.g = undefined;
       this.gradient = new Gradient();
 
+      this.undoGen = 0;
+      
       this.mdown = false;
       this.transforming = false;
       this.transdata = undefined;
@@ -1378,7 +1517,58 @@ define([
       this._animreq = undefined;
       this.onchange = null;
     }
+    
+    get _hue() {
+      return this.gradient.hueOffset;
+    }
+    
+    set _hue(v) {
+      this.gradient.hueOffset = v;
+      this.gradient.regen = 1;
+      this.bind_obj[this.id] = this.gradient;
+      this.redraw();
+      
+      if (this.onchange) {
+        this.onchange()
+      }
+    }
+    
+    get _sat() {
+      return this.gradient.satOffset;
+    }
+    
+    set _sat(v) {
+      this.gradient.satOffset = v;
+      this.gradient.regen = 1;
+      this.bind_obj[this.id] = this.gradient;
+      this.redraw();
+    }
+    
+    get _alpha() {
+      let c = this.__color;
+      let gp = this.gradient.active;
 
+      if (!gp) {
+        return 0.0;
+      }
+      
+      return gp.color[3];
+    }
+    
+    set _alpha(val) {
+      let c = this.__color;
+      let gp = this.gradient.active;
+
+      if (!gp) {
+        return 0.0;
+      }
+      
+      this.bind_obj[this.id] = this.gradient;
+      
+      gp.color[3] = val;      
+      this.redraw();
+    }
+    
     get _color() {
       let c = this.__color;
       let gp = this.gradient.active;
@@ -1410,7 +1600,6 @@ define([
       gp.color[3] = v[3];
 
       this.bind_obj[this.id] = this.gradient;
-
       this.redraw();
     }
 
@@ -1454,6 +1643,37 @@ define([
       this.gradient.cyclic = !!v;
     }
 
+    undoPush(type="gradient", combine=false) {
+      console.log("gradient undo push", this.undostack);
+      
+      if (!this.undostack) {
+        return;
+      }
+
+      if (combine) {
+        type += this.undoGen;
+      }
+      
+      if (combine && this.undostack.head && this.undostack.head.type === type) {
+        //this.undostack.head.data = this.gradient.copy();
+        return;
+      }
+      
+      this.undostack.pushSwapper(type, this.gradient.copy(), (g) => {
+        let tmp = this.gradient.copy();
+        
+        this.gradient.loadJSON(g.toJSON());
+        g.loadJSON(tmp.toJSON());
+        
+        this.redraw();
+        this.save();
+        
+        if (this.onchange) {
+          this.onchange();
+        }
+      });
+    }
+    
     start() {
       let canvas = this.canvas = document.createElement("canvas");
       console.error(this.dat);
@@ -1471,11 +1691,29 @@ define([
 
       parent.appendChild(canvas);
 
+      this.dat.add(this, "_alpha")
+      .name("Alpha")
+      .onChange(() => {
+          this.gradient.regen = 1;
+          this.save();
+          
+          if (this.onchange) {
+            this.onchange();
+          }
+      })
+      .min(0.0)
+      .max(1.0)
+      .listen();
+      
       this.dat.addColor(this, "_color")
         .name("Color")
         .onChange(() => {
           this.gradient.regen = 1;
           this.save();
+          
+          if (this.onchange) {
+            this.onchange();
+          }
         })
         .listen();
 
@@ -1490,7 +1728,7 @@ define([
 
       this.dat.add(this, "contrast")
         .min(0.0001)
-        .max(55.0)
+        .max(15.0)
         .onChange(() => {
           this.gradient.regen = 1;
           this.save();
@@ -1499,10 +1737,12 @@ define([
 
       this.dat.add({
         cb: () => {
+          this.undoPush();
+
           console.log("click")
           let t = this.lastT;
 
-          this.gradient.addStop(this.gradient.evaluate(t, false), t, true);
+          this.gradient.addStop(this.gradient.evaluate(t, true), t, true);
           this.redraw();
           this.save();
 
@@ -1514,6 +1754,8 @@ define([
 
       this.dat.add({
         cb: () => {
+          this.undoPush();
+          
           console.log("click")
           let t = this.lastT;
 
@@ -1537,6 +1779,33 @@ define([
         })
         .listen();
 
+      this.dat.add(this, "_hue")
+      .name("Hue")
+      .onChange(() => {
+          this.gradient.regen = 1;
+          this.save();
+          
+          if (this.onchange) {
+            this.onchange();
+          }
+      })
+      .min(0.0)
+      .max(1.0)
+      .listen();
+      
+       this.dat.add(this, "_sat")
+      .name("Saturation")
+      .onChange(() => {
+          this.gradient.regen = 1;
+          this.save();
+          
+          if (this.onchange) {
+            this.onchange();
+          }
+      })
+      .min(0.0)
+      .max(1.0)
+      .listen();
       this.dat.add(this, "brightness2")
         .min(-0.5)
         .max(1.5)
@@ -1741,6 +2010,8 @@ define([
     on_mousedown(e) {
       let mpos = this.getLocalMouse(e.x, e.y);
 
+      this.undoGen++;
+      
       this.mpos[0] = mpos[0];
       this.mpos[1] = mpos[1];
 
@@ -1762,6 +2033,8 @@ define([
     }
 
     on_mousemove_transform(e) {
+      this.undoPush("gradient_transform", true);
+      
       let mpos = this.getLocalMouse(e.x, e.y);
 
       this.mpos[0] = mpos[0];
@@ -1882,13 +2155,15 @@ define([
   }
 
   var UI = exports.UI = class UI {
-    constructor(bind_obj, dat_obj) {
+    constructor(bind_obj, dat_obj, undostack) {
       this.dat = dat_obj === undefined ? new dat.GUI() : dat_obj;
       this.bind_obj = bind_obj;
 
       this.folders = [];
       this.curve_widgets = [];
       this.gradient_widgets = [];
+      
+      this.undostack = undostack;
     }
 
     listen() {
@@ -1950,7 +2225,7 @@ define([
       var f = this.dat.addFolder(name);
       f.open();
 
-      var ui = new UI(this.bind_obj, f);
+      var ui = new UI(this.bind_obj, f, this.undostack);
       this.folders.push(ui);
 
       return ui;
@@ -2090,6 +2365,7 @@ define([
       panel.open();
 
       let grad = new GradientWidget(this.bind_obj, id, panel);
+      grad.undostack = this.undostack;
       grad.start();
 
       this.gradient_widgets.push(grad);
