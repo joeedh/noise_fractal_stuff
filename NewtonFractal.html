@@ -32,7 +32,7 @@ vec2 fsample(vec2 z, vec2 p) {
     return cmul(cmul(a, b), c);
 }
 
-#define STEPS 155
+//#define STEPS 400
 
 float tent(float f) {
     return 1.0 - abs(fract(f)-0.5)*2.0;
@@ -63,7 +63,7 @@ float run(vec2 uv) {
     uv.x += SLIDERS[5];
     uv.y += SLIDERS[6];//+0.5*SLIDERS[4];
 
-    uv /= SLIDERS[4];
+    uv *= SLIDERS[4];
 
     vec2 seed;
     
@@ -78,10 +78,10 @@ float run(vec2 uv) {
     float tm2 = 0.0;
     
     seed = uv;
-    //seed = vec2(0.2, 0.4132432);
+    //seed = vec2(0.5, 0.4132432);
     
     tm = SLIDERS[1];
-    tm = pow(tm, 1.0/1.0);
+    //tm = pow(tm, 1.0/1.0);
     float toff = pow(tm, 0.25);
     
     for (int i=0; i<STEPS; i++) {
@@ -326,7 +326,7 @@ vec4 shader(float ix, float iy) {
   vec2 uv = vec2(ix, iy) / iRes;
   vec4 color;
   
-#if defined(OLD_GRADIENT) && !defined(NO_GRADIENT)
+#if 0 //defined(OLD_GRADIENT) && !defined(NO_GRADIENT)
   f = mix(f*1.5, pow(f, 1.0 / SLIDERS[2]), 0.5);
   f = tent(f*SLIDERS[7]+0.5);
   
@@ -376,10 +376,10 @@ vec4 shader(float ix, float iy) {
       {name: "scale", range: [0.001, 1000000.0]}, //4
       "x",  //5
       "y",  //6
-      "colorscale", //7
-      {name: "brightness", range: [0.001, 10.0]}, //8
-      {name: "hoff", range: [0.0001, 10.0]}, //9
-      {name: "poff", range: [0.0, 4.0]} //10
+      {name: "colorscale", default : 1.0},//7
+      {name: "brightness", range: [0.001, 10.0], default : 1.0}, //8
+      {name: "hoff", range: [0.0001, 10.0], default : 0.15}, //9
+      {name: "poff", range: [0.0, 4.0], default : 0.0} //10
     ];
 
     const LOCAL_STORAGE_KEY = "s_newton_fractal";
@@ -388,8 +388,70 @@ vec4 shader(float ix, float iy) {
 
     window.T = 0;
 
-    SLIDERS = [55, 0.0, 1.0, 1.0, 0.25, 0.0, 0.0, 1.0, 1.0, 0.2, 0.0];
+    let _base_preset =  {
+      "config": {
+       "SLIDERS": [
+        95.84821428571426,
+        0.9767857142857139,
+        0.18750000000000028,
+        1.703214318411691,
+        0.5,
+        0,
+        0,
+        5.864285714285717,
+        1,
+        0.2,
+        0
+       ],
+       "PRESET": "Preset",
+       "NO_GRADIENT": false,
+       "SHOW_SLIDERS": true,
+       "SHARPNESS": 0.551,
+       "USE_SHARPNESS": true,
+       "USE_MONTY_SHARPNESS": false,
+       "FILTER_WIDTH": 1.2770000000000001,
+       "PER_PIXEL_RANDOM": true,
+       "MAX_SAMPLES": 264,
+       "OLD_GRADIENT": true
+      },
+      "name": "Preset"
+    }
+    
+    window.SLIDERS = [55, 0.0, 1.0, 1.0, 0.25, 0.0, 0.0, 1.0, 1.0, 0.2, 0.0];
 
+    let builtin_presets = [];
+    let name_gen = 1;
+    
+    function add_preset(sliders, name, config_override={}) {
+      if (name === undefined) {
+        name = "Builtin " + (name_gen++);
+      }
+      
+      sliders = sliders.concat([]);
+      while (sliders.length < SLIDER_NAMES.length) {
+        let def = SLIDER_NAMES[sliders.length];
+        
+        if (typeof def === "object" && "default" in def) {
+          sliders.push(def.default);
+        } else {
+          sliders.push(0.0);
+        }
+      }
+      
+      //copy
+      let ret = JSON.parse(JSON.stringify(_base_preset));
+      
+      Object.assign(ret.config, config_override);
+      
+      ret.config.SLIDERS = sliders;
+      ret.builtin = true;
+      ret.name = name;
+      
+      builtin_presets.push(ret);
+      
+      return ret;
+    }
+      
     //SLIDERS = [142.9910714285717, 1.0124999999999995, 2.4535714285714283, 6.747142857142873, 664.1731807714872, 1207.3880358051968, -1469.7663367402351, 4.500000000000001, 0.944642857142858, 0.2]
     //SLIDERS=[143.9732142857144,1.024999999,0.18750000000000028,1.703214318411691,5.2441348995084605,4.492312812495602,-7.554459806904133,4.414285714285716,1.3706428571428535, 0.2];
     //SLIDERS = [234.8214285714288, 1.0124999999999995, 2.4535714285714283, 6.747142857142873, 345.9292832795721, 693.1711001944254, -867.729561420194, 4.500000000000001, 0.944642857142858, 0.2]
@@ -414,36 +476,49 @@ vec4 shader(float ix, float iy) {
 
     //SLIDERS = [218.08035714285708, 0.5357142857142856, 0.18750000000000028, 1.703214318411691, 74.4492995164945, 69.31136391025414, -104.23912139341301, 5.896428571428575, 1.5813571428571425, 0.2590285714285714, 0.39285714285714257]
     //SLIDERS = [218.08035714285708, 0.5357142857142856, 0.18750000000000028, 1.703214318411691, 90.61091827209286, 36.44740342885476, -71.87469545099766, 5.896428571428575, 1.5813571428571425, 0.31795714285714344, 0.39285714285714257];
-    //SLIDERS = [218.08035714285708, 0.5357142857142856, 0.18750000000000028, 1.703214318411691, 7.164838838374205, 1.7176390515946043, -6.14911515900138, 5.896428571428575, 1.5813571428571425, 0.31795714285714344, 0.39285714285714257];
-    //SLIDERS = [218.08035714285708, 0.5357142857142856, 0.18750000000000028, 1.703214318411691, 1672.9778006948582, 533.1913796170645, -1369.4896222264827, 5.896428571428575, 1.5813571428571425, 0.31795714285714344, 0.39285714285714257]
+    add_preset([218.08035714285708, 0.5357142857142856, 0.18750000000000028, 1.703214318411691, 7.164838838374205, 1.7176390515946043, -6.14911515900138, 5.896428571428575, 1.5813571428571425, 0.31795714285714344, 0.39285714285714257]);
+    add_preset([218.08035714285708, 0.5357142857142856, 0.18750000000000028, 1.703214318411691, 1672.9778006948582, 533.1913796170645, -1369.4896222264827, 5.896428571428575, 1.5813571428571425, 0.31795714285714344, 0.39285714285714257]);
 
-    //SLIDERS =  [141.02455357142856, 0.5357142857142856, 0.18750000000000028, 1.703214318411691, 72.5141670544459, -41.26995147236086, -56.679514207268404, 5.896428571428575, 1.5813571428571425, 0.13581428571428636, 0.39285714285714257]
+    add_preset([141.02455357142856, 0.5357142857142856, 0.18750000000000028, 1.703214318411691, 72.5141670544459, -41.26995147236086, -56.679514207268404, 5.896428571428575, 1.5813571428571425, 0.13581428571428636, 0.39285714285714257]);
 
-    //SLIDERS =  [505.49107142857144, 0.40678571428571525, 0.18750000000000028, 1.703214318411691, 23.863339902760213, 8.208694404452228, -7.3150383917304715, 5.896428571428575, 1.5813571428571425, 0.13581428571428636, 0.9635714122227251]
+    add_preset([505.49107142857144, 0.40678571428571525, 0.18750000000000028, 1.703214318411691, 23.863339902760213, 8.208694404452228, -7.3150383917304715, 5.896428571428575, 1.5813571428571425, 0.13581428571428636, 0.9635714122227251]);
 
-    //SLIDERS = [505.49107142857144, 0.40678571428571525, 0.18750000000000028, 1.703214318411691, 218.86902540241812, 225.16709215347998, 46.63325655830616, 5.896428571428575, 1.5813571428571425, 0.13581428571428636, 0.9635714122227251]
+    add_preset([505.49107142857144, 0.40678571428571525, 0.18750000000000028, 1.703214318411691, 218.86902540241812, 225.16709215347998, 46.63325655830616, 5.896428571428575, 1.5813571428571425, 0.13581428571428636, 0.9635714122227251]);
 
-    //SLIDERS = [505.49107142857144, 0.40678571428571525, 0.18750000000000028, 1.703214318411691, 296.81855972779033, 45.814179901364675, -16.096686199735252, 5.896428571428575, 1.5813571428571425, 0.13581428571428636, 0.9635714122227251]
+    add_preset([505.49107142857144, 0.40678571428571525, 0.18750000000000028, 1.703214318411691, 296.81855972779033, 45.814179901364675, -16.096686199735252, 5.896428571428575, 1.5813571428571425, 0.13581428571428636, 0.9635714122227251]);
 
-    //SLIDERS = [148.70535714285714, 0.40937500000000104, 0.18750000000000028, 1.703214318411691, 2135.64031675207, 290.52889138853396, -18.46276812938317, 5.896428571428575, 1.5813571428571425, 0.13581428571428636, 0.9635714122227251]
+    add_preset([148.70535714285714, 0.40937500000000104, 0.18750000000000028, 1.703214318411691, 2135.64031675207, 290.52889138853396, -18.46276812938317, 5.896428571428575, 1.5813571428571425, 0.13581428571428636, 0.9635714122227251]);
 
-    //SLIDERS = [138.79464285714286, 0.0683035714285724, 0.18750000000000028, 1.703214318411691, 3453.5449087279094, 1313.7115428892575, -1038.5758274262691, 5.896428571428575, 1.5813571428571425, 0.13581428571428636, 1.7849999836512958]
-    //SLIDERS = [138.79464285714286, 0.0683035714285724, 0.18750000000000028, 1.703214318411691, 23991.034608322116, 9127.225043302906, -7213.735604221987, 5.896428571428575, 1.5813571428571425, 0.13581428571428636, 1.7849999836512958]
+    add_preset([138.79464285714286, 0.0683035714285724, 0.18750000000000028, 1.703214318411691, 3453.5449087279094, 1313.7115428892575, -1038.5758274262691, 5.896428571428575, 1.5813571428571425, 0.13581428571428636, 1.7849999836512958]);
+    
+    add_preset([138.79464285714286, 0.0683035714285724, 0.18750000000000028, 1.703214318411691, 23991.034608322116, 9127.225043302906, -7213.735604221987, 5.896428571428575, 1.5813571428571425, 0.13581428571428636, 1.7849999836512958]);
 
-    // [138.79464285714286, 0.04312496730259482, 0.18750000000000028, 1.703214318411691, 194.12303243331695, 71.45118050162856, -8.146172431070598, 5.896428571428575, 1.5813571428571425, 0.13581428571428636, 2.676071412222723]
+    add_preset([138.79464285714286, 0.04312496730259482, 0.18750000000000028, 1.703214318411691, 194.12303243331695, 71.45118050162856, -8.146172431070598, 5.896428571428575, 1.5813571428571425, 0.13581428571428636, 2.676071412222723]);
 
-    //SLIDERS = [138.79464285714286, 0.04312496730259482, 0.18750000000000028, 1.703214318411691, 26.44442281037317, -6.263647476679338, -11.964067062458309, 5.896428571428575, 1.5813571428571425, 0.13581428571428636, 2.676071412222723]
+    add_preset([138.79464285714286, 0.04312496730259482, 0.18750000000000028, 1.703214318411691, 26.44442281037317, -6.263647476679338, -11.964067062458309, 5.896428571428575, 1.5813571428571425, 0.13581428571428636, 2.676071412222723]);
 
-    //SLIDERS = [138.79464285714286, 0.04312496730259482, 0.18750000000000028, 1.703214318411691, 207.3423491945681, 76.18185798687021, -8.431233545247746, 5.896428571428575, 1.5813571428571425, 0.13581428571428636, 2.676071412222723]
+    add_preset([138.79464285714286, 0.04312496730259482, 0.18750000000000028, 1.703214318411691, 207.3423491945681, 76.18185798687021, -8.431233545247746, 5.896428571428575, 1.5813571428571425, 0.13581428571428636, 2.676071412222723]);
 
-    //SLIDERS =  [75.36607142857143, 0, 0.18750000000000028, 1.703214318411691, 51.20875171284011, -19.703738146334267, 32.230303095243954, 5.896428571428575, 1.5813571428571425, 0.13581428571428636, 3.256428555079866]
+    add_preset([75.36607142857143, 0, 0.18750000000000028, 1.703214318411691, 51.20875171284011, -19.703738146334267, 32.230303095243954, 5.896428571428575, 1.5813571428571425, 0.13581428571428636, 3.256428555079866]);
 
-    // [214.1160714285714, 0.5017857142857144, 0.18750000000000028, 1.703214318411691, 6.865195590268386, 6.856305835136788, -5.747427139229283, 5.896428571428575, 1.5813571428571425, 0.13581428571428636, 0.7875000000000004]
+    add_preset([214.1160714285714, 0.5017857142857144, 0.18750000000000028, 1.703214318411691, 6.865195590268386, 6.856305835136788, -5.747427139229283, 5.896428571428575, 1.5813571428571425, 0.13581428571428636, 0.7875000000000004]);
 
-    //[214.1160714285714, 0.5017857142857144, 0.18750000000000028, 1.703214318411691, 328.9223418483428, 377.3390277404351, -283.60260388699226, 5.896428571428575, 1.5813571428571425, 0.13581428571428636, 0.7875000000000004]
+    add_preset([214.1160714285714, 0.5017857142857144, 0.18750000000000028, 1.703214318411691, 328.9223418483428, 377.3390277404351, -283.60260388699226, 5.896428571428575, 1.5813571428571425, 0.13581428571428636, 0.7875000000000004]);
 
-    //SLIDERS = [133.83928571428567, 0.6089285714285713, 0.18750000000000028, 1.7085714612688336, 1784.1720750183626, 2770.557072404935, -800.4963652768986, 9.836785643441342, 2.49635707746233, 2.250457164655413, 0.35]
+    add_preset([133.83928571428567, 0.6089285714285713, 0.18750000000000028, 1.7085714612688336, 1784.1720750183626, 2770.557072404935, -800.4963652768986, 9.836785643441342, 2.49635707746233, 2.250457164655413, 0.35]);
+      
+    add_preset([108.56696428571428, 0.2925000217982699, 0.18750000000000028, 1.703214318411691, 4441.224981339366, -1650.7526499113544, 1842.54234040089, 5.128571428571431, 1.294642857142856, 0.20902857142857142, 1.1618749891008655]);
 
+    add_preset([108.56696428571428, 0.2925000217982699, 0.18750000000000028, 1.703214318411691, 67.97935479723843, -96.45928625401233, -40.22508843623597, 5.128571428571431, 1.294642857142856, 0.09474285714285718, 1.165714175360545]);
+    
+    add_preset([467.33486679622115, 0.30321430751255557, 0.18750000000000028, 1.703214318411691, 12.278254507230557, 16.56580431682912, -9.10549299909097, 5.128571428571431, 1.294642857142856, 0.09474285714285718, 1.165714175360545]);
+    
+    add_preset([467.33486679622115, 0.30321430751255557, 0.18750000000000028, 1.703214318411691, 156.65484368428395, 218.53097488071762, -119.64752062325061, 5.128571428571431, 1.294642857142856, 0.09474285714285718, 1.165714175360545]);
+    
+    add_preset([308.7634382247926, 0.6032143075125556, 0.18750000000000028, 1.703214318411691, 12.751380923729673, -19.901461903740064, 49.33473848557248, 5.128571428571431, 1.294642857142856, 1.244742884390695, 0.6207141753605441]);
+    
+    add_preset( [150.19196428571425, 0.0683035714285724, 0.18750000000000028, 1.703214318411691, 42.37026304090599, 82.89648098820756, 9.405966216662012, 5.896428571428575, 1.5813571428571425, 0.13581428571428636, 1.7849999836512958], undefined, {USE_SHARPNESS : false});
+    
     while (SLIDERS.length < SLIDER_NAMES.length) {
       SLIDERS.push(0.0);
     }
@@ -912,6 +987,7 @@ ${this[1].x.toFixed(d)}, ${this[1].y.toFixed(d)}
         uniform sampler2D rgba;
         uniform vec2 iRes;
         uniform float sharpness;
+        uniform float SLIDERS[11];
         
         in vec2 vCo;
         out vec4 fragColor;
@@ -922,6 +998,10 @@ ${this[1].x.toFixed(d)}, ${this[1].y.toFixed(d)}
         uniform float bgrad[GRAD_STEPS];
         uniform float agrad[GRAD_STEPS];
         #endif
+
+      float tent(float f) {
+        return 1.0 - abs(fract(f)-0.5)*2.0;
+      }
 
 #ifndef NO_GRADIENT
 #ifndef OLD_GRADIENT
@@ -951,6 +1031,25 @@ ${this[1].x.toFixed(d)}, ${this[1].y.toFixed(d)}
           color.g = evalgrad(f, ggrad);
           color.b = evalgrad(f, bgrad);
           color.a = 1.0;
+#else
+          float f = color.r;
+          
+          f = mix(f*1.5, pow(f, 1.0 / SLIDERS[2]), 0.5);
+          f = tent(f*SLIDERS[7]+0.5);
+          
+          float off = SLIDERS[3];
+          float f2 = f*pow(off*0.05, 0.25) + off + 0.45;
+          
+          color.r = tent(f2);
+          color.g = tent(f2*2.0+0.234);
+          color.b = tent(f2*3.0+0.7324);
+          color.a = 1.0;
+          
+          color.rgb = normalize(color.rgb);
+          //color.b *= 0.1;
+          color.rgb *= f*1.5*SLIDERS[8];
+          //color.rgb = vec3(f, f, f)*SLIDERS[8]*1.5;
+         
 #endif
 
           return color;
@@ -1024,8 +1123,14 @@ ${this[1].x.toFixed(d)}, ${this[1].y.toFixed(d)}
             this.compile_shader(gl);
           }
 
+          for (let fbo of this.fbos) {
+            fbo.update(gl, canvas.width, canvas.height);
+          }
+          
           let defines = {};
 
+          defines.STEPS = ~~SLIDERS[0];
+          
           if (config.NO_GRADIENT) {
             defines.NO_GRADIENT = true;
           }
@@ -1089,11 +1194,14 @@ ${this[1].x.toFixed(d)}, ${this[1].y.toFixed(d)}
           };
 
           //SLIDERS2[0] = cfract(SLIDERS2[0], Math.max(Math.ceil(SLIDERS2[1]*10.0), 1));
-
+          let slider_uniforms = {};
+          
           for (let i = 0; i < SLIDERS.length; i++) {
-            uniforms["SLIDERS[" + i + "]"] = SLIDERS[i];
+            slider_uniforms["SLIDERS[" + i + "]"] = i === 4 ? 1.0 / SLIDERS[i] : SLIDERS[i];
           }
-
+          
+          Object.assign(uniforms, slider_uniforms);
+          
           if (!skip) {
             shader.bind(gl, uniforms, defines);
 
@@ -1112,6 +1220,8 @@ ${this[1].x.toFixed(d)}, ${this[1].y.toFixed(d)}
             enableAccum
           };
 
+          Object.assign(final_uniforms, slider_uniforms);
+          
           if (!config.OLD_GRADIENT) {
             let tables = config.GRADIENT.getTables();
             let steps = config.GRADIENT.tableSteps;
@@ -1164,6 +1274,7 @@ ${this[1].x.toFixed(d)}, ${this[1].y.toFixed(d)}
       `.trim();
 
           var shader = new webgl.ShaderProgram(gl, vshader, fshader, ["co"]);
+          shader.defines = {STEPS : ~~SLIDERS[0]};
           shader.init(gl);
           this.shader = shader;
         }
@@ -1460,8 +1571,11 @@ ${this[1].x.toFixed(d)}, ${this[1].y.toFixed(d)}
       function calcViewKey(sliders = SLIDERS) {
         return "" + sliders[4].toFixed(4) + ":" + sliders[5].toFixed(4) + ":" + sliders[6].toFixed(4);
       }
-
+      
       var config = window.config = {
+        DPI                : 1.0,
+        SLIDERS            : window.SLIDERS,
+        PRESET             : null,
         NO_GRADIENT        : false,
         GRADIENT           : new ui.Gradient(),
         SHOW_SLIDERS       : true,
@@ -1471,15 +1585,74 @@ ${this[1].x.toFixed(d)}, ${this[1].y.toFixed(d)}
         FILTER_WIDTH       : 1.5,
         PER_PIXEL_RANDOM   : true,
         MAX_SAMPLES        : 100,
-        OLD_GRADIENT       : false
+        OLD_GRADIENT       : false,
+        VERSION            : 0.1,
       };
-
+      
+      let NonPresetKeys = new Set([
+        "DPI", "gui", "MAX_SAMPLES", "SHOW_SLIDERS",
+        "PRESET", "COLOR", "VERSION"
+      ]);
+      
+      class Preset {
+        constructor(name) { 
+          this.name = name;
+          this.config = undefined;
+          this.builtin = false;
+          
+          this.update(true);
+        }
+        
+        copy() {
+          return new Preset().loadJSON(JSON.parse(JSON.stringify(this)));
+        }
+        
+        update(noReport=false) {
+          if (!noReport) {
+            console.warn("Updating preset " + this.name);
+          }
+          
+          let config2 = Object.assign({}, config, {SLIDERS});
+          
+          for (let key of NonPresetKeys) {
+            if (key in config2) {
+              delete config2[key];
+            }
+          }
+          
+          //if (!this.config && (config2.OLD_GRADIENT || config2.NO_GRADIENT)) {
+            //delete config2.GRADIENT;
+          //}
+          
+          //copy
+          this.config = JSON.parse(JSON.stringify(config2));
+        }
+        
+        toJSON() {
+          let {config, name, builtin} = this;
+          
+          return {config, name, builtin};
+        }
+        
+        loadJSON(json) {
+          this.config = json.config;
+          this.name = json.name;
+          this.builtin = !!json.builtin;
+          
+          return this;
+        }
+        
+        static localStorageKey() {
+          return LOCAL_STORAGE_KEY + "_presets";
+        }
+      }
+      
       //config.GRADIENT = {"stops":[{"color":[1,1,1,1],"t":-0.03401360544217687,"flag":0,"type":2,"id":1},{"color":[0.023529411764705882,0.2124567474048444,0.3803921568627451,1],"t":0.07908158075241817,"flag":0,"type":2,"id":3},{"color":[0,0.025374855824682917,0.21568627450980393,1],"t":0.14285709095649976,"flag":0,"type":2,"id":3},{"color":[1,0.3529411764705883,0,1],"t":0.3767006283714658,"flag":0,"type":2,"id":7},{"color":[1,1,1,1],"t":0.6955781793918738,"flag":0,"type":2,"id":5},{"color":[1,0.588235294117647,0,1],"t":0.7083332814326901,"flag":0,"type":2,"id":3},{"color":[0,0.5098039215686274,0.42352941176470593,1],"t":1.005952329051738,"flag":0,"type":2,"id":6}],"brightness":-0.03460148015718023,"contrast":6.650181530849846,"active":1,"highlight":7,"version":0.1};
 
       //config.GRADIENT = {"stops":[{"color":[0.6799913742377214,0.9078430474973193,0.8752928084602339,1],"t":0,"flag":0,"type":2,"id":1},{"color":[0.6627448586856617,1,0.9923351104246743,1.134127878884028],"t":0.1445576155266794,"flag":0,"type":2,"id":4},{"color":[0.6641316152164686,0.939215716193704,0,1.134127878884028],"t":0.2091842962771046,"flag":0,"type":2,"id":3},{"color":[0.6764705882352942,0,0,1],"t":0.27891099371877653,"flag":0,"type":2,"id":5},{"color":[0.12941176470588237,0,0.12941176470588237,1.7189662245208588],"t":0.3520402973200998,"flag":0,"type":2,"id":4},{"color":[0.1470588235294118,0,0,1.7189662245208588],"t":0.43027169363839307,"flag":0,"type":2,"id":3},{"color":[0.11169984350190419,0.021291727185648927,0.1392153571633732,1.3163097667251147],"t":0.4744894845145089,"flag":0,"type":2,"id":5},{"color":[0,0,0,1],"t":0.8605445290909332,"flag":0,"type":2,"id":6},{"color":[0.9078430474973193,0.9078430474973193,0.9078430474973193,1.6234856701158382],"t":1,"flag":0,"type":2,"id":3}],"brightness":0.060243144399212634,"contrast":4.466571313696291,"postBrightness":0.007306296684025826,"postContrast":2.3755393077499503,"active":-1,"highlight":-1,"version":0.1};
       
       //config.GRADIENT = {"stops":[{"color":[0.6799913742377214,0.9078430474973193,0.8752928084602339,1],"t":0,"flag":0,"type":2,"id":1},{"color":[0.6627448586856617,1,0.9923351104246743,1.134127878884028],"t":0.03911523105335882,"flag":0,"type":2,"id":4},{"color":[0.6641316152164686,0.939215716193704,0,1.134127878884028],"t":0.0867351090826956,"flag":0,"type":2,"id":3},{"color":[0.6764705882352942,0,0,1],"t":0.17687017739224592,"flag":0,"type":2,"id":5},{"color":[0.12941176470588237,0,0.12941176470588237,1.7189662245208588],"t":0.39625808819621583,"flag":0,"type":2,"id":4},{"color":[0.1470588235294118,0,0,1.7189662245208588],"t":0.47789079315808375,"flag":0,"type":2,"id":3},{"color":[0.3647058823529412,0.4477511818433717,0.9529411764705882,1.3163097667251147],"t":0.6139454744300062,"flag":0,"type":2,"id":5},{"color":[0,0,0,1],"t":0.8877555172459608,"flag":0,"type":2,"id":6},{"color":[0.9078430474973193,0.9078430474973193,0.9078430474973193,1.6234856701158382],"t":1,"flag":0,"type":2,"id":3}],"brightness":-0.36324759860240097,"contrast":4.4996583057368165,"postBrightness":-0.010338870474382977,"postContrast":1.627837652632059,"active":-1,"highlight":-1,"version":0.1}
-      //SLIDERS =  [188.34821428571422, 0.6982142857142852, 0.18750000000000028, 1.7085714612688336, 16.19987478917088, 6.747283968091449, 6.759060231398961, 9.836785643441342, 0.9617142312186068, 1.539385714285714, 0.2742857251848492]
+      //SLIDERS = [188.34821428571422, 0.6982142857142852, 0.18750000000000028, 1.7085714612688336, 16.19987478917088, 6.747283968091449, 6.759060231398961, 9.836785643441342, 0.9617142312186068, 1.539385714285714, 0.2742857251848492]
       
       //config.GRADIENT = {"stops":[{"color":[0.6799913742377214,0.9078430474973193,0.8752928084602339,1],"t":0,"flag":0,"type":2,"id":1},{"color":[0.6627448586856617,1,0.9923351104246743,1.134127878884028],"t":0.03911523105335882,"flag":0,"type":2,"id":4},{"color":[0.8734639352702891,0.4823524624693627,1,1.134127878884028],"t":0.08333380043912099,"flag":0,"type":2,"id":3},{"color":[0.6764705882352942,0,0,1],"t":0.29251648779629036,"flag":0,"type":2,"id":5},{"color":[0.12941176470588237,0,0.12941176470588237,1.7189662245208588],"t":0.39625808819621583,"flag":0,"type":2,"id":4},{"color":[0.1470588235294118,0,0,1.7189662245208588],"t":0.505101521809896,"flag":0,"type":2,"id":3},{"color":[0.3647058823529412,0.4477511818433717,0.9529411764705882,1.3163097667251147],"t":0.756802513485863,"flag":0,"type":2,"id":5},{"color":[0,0,0,1],"t":0.8877555172459608,"flag":0,"type":2,"id":6},{"color":[0.9078430474973193,0.9078430474973193,0.9078430474973193,1.6234856701158382],"t":1,"flag":0,"type":2,"id":3}],"brightness":0.007306296684025826,"contrast":3.3416842614451854,"postBrightness":0.07788831155762155,"postContrast":1.9255944664320952,"active":3,"highlight":3,"version":0.1}
       
@@ -1491,6 +1664,9 @@ ${this[1].x.toFixed(d)}, ${this[1].y.toFixed(d)}
           this.g = g;   //2d api
           this.mdown = false;
 
+          this.presets = [];
+          this.presetNames = [];
+          
           this.image = undefined;
 
           this.newUndoStack = new undostack.UndoStack();
@@ -1514,6 +1690,7 @@ ${this[1].x.toFixed(d)}, ${this[1].y.toFixed(d)}
 
           this.paths = [];
           this._last_view_key = calcViewKey();
+          this._last_size_key = '';
 
           this.fbos = new Array(2);
           for (let i = 0; i < this.fbos.length; i++) {
@@ -1537,7 +1714,28 @@ ${this[1].x.toFixed(d)}, ${this[1].y.toFixed(d)}
             window.innerHeight - 150, SLIDERS, SLIDER_NAMES);
           this.sliders.correctForDPI = true;
           
-          this.sliders.onchange = () => {
+          let pass_sliders = new Set();
+          for (let p of ["gain", "color", "colorscale", "brightness"]) {
+            for (let i=0; i<SLIDER_NAMES.length; i++) {
+              let name = SLIDER_NAMES[i];
+              
+              if (typeof name === "object") {
+                name = name.name;
+              }
+              
+              if (name === p) {
+                pass_sliders.add(i);
+              }
+            }
+          }
+          
+          this.sliders.onchange = (acti) => {
+            console.log("SLIDER CHANGE", acti);
+            
+            if (pass_sliders.has(acti)) {
+              return;
+            }
+            
             this.render.drawGen++;
           }
 
@@ -1550,8 +1748,7 @@ ${this[1].x.toFixed(d)}, ${this[1].y.toFixed(d)}
           }
 
           this.sliders.pad = 6;
-          this.sliders.localStorageKey = LOCAL_STORAGE_KEY + "_params";
-          this.load();
+          //this.sliders.localStorageKey = LOCAL_STORAGE_KEY + "_params";
 
           window.addEventListener("keydown", (e) => this.on_keydown(e));
 
@@ -1591,13 +1788,75 @@ ${this[1].x.toFixed(d)}, ${this[1].y.toFixed(d)}
 
           this.undoPush();
         }
-
+        
+        updatePresetNames() {
+          this.presetNames.length = 0;
+          
+          for (let p of this.presets) {
+            this.presetNames.push(p.name);
+          }
+        }
+        
         makeGui() {
           let gui = this.gui;
 
           gui.gradient("GRADIENT", "Gradient");
 
-          gui.slider("FILTER_WIDTH", "Filter", 1.5, 0.01, 15.0, 0.001);
+          let panel = gui.panel("Presets");
+          
+          panel.listenum("PRESET", this.presetNames, "", "", (preset) => {
+            console.warn("preset!", preset);
+            let p = this.getPreset(preset);
+            
+            if (p) {              
+              this.loadJSON(p.config);
+              config.PRESET = preset;
+              
+              this.save(false);
+              
+              if (this.gui) {
+                this.gui.load();
+              }
+              
+              //update here, to more accurately detect changes later
+              p.update();
+            } else {
+              console.error("failed to load preset", preset);
+            }
+          });
+          
+          panel.button("Add", () => {
+            let preset = new Preset();
+            let name = config.PRESET || "Preset";
+            let newname = name;
+            let i = 2;
+            let ok = false;
+            
+            while (!ok) {
+              ok = true;
+              
+              for (let preset2 of this.presets) {
+                if (preset2.name == newname) {
+                  newname = name + " " + i;
+                  i++;
+                  ok = false;
+                }
+              }
+            }
+            
+            preset.name = newname;
+            this.presets.push(preset);
+            this.updatePresetNames();
+            
+            config.PRESET = preset.name;
+          });
+          
+          //panel.button("Load", () => {            
+          //});
+          
+          gui.slider("FILTER_WIDTH", "Filter", 1.5, 0.01, 5.0, 0.001);
+          gui.slider("DPI", "Pixel Size", 1.0, 0.01, 1.0, 0.001);
+          
           gui.slider("MAX_SAMPLES", "Samples", 100, 1, 400, 1, true);
 
           gui.check("SHOW_SLIDERS", "Show Sliders");
@@ -1608,6 +1867,7 @@ ${this[1].x.toFixed(d)}, ${this[1].y.toFixed(d)}
           gui.check("PER_PIXEL_RANDOM", "PixelRand");
           gui.check("OLD_GRADIENT", "Old Gradient");
           gui.check("NO_GRADIENT", "B/W");
+          
         }
 
         undoPushNew(combineId, combine = false) {
@@ -1709,14 +1969,18 @@ ${this[1].x.toFixed(d)}, ${this[1].y.toFixed(d)}
         }
 
         on_mousedown(e) {
+          let dpi = this.getDPI();
+          
           this.mdown = e.button === 0;
-          this.drawrect = [[e.x*devicePixelRatio, e.y*devicePixelRatio], [e.x*devicePixelRatio, e.y*devicePixelRatio]];
+          this.drawrect = [[e.x*dpi, e.y*dpi], [e.x*dpi, e.y*dpi]];
         }
 
         on_mousemove(e) {
+          let dpi = this.getDPI();
+
           if (this.mdown && this.drawrect) {
-            this.drawrect[1][0] = e.x*devicePixelRatio;
-            this.drawrect[1][1] = e.y*devicePixelRatio;
+            this.drawrect[1][0] = e.x*dpi;
+            this.drawrect[1][1] = e.y*dpi;
           }
         }
 
@@ -1834,30 +2098,137 @@ ${this[1].x.toFixed(d)}, ${this[1].y.toFixed(d)}
         }
 
         toJSON() {
-          return config;
+          config.SLIDERS = window.SLIDERS;
+          let gui = this.gui;
+          
+          return Object.assign({}, config, {SLIDERS, gui});
         }
-
-        save() {
+        
+        getPreset(name=config.PRESET) {
+          for (let preset of this.presets) {
+            if (preset.name == name) {
+              return preset;
+            }
+          }
+        }
+        
+        save(savePresets=true) {
+          config.SLIDERS = window.SLIDERS;
           localStorage[LOCAL_STORAGE_KEY] = JSON.stringify(this);
-          this.sliders.save();
+          //this.sliders.save();
+          
+          if (savePresets) {
+            this.updatePreset();
+            localStorage[Preset.localStorageKey()] = JSON.stringify(this.presets);
+          }
         }
-
+        
+        updatePreset() {
+          let preset = this.getPreset(config.PRESET);
+          if (!preset) {
+            return;
+          }
+          
+          if (preset.builtin) {
+            let preset3 = preset.copy();
+            preset3.update();
+            
+            if (JSON.stringify(preset3) === JSON.stringify(preset)) {
+              console.warn("Builting preset was not modified");
+              return;
+            }
+            
+            let name = preset.name + " modified";
+            
+            let preset2 = this.getPreset(name);
+            
+            if (!preset2) {
+              preset2 = preset.copy();
+              preset2.builtin = false;
+              preset2.name = name;
+              
+              this.presets.push(preset2);
+              this.updatePresetNames();
+            }
+            
+            preset = preset2;
+            config.PRESET = name;
+          }
+          
+          preset.update();
+        }
+        
         load() {
-          this.sliders.load();
-
+          //this.sliders.load();
           let json = localStorage[LOCAL_STORAGE_KEY];
+
           if (json === undefined) {
             return;
           }
 
           json = JSON.parse(json);
+          this.loadJSON(json);
+          
+          this.loadPresets();
+          
+          if (this.gui) {
+            this.gui.load();
+            
+            if (json.gui) {
+              this.gui.loadJSON(json.gui);
+            }
+          }
+        }
+        
+        loadJSON(json) {
           for (let k in json) {
             config[k] = json[k];
           }
 
-          if (this.gui) {
-            this.gui.load();
+          if (json.SLIDERS) {
+            for (let i=0; i<SLIDERS.length; i++) { 
+              SLIDERS[i] = json.SLIDERS[i];
+            }
           }
+          
+          if (this.render) {
+            this.render.drawGen++;
+          }
+        }
+        
+        loadPresets() {
+          let json = localStorage[Preset.localStorageKey()];
+          if (!json) {
+            return;
+          }
+          
+          this.presets.length = 0;
+          
+          json = JSON.parse(json);
+          for (let jpreset of json) {
+            this.presets.push(new Preset().loadJSON(jpreset));
+          }
+          
+          for (let jpreset of builtin_presets) {
+            let preset = this.getPreset(jpreset.name);
+            
+            if (!preset) {
+              preset = new Preset().loadJSON(jpreset);
+              this.presets.push(preset);
+            } else {
+              preset.loadJSON(jpreset);
+            }
+            
+            preset.builtin = true;
+          }
+
+          this.updatePresetNames();
+          
+          //update active preset so we can
+          //detect changes more accurately free
+          //of serialization noise
+          let preset = this.getPreset(config.PRESET);
+          preset.update();
         }
 
         on_tick() {
@@ -2163,8 +2534,12 @@ ${this[1].x.toFixed(d)}, ${this[1].y.toFixed(d)}
             path.draw(this, this.g);
           }
 
+          let scale = devicePixelRatio / this.getDPI();
+          
           if (this.drawrect) {
             this.g.save();
+            this.g.scale(scale, scale);
+            
             this.g.beginPath();
             this.g.strokeStyle = "white";
             this.g.lineWidth = 1;
@@ -2182,13 +2557,61 @@ ${this[1].x.toFixed(d)}, ${this[1].y.toFixed(d)}
             this.g.rect(minx, miny, w, h);
 
             this.g.stroke();
+            
             this.g.restore();
           }
-
+          
+          //this.g.save();
+          //this.g.scale(scale, scale);
+          
           this.sliders.draw(this.canvas2d, this.g);
+
+          //this.g.restore();
 
           window.T += 0.0001;
           redraw_all();
+          
+          this.updateSize();
+        }
+        
+        getDPI() {
+          return config.DPI * devicePixelRatio;
+        }
+        
+        updateSize() {
+          let {canvas, canvas2d} = this;
+          
+          let dpi = this.getDPI();
+          
+          let w = ~~((window.innerWidth-28)*dpi);
+          let h = ~~((window.innerHeight-28)*dpi);
+          
+          let key = "" + dpi + ":" + w + ":" + h;
+          if (key === this._last_size_key) {
+            return;
+          }
+          
+          console.log("updating size");
+          this._last_size_key = key;
+          
+          let w2d = ~~(window.innerWidth*devicePixelRatio - 28);
+          let h2d = ~~(window.innerHeight*devicePixelRatio - 28);
+
+          canvas.width = w;
+          canvas.height = h;
+          
+          canvas2d.width = w2d;
+          canvas2d.height = h2d;
+
+          canvas.style["width"] = (canvas.width/dpi) + "px";
+          canvas.style["height"] = (canvas.height/dpi) + "px";
+          
+          canvas2d.style["width"] = (canvas2d.width/devicePixelRatio) + "px";
+          canvas2d.style["height"] = (canvas2d.height/devicePixelRatio) + "px";
+          
+          if (this.render) {
+            this.render.drawGen++;
+          }
         }
       }
 
@@ -2230,7 +2653,9 @@ ${this[1].x.toFixed(d)}, ${this[1].y.toFixed(d)}
             animreq = requestAnimationFrame(do_draw);
           }
         }
-
+        
+        _appstate.load();
+        
         redraw_all();
       }
 

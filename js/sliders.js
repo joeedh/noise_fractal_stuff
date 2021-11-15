@@ -99,7 +99,7 @@ define(['util'], function sliders(util) {
         this2.on_mousedown(e.touches[0]);
        // e.stopPropagation();
        // e.preventDefault()
-      });
+      }, true);
       
       dom.addEventListener("touchmove", (e) => {
         if (!this.visible) {
@@ -125,7 +125,7 @@ define(['util'], function sliders(util) {
     //    e.stopPropagation();
     //    e.preventDefault()
         
-      });
+      }, true);
       dom.addEventListener("touchcancel", (e) => {
         if (!this.visible) {
           return;
@@ -144,7 +144,7 @@ define(['util'], function sliders(util) {
         this2.on_mouseup(e.touches[0]);
       //  e.stopPropagation();
       //  e.preventDefault()
-      });
+      }, true);
       
       dom.addEventListener("touchend", (e) => {
         if (!this.visible) {
@@ -167,7 +167,7 @@ define(['util'], function sliders(util) {
        }
        // e.stopPropagation();
        // e.preventDefault()
-      });
+      }, true);
       
       dom.addEventListener("mousedown", (e) => {
         if (!this.visible) {
@@ -256,8 +256,8 @@ define(['util'], function sliders(util) {
           let box = this.get_slider_box(i);
           let x = e.pageX*this.getDPI(), y = e.pageY*this.getDPI();
           
-          if (x >= box[0][0] && x <= box[0][0]+box[1][0] && 
-              y >= box[0][1] && y <= box[0][1]+box[1][1])
+          if (x >= box[0][0] && x <= box[0][0]+box[1][0]*1.5 && 
+              y >= box[0][1] && y <= box[0][1]+box[1][1]*1.5)
           {
             this.actslider = i;
           }
@@ -294,7 +294,7 @@ define(['util'], function sliders(util) {
           val = Math.floor(val);
         }
         
-        console.warn(def.range, val)
+        //console.warn(def.range, val)
         console.log("SLIDERS=[" + sliders + "];");
         
         this.save();

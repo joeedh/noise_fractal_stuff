@@ -2158,14 +2158,80 @@ define([
     constructor(bind_obj, dat_obj, undostack) {
       this.dat = dat_obj === undefined ? new dat.GUI() : dat_obj;
       this.bind_obj = bind_obj;
-
+      
+      this.name = "base";
+      
       this.folders = [];
       this.curve_widgets = [];
       this.gradient_widgets = [];
       
       this.undostack = undostack;
     }
-
+    
+    get closed() {
+      return this.dat.closed;
+    }
+    
+    toJSON() {
+      let panels = [];
+      
+      let rec = (p, path) => {
+        panels.push([path, p.closed]);
+        
+        if (!p.folders) {
+          return;
+        }
+        
+        for (let p2 of p.folders) {
+          rec(p2, path + "." + p2.name);
+        }
+        
+        for (let g of p.gradient_widgets) {
+          rec(g.panel, path + "." + g.id);
+        }
+      }
+     
+      rec(this, "");
+      
+      return {
+        panels,
+        version : 0.1
+      }
+    }
+    
+    loadJSON(json) {
+      let pathmap = {};
+      for (let p of json.panels) {
+        pathmap[p[0]] = p[1];
+      }
+      
+      let rec = (p, path) => {
+        if (path in pathmap) {
+          let closed = pathmap[path];
+          
+          if (closed) {
+            p.close();
+          } else {
+            p.open();
+          }
+        }
+        
+        if (!p.folders) {
+          return;
+        }
+        
+        for (let p2 of p.folders) {
+          rec(p2, path + "." + p2.name);
+        }
+        
+        for (let g of p.gradient_widgets) {
+          rec(g.panel, path + "." + g.id);
+        }
+      }
+     
+      rec(this, "");
+    }
+    
     listen() {
       //return this.dat.listen({});
     }
@@ -2226,6 +2292,8 @@ define([
       f.open();
 
       var ui = new UI(this.bind_obj, f, this.undostack);
+      ui.name = name;
+      
       this.folders.push(ui);
 
       return ui;
@@ -2239,7 +2307,7 @@ define([
       this.dat.open();
     }
 
-    button(id, label, cb, thisvar) {
+    button(label, cb, thisvar) {
       return this.dat.add({
         cb: function () {
           if (thisvar != undefined)
@@ -2255,19 +2323,71 @@ define([
       this.dat = undefined;
     }
 
-    listenum(id, list, defaultval, callback, thisvar) {
-      var ret = {};
-      ret[id] = defaultval;
+    listenum(id, list, name, defaultval, callback, thisvar) {
+      let ret = {}, option;
+      let _last_list = JSON.stringify(list);
+      
+      let regen_select = () => {
+        //option.domElement.childNodes[0].remove();
+        //let select = document.createElement("select");
+        let select = option.domElement.childNodes[0];
+        
+        for (let opt of new Set(select.childNodes)) {
+          select.options.remove(opt);
+        }
+        
+        let i = 0;
+        for (let item of list) {
+          let opt = document.createElement("option");
+          opt.innerText = "" + item;
+          select.add(opt);
+          
+          if (this.bind_obj && ""+item === this.bind_obj[id]) {
+            select.selectedIndex = i;
+          }
+          i++;
+        }
+        
+      }
+      
+      Object.defineProperty(ret, id, {
+        get : () => {
+          let json = JSON.stringify(list);
+          if (option && json !== _last_list) {
+            regen_select();
+            console.log("regenerated select list", json);
+            _last_list = json;
+          }
+          
+          return !this.bind_obj ? '' : this.bind_obj[id];
+        },
+        set : (value) => {
+          console.log("SET");
+          
+          if (this.bind_obj) {
+            this.bind_obj[id] = value;
+            
+            if (thisvar !== undefined) {
+              callback.call(thisvar, value);
+            } else {
+              callback(value);
+            }
+          }
+        }
+      });
+      
+      option = this.dat.add(ret, id, list).name(name);
 
-      var option = this.dat.add(ret, id, list);
-
+      console.error(option);
+      /*
       option.onChange(function (value) {
         if (thisvar !== undefined) {
           callback.call(thisvar, value);
         } else {
           callback(value);
         }
-      });
+      }).listen();*/
+      option.listen();
     }
 
     check(id, name, is_param) {
@@ -2362,12 +2482,14 @@ define([
 
     gradient(id, name) {
       let panel = this.dat.addFolder(name);
-      panel.open();
-
+      panel.close();
+      
       let grad = new GradientWidget(this.bind_obj, id, panel);
       grad.undostack = this.undostack;
       grad.start();
 
+      grad.panel = panel;
+      
       this.gradient_widgets.push(grad);
       grad.load();
     }
