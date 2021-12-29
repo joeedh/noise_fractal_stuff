@@ -30,8 +30,29 @@ struct Float2 {
     float exp, mant, sign;
 };
 
+int ilog(int f) {
+  int fret = f - 1;
+
+  f -= 1;
+  int f2 = f*f, f3 = f2*f, f4=f3*f, f5=f4*f, f6=f5*f, f7=f6*f;
+  
+  fret += -f2/2 + f3/3 - f4/4 + f5/5 - f6/6 + f7/7;
+  
+  return fret;
+}
+
+int ilog2(int f) {
+  return (ilog(f)*1448) >> 10;
+}
+
+int ifloor(int f) {
+  return f;
+}
+
 Float2 normFloat2(Float2 a) {
-    float exp = floor(log(a.mant) / log(2.0));
+    //int exp = ilog2(a.mant);
+    //float  exp = floor(log(a.mant) / log(2.0));
+    float exp = floor(log2(a.mant));
     
     a.mant = a.mant * pow(2.0, -exp);
     a.exp += exp;
@@ -71,6 +92,16 @@ Float2 mulFloat2(Float2 a, Float2 b) {
     return normFloat2(r);
 }
 
+Float2 divFloat2(Float2 a, Float2 b) {
+    Float2 r;
+    
+    r.sign = a.sign * b.sign;
+    r.mant = a.mant / b.mant;
+    r.exp = a.exp - b.exp;
+    
+    return normFloat2(r);
+}
+
 Float2 addFloat2(Float2 a, Float2 b) {
     if (a.exp > b.exp) {
         Float2 t = a;
@@ -78,7 +109,7 @@ Float2 addFloat2(Float2 a, Float2 b) {
         b = t;
     }
     
-    a.mant /= pow(2.0, b.exp-a.exp);
+    a.mant *= pow(2.0, a.exp - b.exp);
     a.exp = b.exp;
     
     if (a.sign != b.sign) {
@@ -103,6 +134,54 @@ Float2 subFloat2(Float2 a, Float2 b) {
 
 bool overLimit(Float2 x, Float2 y) {
     return x.exp > 15.0 || y.exp > 15.0;
+}
+#elif 1
+struct Float2 {
+  float f;
+};
+
+Float2 normFloat2(Float2 a) {
+    return a;
+}
+
+Float2 f32toFloat2(float f) {
+  Float2 r;
+  
+  r.f = f;
+  
+  return r;
+}
+
+float Float2tof32(Float2 f) {
+  return f.f;
+}
+
+Float2 mulFloat2(Float2 a, Float2 b) {
+  b.f *= a.f;
+  return b;
+}
+
+Float2 divFloat2(Float2 a, Float2 b) {
+  b.f = a.f / b.f;
+  return b;
+}
+
+Float2 addFloat2(Float2 a, Float2 b) {
+  b.f += a.f;
+  return b;
+}
+
+Float2 subFloat2(Float2 a, Float2 b) {
+  Float2 r;
+  
+  r.f = a.f - b.f;
+  
+  return r;
+}
+
+bool overLimit(Float2 x, Float2 y) {
+  //return x.f > 1000.0 || y.f > 1000.0;
+  return x.f*x.f + y.f*y.f > 1000.0;
 }
 
 #else
@@ -167,15 +246,32 @@ bool overLimit(Float2 x, Float2 y) {
 
 float pattern(float ix, float iy) {
   vec2 uv = vec2(ix, iy) / iRes;
+  uv -= 0.5;
+  
+  uv[0] *= iRes.x / iRes.y;
+
   int i;
   
-  float scale = pow(max(SLIDERS[1], 0.000001), 2.0);
+  //float scale = pow(max(SLIDERS[1], 0.000001), 2.0);
+  float scale = SLIDERS[1]*SLIDERS[1];
   
-  uv -= 0.5;
-  uv[0] *= iRes.x / iRes.y;
-  vec2 startuv = uv*6.0;
+  Float2 fuvx = f32toFloat2(uv.x);
+  Float2 fuvy = f32toFloat2(uv.y);
   
-  uv = startuv*scale;
+  Float2 fstartuvx = f32toFloat2(uv.x*6.0);
+  Float2 fstartuvy = f32toFloat2(uv.y*6.0);
+  
+  Float2 fscale = f32toFloat2(scale);
+  
+  fscale = addFloat2(f32toFloat2(1.0), fscale);
+  fscale = mulFloat2(mulFloat2(fscale, fscale), fscale);
+  fscale = divFloat2(f32toFloat2(1.0), fscale);
+  
+  //vec2 startuv = uv*6.0;  
+  //uv = startuv*scale;
+  
+  fuvx = addFloat2(mulFloat2(fstartuvx, fscale), f32toFloat2(SLIDERS[2]));
+  fuvy = addFloat2(mulFloat2(fstartuvy, fscale), f32toFloat2(SLIDERS[3]));
   
   uv += vec2(SLIDERS[2], SLIDERS[3]);
   vec2 lastp = uv;
@@ -185,8 +281,8 @@ float pattern(float ix, float iy) {
   #define STEPS 128
   //float xc = 0.0, yc = 0.0; //for kahn summation
   
-  Float2 f2uv_x = addFloat2(mulFloat2(f32toFloat2(startuv.x), f32toFloat2(scale)), f32toFloat2(SLIDERS[2]));
-  Float2 f2uv_y = addFloat2(mulFloat2(f32toFloat2(startuv.y), f32toFloat2(scale)), f32toFloat2(SLIDERS[3]));
+  Float2 f2uv_x = fuvx; //addFloat2(mulFloat2(fstartuvx, fscale), f32toFloat2(SLIDERS[2]));
+  Float2 f2uv_y = fuvy; //addFloat2(mulFloat2(fstartuvy, fscale), f32toFloat2(SLIDERS[3]));
   
   Float2 f2x = f2uv_x, f2y = f2uv_y;
   Float2 const2 = f32toFloat2(2.0);
@@ -204,8 +300,8 @@ float pattern(float ix, float iy) {
     f2x = f2x2;
     f2y = f2y2;
     
-    float x2 = x*x - y*y;
-    float y2 = 2.0*x*y;
+    //float x2 = x*x - y*y;
+    //float y2 = 2.0*x*y;
     
     /*
     float xy = uv.x - xc;
@@ -218,20 +314,20 @@ float pattern(float ix, float iy) {
     yc = (yt - y2) - yy;
     y2 = yt;
     //*/
-    x2 += uv.x;
-    y2 += uv.y;
+    //x2 += uv.x;
+    //y2 += uv.y;
     
-    x = x2;
-    y = y2;
+    //x = x2;
+    //y = y2;
     
-    sum += float(y >= 0.0);
+    //sum += float(y >= 0.0);
     
 #define LIMIT 100000.0
     if (overLimit(f2x, f2y)) {
     //if (x*x + y*y > LIMIT) {
-        x = Float2tof32(f2x2);
+        //x = Float2tof32(f2x2);
         return float(i)/float(STEPS);
-        
+#if 0
         vec2 p = vec2(x, y);
         
         float f = float(i) / float(STEPS);
@@ -259,6 +355,7 @@ float pattern(float ix, float iy) {
         float tu = fract(e), tv = fract(d);
         
         return max(tent(e), tent(tv+0.5));
+#endif
     }
     
     lastp = vec2(x, y);
@@ -303,6 +400,8 @@ SLIDERS=[1.2371428571428567,0.011428571428679694,-0.7641428571428551,0.101071428
 SLIDERS=[1.2371428571428567,0.0010000000001082548,-0.7641428571428551,0.10107142857142801,1.41857142857143,1.6779571428571414];
 
 //SLIDERS=[1.2371428571428567,0.6838571428572507,-0.7641428571428551,0.10107142857142801,1.41857142857143,1.6779571428571414];
+
+SLIDERS[1] = 10.0;
 
 var continued_fract_tmp = new Array(1024);
 function cfract_intern(n, max_steps) {
@@ -409,8 +508,12 @@ require(["util", "webgl", "sliders"], function(util, webgl, sliders) {
       var code = document.getElementById("fragment").text;
       
       var vshader = [
-        "//vertex",
-        "precision mediump float;",
+        "#version 300 es",
+        "precision highp float;",
+
+        "#define varying out",
+        "#define attribute in",
+        
         "attribute vec2 co;",
         "varying vec2 vCo;",
         
@@ -421,13 +524,15 @@ require(["util", "webgl", "sliders"], function(util, webgl, sliders) {
       ].join("\n");
       
       var fshader = [
-        "//fragment",
-        "precision mediump float;",
+        "#version 300 es",
+        "#define varying in",
+        "precision highp float;",
         code,
+        "out vec4 fragColor;",
         "varying vec2 vCo;",
         "void main() {",
         "  vec2 p = vCo * iRes.xy;",
-        "  gl_FragColor = shader(p[0], p[1]);",
+        "  fragColor = shader(p[0], p[1]);",
         "}"
       ].join("\n");
       
@@ -474,7 +579,7 @@ require(["util", "webgl", "sliders"], function(util, webgl, sliders) {
     canvas2d.height = window.innerHeight;
     var g = canvas2d.getContext("2d");
     
-    var gl = webgl.init_webgl(canvas, {});
+    var gl = webgl.init_webgl(canvas, {}, true);
     gl.clearColor(0.2, 0.4, 0.9, 1.0);
     gl.clear(gl.COLOR_BUFFER_BIT);
     

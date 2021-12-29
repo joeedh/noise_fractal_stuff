@@ -44,6 +44,7 @@ define(['util'], function sliders(util) {
       this.x = x;
       this.y = y;
       this.sliders = sliders;
+      this.sliders_start = undefined;
       this.pad = 15;
       
       this._visible = true;
@@ -205,12 +206,13 @@ define(['util'], function sliders(util) {
       this.last_mpos[0] = e.pageX*this.getDPI();
       this.last_mpos[1] = e.pageY*this.getDPI();
       
-      if (this.actslider >= 0) {
+      if (this.actslider >= 0) {        
         if (this.onchange_start) {
           this.onchange_start(this.actslider);
         }
         
         e.stopPropagation();
+        this.sliders_start = this.sliders.concat([]);
       }
     }
     
@@ -272,6 +274,20 @@ define(['util'], function sliders(util) {
         }
         
         let dy = -(e.pageY*this.getDPI() - this.last_mpos[1]) / 700.0;
+        
+        //*
+        if ("speed" in def) {
+          dy *= def.speed;
+        }
+        
+        if ("exp" in def) {
+          let dv = Math.abs(this.sliders[this.actslider] - this.sliders_start[this.actslider]);
+          
+          if (dv > 0.0) {
+            dy *= Math.pow(dv, def.exp) / dv;
+          }
+        }//*/
+        
         if (def.integer) {
           if (def.range[0] > -10000 && def.range[1] < 10000) {
             dy *= (def.range[1] - def.range[0])*0.5;
@@ -347,7 +363,8 @@ define(['util'], function sliders(util) {
       var y = this.y;;
       g.fillStyle = "rgba(0, 0, 0, 1.0)";
       
-      g.font = "15px Georgia";
+      let fontsize = (12 * devicePixelRatio).toFixed(2);
+      g.font = `${fontsize}px Georgia`;
       
       for (var i=0; i<sliders.length; i++) {
         g.beginPath();
@@ -372,15 +389,18 @@ define(['util'], function sliders(util) {
         g.beginPath();
         
         function drawTextShadow(text, x, y) {
-          g.shadowBlur = 5.0;
-          g.shadowColor = "black";
-          g.font = "14px bold courier";
-          g.fillStyle = "black";
-          g.fillText(text, x, y);
+          for (let i=0; i<15; i++) {
+            g.shadowBlur = 3.0;
+            g.shadowColor = "black";
+            //g.font = "16px bold courier";
+            g.fillStyle = "black";
+            g.fillText(text, x, y);
+          }
           
           g.beginPath();
           g.shadowBlur = 0.0;
           g.shadowColor = "rgba(0,0,0,0)";
+          //g.font = "16px bold courier";
           g.fillStyle = "white";
           g.fillText(text, x, y);
         }

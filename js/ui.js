@@ -1728,7 +1728,7 @@ define([
 
       this.dat.add(this, "contrast")
         .min(0.0001)
-        .max(15.0)
+        .max(30.0)
         .onChange(() => {
           this.gradient.regen = 1;
           this.save();
