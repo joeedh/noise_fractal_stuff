@@ -1205,6 +1205,7 @@ define([
       this.cyclic = true;
 
       this.brightness = 0.0;
+      this.gain = 1.0;
       this.contrast = 1.0;
       this.postBrightness = 0.0;
       this.postContrast = 1.0;
@@ -1330,6 +1331,7 @@ define([
         stops,
         brightness    : this.brightness,
         contrast      : this.contrast,
+        gain          : this.gain,
         postBrightness: this.postBrightness,
         postContrast  : this.postContrast,
         active        : this.active ? this.active.id : -1,
@@ -1366,6 +1368,10 @@ define([
         this.push(gp);
       }
 
+      if ("gain" in json) {
+        this.gain = json.gain;
+      }
+      
       this.brightness = json.brightness;// ?? 0.0;
       this.contrast = json.contrast;// ?? 1.0;
       this.postBrightness = json.postBrightness ?? 0.0;
@@ -1383,6 +1389,7 @@ define([
     evaluate(t, no_b_c) {
       if (!no_b_c) {
         //t = (t + this.brightness)*this.contrast;
+        t = Math.pow(t, this.gain);
         t = t*this.contrast + this.brightness;
       }
 
@@ -1619,6 +1626,14 @@ define([
       this.gradient.contrast = v;
     }
 
+    get gain() {
+      return this.gradient.gain;
+    }
+    
+    set gain(v) {
+      this.gradient.gain = v;
+    }
+
     get brightness2() {
       return this.gradient.postBrightness;
     }
@@ -1717,9 +1732,9 @@ define([
         })
         .listen();
 
-      this.dat.add(this, "brightness")
-        .min(-0.5)
-        .max(1.5)
+      this.dat.add(this, "gain")
+        .min(0.0001)
+        .max(3.5)
         .onChange(() => {
           this.gradient.regen = 1;
           this.save();
@@ -1728,7 +1743,16 @@ define([
 
       this.dat.add(this, "contrast")
         .min(0.0001)
-        .max(30.0)
+        .max(155.0)
+        .onChange(() => {
+          this.gradient.regen = 1;
+          this.save();
+        })
+        .listen();
+
+      this.dat.add(this, "brightness")
+        .min(-0.5)
+        .max(1.5)
         .onChange(() => {
           this.gradient.regen = 1;
           this.save();
@@ -2522,5 +2546,71 @@ define([
     }
   };
 
+  exports.ReportView = class ReportView {
+    constructor() {
+      this.dom = undefined;
+      this.buffer = [];
+      this.timerid = undefined;
+      this.maxLines = 3;
+    }
+    
+    start() {
+      if (this.timerid !== undefined) {
+        return;
+      }
+      
+      let div = this.dom = document.createElement("div");
+      div.style["z-index"] = "10000";
+      div.style["position"] = "fixed";
+      div.style["left"] = "150px";
+      div.style["top"] = "50px";
+      div.style["background-color"] = "white";
+      div.style["width"] = "500px";
+      div.style["height"] = "200px";
+      div.style["border-radius"] = "25px";
+      div.style["padding"] = "10px";
+      
+      document.body.appendChild(div);
+      
+      this.timerid = window.setInterval(() => {
+        this.update();
+      }, 1000);
+    }
+    
+    end() {
+      if (!this.dom) {
+        return;
+      }
+      
+      window.clearInterval(this.timerid);
+      this.timerid = undefined;
+      this.dom.remove();
+      this.dom = undefined;
+    }
+    
+    update() {
+      if (this.buffer.length == 0) {
+        this.end();
+      } else {
+        this.buffer.shift();
+      }
+    }
+    
+    post(msg) {
+      if (!this.dom) {
+        this.start();
+      }
+      
+      this.buffer.push(msg);
+      while (this.buffer.length > this.maxLines) {
+        this.buffer.shift();
+      }
+      
+      let div = this.dom;
+      let str = this.buffer.join("<br>\n");
+      div.innerHTML = str;
+    }
+  }
+  
   return exports;
 });

@@ -947,6 +947,23 @@ vec4 shader(float ix, float iy) {
       FILTER_WIDTH : 0.9,
     });
     
+    /*123*/
+    add_preset( [298.65173135484963, -1.8915582101004504, 2.5746087556835806, 1.748571177891324, 1565.1696905680365, 322.46666752635116, 445.6385805939089, 1.8053573199680886, 1.601428590502057, 0.010100010899135047, 1.5120981078147835, 1.7457144907542652], {
+      SHARPNESS : 0.258,
+      FILTER_WIDTH : 0.856
+    });
+    
+    /*124*/
+    add_preset([298.65173135484963, -1.8915582101004504, 2.9551414979429267, 5.131428459712445, 2989.956727257035, 614.7308993924108, 851.8380089826682, 2.373928730828422, 1.601428590502057, 0.6215285305568152, 1.5120981078147835, 1.7457144907542652], {
+      SHARPNESS : 0.358,
+      OLD_GRADIENT: false,
+      GRADIENT : {"stops":[{"color":[0,0,0,1],"t":0,"flag":0,"type":2,"id":1},{"color":[0,0,0,1],"t":0,"flag":0,"type":2,"id":1},{"color":[0,0,0,1],"t":0,"flag":0,"type":2,"id":1},{"color":[0,0,0,1],"t":0,"flag":0,"type":2,"id":8},{"color":[1,1,1,1],"t":0.026360725869937842,"flag":0,"type":2,"id":1},{"color":[0,0.10929620692199217,0.403921568627451,1],"t":0.5561210217119074,"flag":0,"type":2,"id":15},{"color":[1,0.32677313622007986,0.06936286477481612,1],"t":0.6794218984590906,"flag":0,"type":2,"id":20},{"color":[1,1,1,1],"t":0.9829926782724809,"flag":0,"type":2,"id":10},{"color":[1,1,1,1],"t":1,"flag":0,"type":2,"id":2},{"color":[1,1,1,1],"t":1,"flag":0,"type":2,"id":2},{"color":[1,1,1,1],"t":1,"flag":0,"type":2,"id":2},{"color":[1,1,1,1],"t":1,"flag":0,"type":2,"id":2},{"color":[1,1,1,1],"t":1,"flag":0,"type":2,"id":2}],"brightness":0.8139963098739875,"contrast":38.97925629525374,"gain":1.392766945630499,"postBrightness":-0.11869923960440765,"postContrast":1.4506285121576579,"active":20,"highlight":15,"version":0.1,"idgen":24,"satOffset":1,"hueOffset":0}
+    });
+    
+    /*125*/
+    add_preset( [73.02673135484963, -0.9110000133514398, 2.9551414979429267, 4.71142821993148, 0.25, 0, 0, 1.8435715879712826, 1.6050000190734868, 0.7501000817435128, 0.9118571485791879, 2.3528573410851625]);
+    
+    
     while (SLIDERS.length < SLIDER_NAMES.length) {
       SLIDERS.push(0.0);
     }
@@ -1684,7 +1701,7 @@ ${this[1].x.toFixed(d)}, ${this[1].y.toFixed(d)}
           gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(mesh), gl.STATIC_DRAW);
         },
 
-        function draw(gl) {
+        function draw(gl, drawBuffer=null, steps=1, noSkip=false) {
           if (this.regen) {
             this.regen_buffers(gl);
             this.compile_shader(gl);
@@ -1740,9 +1757,8 @@ ${this[1].x.toFixed(d)}, ${this[1].y.toFixed(d)}
             this.sample = 0;
           }
           this.lastDrawGen = this.drawGen;
-
-          let skip = this.sample > config.MAX_SAMPLES;
-          this.sample++;
+          
+          let skip = !noSkip && this.sample > config.MAX_SAMPLES;
 
           var vbuf = this.vbuf;
           var shader = this.shader;
@@ -1776,16 +1792,30 @@ ${this[1].x.toFixed(d)}, ${this[1].y.toFixed(d)}
           }
 
           Object.assign(uniforms, slider_uniforms);
-
+          
           if (!skip) {
-            shader.bind(gl, uniforms, defines);
+            for (let i=0; i<steps; i++) {
+              this.sample++;
+              
+              uniforms.T = window.T;
+              uniforms.rgba = this.fbos[1].texColor;
+              
+              shader.bind(gl, uniforms, defines);
 
-            this.fbos[0].bind(gl);
-            gl.drawArrays(gl.TRIANGLES, 0, 6);
-            this.fbos[0].unbind(gl);
+              this.fbos[0].bind(gl);
+              gl.drawArrays(gl.TRIANGLES, 0, 6);
+              this.fbos[0].unbind(gl);
+              
+              window.T += 0.0001;
+              
+              //flip buffers
+              let t = this.fbos[0];
+              this.fbos[0] = this.fbos[1];
+              this.fbos[1] = t;
+            }
           }
 
-          gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+          gl.bindFramebuffer(gl.FRAMEBUFFER, drawBuffer);
 
           let final_uniforms = {
             iRes     : [canvas.width, canvas.height],
@@ -1813,12 +1843,6 @@ ${this[1].x.toFixed(d)}, ${this[1].y.toFixed(d)}
           shader = Shaders.Final;
           shader.bind(gl, final_uniforms, defines);
           gl.drawArrays(gl.TRIANGLES, 0, 6);
-
-          if (!skip) {
-            let t = this.fbos[0];
-            this.fbos[0] = this.fbos[1];
-            this.fbos[1] = t;
-          }
         },
 
         function compile_shader(gl) {
@@ -2166,6 +2190,10 @@ ${this[1].x.toFixed(d)}, ${this[1].y.toFixed(d)}
         LOCK_OFFSETS       : false,
         SIMPLE_MODE        : false,
         PRINT_TEST         : false,
+        RENDER_WIDTH       : 1024,
+        RENDER_HEIGHT      : 1024,
+        RENDER_SAMPLES     : 256,
+        RENDER_WINDOW_SCALE : 1.0,
       };
 
       let NonPresetKeys = new Set([
@@ -2249,7 +2277,12 @@ ${this[1].x.toFixed(d)}, ${this[1].y.toFixed(d)}
           this.gl = gl; //3d api
           this.g = g;   //2d api
           this.mdown = false;
-
+          
+          this.reports = new ui.ReportView();
+          
+          this.rendering = false;
+          this.cancelRender = false;
+          
           this.presets = [];
           this.presetNames = [];
 
@@ -2266,13 +2299,15 @@ ${this[1].x.toFixed(d)}, ${this[1].y.toFixed(d)}
             this.render.drawGen++;
             this.save();
           }
+          
+          this.undoStack = [];
+          this.undoCur = 0;
 
           this.gui = new ui.UI(config, undefined, this.newUndoStack);
           this.makeGui();
           this.gui.listen();
 
-          this.undoStack = [];
-          this.undoCur = 0;
+          this.makeRenderGui();
 
           this.paths = [];
           this._last_view_key = calcViewKey();
@@ -2412,6 +2447,132 @@ ${this[1].x.toFixed(d)}, ${this[1].y.toFixed(d)}
           }
         }
 
+        makeRenderGui() {
+          let gui = this.renderGui = new ui.UI(config, undefined, this.newUndoStack);
+          
+          let panel = gui.panel("Render");
+          
+          gui.slider("RENDER_WINDOW_SCALE", 
+          "Scale", 1, 1, 15, 1, true, false);
+
+          panel.button("Use Window", () => {
+            let dpi = devicePixelRatio;
+            
+            dpi *= config.RENDER_WINDOW_SCALE;
+            
+            config.RENDER_WIDTH = ~~(window.innerWidth * dpi);
+            
+            config.RENDER_HEIGHT = ~~(window.innerHeight * dpi);
+          });
+          
+          gui.slider("RENDER_WIDTH", "Width", 1024, 2, 8192*2, 1, true, false);
+          gui.slider("RENDER_HEIGHT", "Height", 1024, 2, 8192*2, 1, true, false);
+          gui.slider("RENDER_SAMPLES", "Qaulity", 1024, 1, 500, 1, true, false);
+          
+          gui.button("Render", () => {
+            this.doRender();
+          });
+          
+          //gui.close();
+        }
+        
+        /*
+         [298.65173135484963, -1.8915582101004504, 2.5746087556835806, 1.748571177891324, 7256.918651748051, 1495.0291960626157, 2065.938224149363, 1.8053573199680886, 1.601428590502057, 0.010100010899135047, 1.5120981078147835, 1.7457144907542652]
+        
+         [298.65173135484963, -1.8915582101004504, 2.5746087556835806, 1.748571177891324, 20593.655837171005, 4228.8340137257155, 5861.448116687744, 1.8053573199680886, 1.601428590502057, 0.010100010899135047, 1.5120981078147835, 1.7457144907542652]
+        */
+        doRender() {
+          let iter = this.doRender_job();
+          this.rendering = true;
+          
+          let timerid = window.setInterval(() => {
+            let ret = iter.next();
+            
+            if (ret.done) {
+              this.rendering = false;
+              window.clearInterval(timerid);
+              
+              //flag size update
+              this._last_size_key = "";
+              window.redraw_all();
+              console.log("done");
+            }
+          }, 5);
+        }
+        
+        * doRender_job() {
+          console.warn("render!");
+          
+          let canvas = this.canvas;
+          let gl = this.gl;
+          
+          canvas.width = ~~config.RENDER_WIDTH;
+          canvas.height = ~~config.RENDER_HEIGHT;
+          
+          let idata = new ImageData(canvas.width, canvas.height);
+          //let pixels = idata.data;
+          let pixels = new Float32Array(canvas.width*canvas.height*4);
+          
+          let fbo = new webgl.FBO(gl, canvas.width, canvas.height);
+          
+          fbo.bind(gl);
+          
+          //gl.clearColor(0.5, 0.5, 1.0, 1.0);
+          //gl.clear(gl.COLOR_BUFFER_BIT);
+          
+          //console.log(this.draw);
+          this.render.drawGen++;
+          for (let i=0; i<config.RENDER_SAMPLES; i++) {
+            this.render.draw(gl, fbo.fbo, 1);
+            
+            let msg = `sample ${i+1} of ${config.RENDER_SAMPLES}`;
+            console.log(msg);
+            
+            if (this.cancelRender) {
+              break;
+            }
+            
+            this.reports.post(msg);
+            yield;
+          }
+          
+          yield;
+          
+          gl.finish();
+          
+          gl.readBuffer(gl.COLOR_ATTACHMENT0);
+          //gl.readBuffer(gl.BACK);
+          
+          gl.bindFramebuffer(gl.READ_FRAMEBUFFER, fbo.fbo);
+          
+          gl.readPixels(0, 0, canvas.width, canvas.height, gl.RGBA, gl.FLOAT, pixels);
+          
+          gl.finish();
+          gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+          //fbo.unbind(gl);
+          console.log(pixels);
+          
+          let ipixels = idata.data;
+          for (let i=0; i<pixels.length; i++) {
+            ipixels[i] = ~~(pixels[i]*255.0);
+          }
+          
+          let canvas2 = document.createElement("canvas");
+          let g = canvas2.getContext("2d");
+          canvas2.width = canvas.width;
+          canvas2.height = canvas.height;
+          
+          g.putImageData(idata, 0, 0);
+          
+          canvas2.toBlob((blob) => {
+            console.log("blob", blob);
+            let url = URL.createObjectURL(blob);
+            
+            window.open(url);
+            console.log(url);
+          });
+        }
+        
         makeGui() {
           let gui = this.gui;
 
@@ -2586,6 +2747,10 @@ ${this[1].x.toFixed(d)}, ${this[1].y.toFixed(d)}
         }
 
         on_mousedown(e) {
+          if (this.rendering) {
+            return;
+          }
+          
           let dpi = this.getDPI();
 
           this.mdown = e.button === 0;
@@ -3239,6 +3404,11 @@ ${this[1].x.toFixed(d)}, ${this[1].y.toFixed(d)}
           console.log(e.keyCode);
 
           switch (e.keyCode) {
+            case 27: //escape
+              if (this.rendering) {
+                this.cancelRender = true;
+              }
+              break;
             case 82: //rkey
               //for (let i=0; i<DEFAULT_SLIDERS.length; i++) {
               //SLIDERS[i] = DEFAULT_SLIDERS[i];
@@ -3281,6 +3451,10 @@ ${this[1].x.toFixed(d)}, ${this[1].y.toFixed(d)}
         }
 
         draw() {
+          if (this.rendering) {
+            return;
+          }
+          
           this.sliders.visible = config.SHOW_SLIDERS;
           this.render.draw(this.gl);
 
