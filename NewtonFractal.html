@@ -3587,7 +3587,10 @@ ${this[1].x.toFixed(d)}, ${this[1].y.toFixed(d)}
         canvas.style["height"] = canvas2d.style["height"] = (canvas.height/dpi) + "px";
         let g = canvas2d.getContext("2d");
 
-        let gl = webgl.init_webgl(canvas, {}, true);
+        let gl = webgl.init_webgl(canvas, {
+          powerPreference: "high-performance",
+          antialias: false
+        }, true);
 
         loadShaders(gl);
 
