@@ -1,20 +1,13 @@
-import {ContextOverlay, Context, util, vectormath, math} from '../path.ux/pathux.js';
+import {
+  ContextOverlay, Context, util, vectormath, math,
+  contextWrangler
+} from '../path.ux/pathux.js';
 import {PatternsEnum} from '../pattern/pattern.js';
+import {CanvasEditor} from '../editors/canvas/canvas.js';
 
 export class BaseOverlay extends ContextOverlay {
   constructor(appstate) {
     super(appstate);
-  }
-
-  validate() {
-    return true;
-  }
-
-  static contextDefine() {
-    return {
-      name   :   "base",
-      flag   :   0
-    }
   }
 
   get api() {
@@ -32,18 +25,45 @@ export class BaseOverlay extends ContextOverlay {
   get model() {
     return this.state.model;
   }
-}
 
-export class ViewOverlay extends ContextOverlay {
-  validate() {
-    return true;
+  get pattern() {
+    return this.model.patterns.active;
+  }
+
+  pattern_save() {
+    return this.pattern.typeName;
+  }
+
+  pattern_load(ctx, val) {
+    return ctx.model.getPattern(val);
   }
 
   static contextDefine() {
     return {
-      name   :   "base",
-      flag   :   0
+      name: "base",
+      flag: 0
     }
+  }
+
+  validate() {
+    return true;
+  }
+}
+
+export class ViewOverlay extends ContextOverlay {
+  get canvas() {
+    return contextWrangler.getLastArea(CanvasEditor);
+  }
+
+  static contextDefine() {
+    return {
+      name: "base",
+      flag: 0
+    }
+  }
+
+  validate() {
+    return true;
   }
 }
 

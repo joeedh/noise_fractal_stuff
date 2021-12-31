@@ -1,8 +1,9 @@
-import {DataAPI, EnumProperty} from '../path.ux/pathux.js';
-import {PatternClasses, makePatternsEnum, PatternsEnum} from '../pattern/pattern.js';
+import {areaclasses, DataAPI, EnumProperty} from '../path.ux/pathux.js';
+import {PatternClasses, makePatternsEnum, PatternsEnum, Pattern} from '../pattern/pattern.js';
 import '../patterns/all.js';
 import {FileState} from './file.js';
 import {ToolContext} from './context.js';
+import {CanvasEditor} from '../editors/canvas/canvas.js';
 
 function api_define_model(api) {
   let st = api.mapStruct(FileState, true);
@@ -39,13 +40,22 @@ function api_define_model(api) {
 export function api_define() {
   let api = new DataAPI();
 
+  //make base class struct
+  Pattern.apiDefine(api);
+
   for (let cls of PatternClasses) {
     cls.apiDefine(api);
+  }
+
+  for (let k in areaclasses) {
+    areaclasses[k].apiDefine(api);
   }
 
   api_define_model(api);
 
   let cst = api.mapStruct(ToolContext, true);
+  cst.dynamicStruct("pattern", "pattern", "Pattern", api.mapStruct(Pattern, false));
+
   cst.struct("model", "model", "Model", api.mapStruct(FileState));
   cst.enum("", "activePattern", makePatternsEnum(), "Active Pattern").customGetSet(function () {
     let pat = this.dataref.model.patterns.active;
@@ -59,6 +69,8 @@ export function api_define() {
     this.dataref.model.setActivePattern(PatternsEnum.keys[val]);
     window.redraw_viewport();
   });
+
+  cst.struct("canvas", "canvas", "Canvas", api.mapStruct(CanvasEditor));
 
   api.rootContextStruct = cst;
 

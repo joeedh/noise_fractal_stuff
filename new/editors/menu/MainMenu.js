@@ -53,7 +53,8 @@ export class MainMenu extends Editor {
     ]);
 
     row.menu("Session", [
-      "app.save_startup_file()"
+      "app.save_startup_file()",
+      "app.clear_startup_file()"
     ]);
 
     let notef = UIBase.createElement("noteframe-x");

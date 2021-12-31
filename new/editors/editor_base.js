@@ -1,6 +1,6 @@
 import {
   Area, nstructjs, UIBase, PackFlags,
-  Container, util, vectormath, math
+  Container, util, vectormath, math, KeyMap
 } from '../path.ux/pathux.js';
 
 export class Editor extends Area {
@@ -9,6 +9,20 @@ export class Editor extends Area {
 
     this.container = UIBase.createElement("container-x");
     this.shadow.appendChild(this.container);
+
+    this.keymap = undefined;
+    this.defineKeymap();
+  }
+
+  static apiDefine(api) {
+    let st = api.mapStruct(this);
+
+    return st;
+  }
+
+  /** create this.keymap here, KeyMap instance */
+  defineKeymap() {
+
   }
 
   getScreen() {

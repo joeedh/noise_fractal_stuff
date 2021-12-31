@@ -1,4 +1,4 @@
-import {Screen, UIBase} from './path.ux/pathux.js';
+import {Screen, UIBase, KeyMap, HotKey} from './path.ux/pathux.js';
 import {init_webgl} from './webgl/webgl.js';
 
 export var canvas;
@@ -17,6 +17,14 @@ export function initGL() {
 export class AppScreen extends Screen {
   constructor() {
     super();
+
+    this.keymap = new KeyMap([
+      new HotKey("Z", ["CTRL"], "app.undo"),
+      new HotKey("Z", ["CTRL", "SHIFT"], "app.undo"),
+      new HotKey("T", [], (ctx) => {
+        ctx.canvas.showSliders ^= true;
+      }),
+    ]);
   }
 
   static define() {
@@ -61,3 +69,4 @@ AppScreen.STRUCT = nstructjs.inherit(AppScreen, Screen) + `
 }`;
 nstructjs.register(AppScreen);
 UIBase.register(AppScreen);
+

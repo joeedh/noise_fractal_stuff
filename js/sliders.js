@@ -55,7 +55,7 @@ define(['util'], function sliders(util) {
       
       this.locked = {};
       this.load();
-      
+
       this.onchange = null;
       this.onchange_end = null;
     }

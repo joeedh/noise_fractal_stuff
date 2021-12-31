@@ -74,7 +74,9 @@ export function setupDrawGlobals() {
       let area = sarea.area;
 
       if (area.constructor.define().has3D) {
+        area.push_ctx_active();
         area.viewportDraw(canvas, gl);
+        area.pop_ctx_active();
       }
     }
   }
@@ -86,6 +88,11 @@ export function setupDrawGlobals() {
 
     animreq = requestAnimationFrame(draw);
   }
+
+  /* start main rendering loop */
+  window.setInterval(() => {
+    window.redraw_viewport();
+  }, 33);
 }
 
 export function start() {

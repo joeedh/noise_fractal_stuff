@@ -90,3 +90,20 @@ export class SaveStartup extends ToolOp {
 
 ToolOp.register(SaveStartup);
 
+
+export class ClearStartup extends ToolOp {
+  static tooldef() {
+    return {
+      toolpath: "app.clear_startup_file",
+      uiname  : "Clear Default File",
+      undoflag: UndoFlags.NO_UNDO
+    }
+  }
+
+  exec(ctx) {
+    delete localStorage[cconst.STARTUP_FILE_KEY];
+  }
+}
+
+ToolOp.register(ClearStartup);
+

@@ -20,6 +20,11 @@ export class EditorGL extends Editor {
     this.glSize[0] = ~~(this.size[0]*dpi);
     this.glSize[1] = ~~(this.size[1]*dpi);
 
+    let y = this.glPos[1] + this.glSize[1];
+    y = canvas.height - y;
+
+    this.glPos[1] = y;
+
     gl.enable(gl.SCISSOR_TEST);
     gl.scissor(this.glPos[0], this.glPos[1], this.glSize[0], this.glSize[1]);
   }

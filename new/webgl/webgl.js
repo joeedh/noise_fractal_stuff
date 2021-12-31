@@ -609,7 +609,7 @@ export class ShaderProgram {
         var v = us[k];
         var loc = this.uniformloc(k)
 
-        if (loc == undefined) {
+        if (loc === undefined) {
           //stupid gl returns null if it optimized away the uniform,
           //so we must silently accept this
           //console.log("Warning, could not locate uniform", k, "in shader");
@@ -641,7 +641,8 @@ export class ShaderProgram {
         } else if (typeof v == "number") {
           gl.uniform1f(loc, v);
         } else {
-          throw new Error("Invalid uniform");
+          console.warn(k, v);
+          throw new Error("Invalid uniform for " + k);
         }
       }
     }
