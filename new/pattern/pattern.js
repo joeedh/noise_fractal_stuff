@@ -2,8 +2,12 @@ import {EnumProperty, nstructjs} from '../path.ux/pathux.js';
 import {renderPattern} from './pattern_draw.js';
 import {ShaderProgram, RenderBuffer} from '../webgl/webgl.js';
 import {Shaders} from './pattern_shaders.js';
+import {loadPreset, savePreset} from './preset.js';
 
-export const PatternClasses = [];
+import {PatternClasses} from './pattern_base.js';
+export {PatternClasses} from './pattern_base.js';
+
+let CachedPatternTok = Symbol("cached-pattern");
 
 export class Pattern {
   constructor() {
@@ -43,23 +47,90 @@ export class Pattern {
     this.loadSlidersFromDef(this.constructor.patternDef().sliderDef);
   }
 
+  get scale() {
+    let def = this.constructor.getPatternDef();
+    return this.sliders[def.offsetSliders.scale];
+  }
+
+  set scale(v) {
+    let def = this.constructor.getPatternDef();
+    this.sliders[def.offsetSliders.scale] = v;
+
+    this.drawGen++;
+    window.redraw_viewport();
+  }
+
+  get offsetx() {
+    let def = this.constructor.getPatternDef();
+    return this.sliders[def.offsetSliders.x];
+  }
+
+  set offsetx(v) {
+    let def = this.constructor.getPatternDef();
+    this.sliders[def.offsetSliders.x] = v;
+
+    this.drawGen++;
+    window.redraw_viewport();
+  }
+
+  get offsety() {
+    let def = this.constructor.getPatternDef();
+    return this.sliders[def.offsetSliders.y];
+  }
+
+  set offsety(v) {
+    let def = this.constructor.getPatternDef();
+    this.sliders[def.offsetSliders.y] = v;
+
+    this.drawGen++;
+    window.redraw_viewport();
+  }
+
+  savePreset() {
+    return savePreset(this);
+  }
+
+  loadPreset(json) {
+    let pat = loadPreset(json);
+
+    pat.copyTo(this);
+
+    return this;
+  }
+
+  static getPatternDef() {
+    if (!Object.hasOwnProperty(this, CachedPatternTok)) {
+      let def = this.patternDef();
+      Object.seal(def);
+
+      this[CachedPatternTok] = def;
+    }
+
+    return this[CachedPatternTok];
+  }
+
   static patternDef() {
     throw new Error("implement me!");
     return {
-      typeName   : "",
-      uiName     : "",
-      flag       : 0,
-      description: "",
-      icon       : -1,
-      sliderDef  : [
-        "steps",
+      typeName     : "",
+      uiName       : "",
+      flag         : 0,
+      description  : "",
+      icon         : -1,
+      offsetSliders: {
+        x    : 1, //index of x in sliders
+        y    : 2, //index of y in sliders
+        scale: 3, //index of scale in sliders
+      },
+      sliderDef    : [
         {
-          name : "bleh",
+          name : "steps",
           range: [1, 2],
           value: 1.0
-        }
+        },
+        "x", "y", "scale"
       ],
-      shader     : `
+      shader       : `
 //uniform vec2 iRes;
 //uniform vec2 iInvRes;
 //uniform float T;

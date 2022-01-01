@@ -24,6 +24,7 @@ export class AppScreen extends Screen {
       new HotKey("T", [], (ctx) => {
         ctx.canvas.showSliders ^= true;
       }),
+      new HotKey("R", [], "canvas.reset_view"),
     ]);
   }
 
@@ -39,8 +40,8 @@ export class AppScreen extends Screen {
     }
 
     let dpi = UIBase.getDPI();
-    let w = ~~(this.size[0] * dpi);
-    let h = ~~(this.size[1] * dpi);
+    let w = ~~(this.size[0]*dpi);
+    let h = ~~(this.size[1]*dpi);
 
     if (w === canvas.width && h === canvas.height) {
       return;

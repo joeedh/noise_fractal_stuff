@@ -37,6 +37,8 @@ export class AppState {
     this.model = new FileState();
     this.toolstack = new AppToolStack();
 
+    this._last_tool = undefined;
+
     this.ctx = new ToolContext(this);
 
     //craete dummy screen to make context system happy

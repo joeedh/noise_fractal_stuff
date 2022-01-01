@@ -7,4 +7,5 @@ export const Icons = {
   LARGE_CHECK   : 5,
   ENUM_UNCHECKED: 6, //overlaid on icon checkboxes when unchecked
   ENUM_CHECKED  : 7, //overlaid on icon checkboxes when checked
+  HOME          : 8
 }

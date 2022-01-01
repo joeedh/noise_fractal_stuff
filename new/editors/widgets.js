@@ -24,6 +24,8 @@ export class SlidersWidget extends UIBase {
     this.size = [400, 400];
     this.pos = [15, 55];
 
+    this._last_pos_size_key = '';
+
     this.animreq = undefined;
 
     this._digest = new util.HashDigest();
@@ -135,7 +137,7 @@ export class SlidersWidget extends UIBase {
 
     path = `${path}[${this.actslider}].value`;
 
-    this.setPathValue(this.ctx, path, value);
+    this.setPathValueUndo(this.ctx, path, value);
     this.flagRedraw();
 
     if (this.onchange) {
@@ -365,6 +367,20 @@ export class SlidersWidget extends UIBase {
     }
   }
 
+  updatePos() {
+    let key = this.pos[0].toFixed(2) + ":" + this.pos[1].toFixed(2) + ":";
+    key = this.size[0].toFixed(2) + ":" + this.size[1].toFixed(2);
+
+    if (key === this._last_pos_size_key) {
+      return;
+    }
+
+    console.log("slider pos/size update", key);
+    this._last_pos_size_key = key;
+
+    this.setCSS();
+  }
+
   update() {
     this.updateDataPath();
 
@@ -372,6 +388,7 @@ export class SlidersWidget extends UIBase {
       this.rebuild();
     }
 
+    this.updatePos();
     super.update();
   }
 }

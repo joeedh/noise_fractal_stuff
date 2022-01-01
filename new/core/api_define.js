@@ -4,6 +4,7 @@ import '../patterns/all.js';
 import {FileState} from './file.js';
 import {ToolContext} from './context.js';
 import {CanvasEditor} from '../editors/canvas/canvas.js';
+import '../editors/canvas/canvas_ops.js';
 
 function api_define_model(api) {
   let st = api.mapStruct(FileState, true);

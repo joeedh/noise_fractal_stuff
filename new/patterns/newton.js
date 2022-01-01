@@ -222,25 +222,34 @@ float pattern(float ix, float iy) {
 
 
 export class NewtonPattern extends Pattern {
+  constructor() {
+    super();
+  }
+
   static patternDef() {
     return {
-      typeName   : "newton",
-      uiName     : "Newton",
-      flag       : 0,
-      description: "modified newton fractal",
-      icon       : -1,
-      sliderDef  : [
+      typeName     : "newton",
+      uiName       : "Newton",
+      flag         : 0,
+      description  : "modified newton fractal",
+      icon         : -1,
+      offsetSliders: {
+        scale: 4,
+        x    : 5,
+        y    : 6,
+      },
+      sliderDef    : [
         {
           name : "steps", integer: true,
           range: [5, 955],
           value: 100,
-          speed : 7.0,
-          exp : 1.5,
+          speed: 7.0,
+          exp  : 1.5,
         }, //0
-        {name: "offset", range: [-5.0, 5.0]}, //1
+        {name: "offset", range: [-5.0, 5.0], speed : 0.1}, //1
         {name: "gain", value: 1.0, range: [0.001, 1000], speed: 4.0, exp: 2.0},  //2
         "color", //3
-        {name: "scale", value: 0.75, range: [0.001, 1000000.0]}, //4
+        {name: "scale", value: 4.75, range: [0.001, 1000000.0]}, //4
         "x",  //5
         "y",  //6
         {name: "colorscale", value: 1.0},//7
@@ -257,6 +266,10 @@ export class NewtonPattern extends Pattern {
     defines.STEPS = ~~this.sliders[0];
 
     super.viewportDraw(ctx, gl, uniforms, defines);
+  }
+
+  copyTo(b) {
+    super.copyTo(b);
   }
 }
 

@@ -359,6 +359,7 @@ export var theme = {
   'sliders-widget':  {
     height: 400,
     width : 500,
+    "background-color" : "rgba(75,75,75,0.3)"
   },
 
   strip:  {
