@@ -5,6 +5,7 @@ import {
 import {Icons} from './editors/icon_enum.js';
 import {theme} from './editors/theme.js';
 import {initGL, canvas, gl} from './screen.js';
+import {initPresets} from './pattern/preset.js';
 
 function setupToolOpBase() {
   ToolOp.prototype.undoPre = function (ctx) {
@@ -99,6 +100,7 @@ export function start() {
   setupPathUX().then(() => {
     setupDrawGlobals();
     initGL();
+    initPresets();
 
     app.start();
   });

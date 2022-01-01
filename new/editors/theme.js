@@ -73,7 +73,7 @@ export var theme = {
       'border-style' : 'solid',
       'border-width' : 1,
     },
-    height             : 25,
+    height             : 20,
     highlight          : {
       DefaultText : new CSSFont({
         font    : 'poppins',
@@ -104,7 +104,7 @@ export var theme = {
       'border-style' : 'solid',
       'border-width' : 1,
     },
-    margin             : 4,
+    margin             : 0,
     'margin-left'      : 4,
     'margin-right'     : 4,
     padding            : 1,
@@ -160,7 +160,7 @@ export var theme = {
   },
 
   iconbutton:  {
-    'background-color': 'rgba(255,255,255, 0.296551513671875)',
+    'background-color': 'rgba(255,255,255, 0.5372844301421067)',
     'border-color'    : 'black',
     'border-radius'   : 5,
     'border-style'    : 'solid',
@@ -179,7 +179,7 @@ export var theme = {
       padding : 2,
       width : 32,
     },
-    height            : 32,
+    height            : 38,
     highlight         : {
       'background-color' : 'rgba(200,236,255, 0.33286637931034485)',
       'border-color' : 'black',
@@ -194,11 +194,11 @@ export var theme = {
       padding : 2,
       width : 32,
     },
-    'margin-bottom'   : 1,
+    'margin-bottom'   : 3,
     'margin-left'     : 2,
-    'margin-right'    : 2,
+    'margin-right'    : 1,
     'margin-top'      : 1,
-    padding           : 4,
+    padding           : 3,
     width             : 32,
   },
 
@@ -229,10 +229,12 @@ export var theme = {
   },
 
   listbox:  {
-    ListActive   : 'rgba(200, 205, 215, 1.0)',
-    ListHighlight: 'rgba(155, 220, 255, 0.5)',
-    height       : 200,
-    width        : 110,
+    ItemHeight         : 15,
+    ListActive         : 'rgba(82,137,248, 1)',
+    ListActiveHighlight: 'rgba(140,178,255, 1)',
+    ListHighlight      : 'rgba(99,177,237, 0.5)',
+    height             : 200,
+    width              : 210,
   },
 
   menu:  {
@@ -357,9 +359,9 @@ export var theme = {
   },
 
   'sliders-widget':  {
-    height: 400,
-    width : 500,
-    "background-color" : "rgba(75,75,75,0.3)"
+    'background-color': 'rgba(75,75,75,0.3)',
+    height            : 400,
+    width             : 500,
   },
 
   strip:  {

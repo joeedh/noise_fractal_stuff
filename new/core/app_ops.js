@@ -5,6 +5,7 @@ import {
 } from '../path.ux/pathux.js';
 import {Icons} from '../editors/icon_enum.js';
 import * as cconst from './const.js';
+import {loadPreset, Preset, presetManager, savePreset} from '../pattern/preset.js';
 
 export class RootFileOp extends ToolOp {
   static tooldef() {
@@ -77,14 +78,14 @@ export class SaveStartup extends ToolOp {
 
     let s = '';
 
-    for (let i=0; i<file.length; i++) {
+    for (let i = 0; i < file.length; i++) {
       s += String.fromCharCode(file[i]);
     }
 
     s = btoa(s);
 
     localStorage[cconst.STARTUP_FILE_KEY] = s;
-    console.log("saved startup file:", (s.length / 1024.0).toFixed(2) + "kb");
+    console.log("saved startup file:", (s.length/1024.0).toFixed(2) + "kb");
   }
 }
 
@@ -107,3 +108,109 @@ export class ClearStartup extends ToolOp {
 
 ToolOp.register(ClearStartup);
 
+export class ChangePresetsOp extends ToolOp {
+  static tooldef() {
+    return {
+      uiname  : "Change Preset",
+      toolpath: "app.change_presets",
+      inputs  : {
+        preset: new StringProperty()
+      }
+    }
+  }
+
+  exec(ctx) {
+    let pat = ctx.pattern;
+
+    let preset = presetManager.getPreset(pat.typeName, pat.activePreset);
+    if (!preset) {
+      preset = savePreset(pat, pat.activePreset);
+      presetManager.push(preset);
+    }
+
+    presetManager.updatePreset(preset, pat, true);
+
+    let name = this.inputs.preset.getValue();
+    let preset2 = presetManager.getPreset(pat.typeName, name);
+
+    if (!preset2) {
+      ctx.error("No preset " + name);
+      return;
+    }
+
+    pat.activePreset = name;
+    pat.loadPreset(preset2);
+
+    pat.drawGen++;
+    window.redraw_viewport();
+  }
+}
+
+ToolOp.register(ChangePresetsOp);
+
+export class DeleteActivePresetOp extends ToolOp {
+  static tooldef() {
+    return {
+      uiname  : "Delete Active Preset",
+      toolpath: "app.delete_active_preset",
+      inputs  : {},
+    }
+  }
+
+  static canRun(ctx) {
+    return ctx.pattern && ctx.pattern.getActivePreset();
+  }
+
+  undoPre(ctx) {
+    this._undo = JSON.stringify(ctx.pattern.getActivePreset());
+  }
+
+  undo(ctx) {
+    let preset = new Preset().loadJSON(this._undo);
+
+    presetManager.push(preset);
+    ctx.pattern.loadPreset(preset);
+  }
+
+  exec(ctx) {
+    let preset = ctx.pattern.getActivePreset();
+    let next = presetManager.nextPreset(preset);
+
+    presetManager.deletePreset(preset);
+
+    if (next) {
+      ctx.pattern.loadPreset(next);
+    }
+
+    ctx.pattern.drawGen++;
+    window.redraw_viewport();
+
+    console.error("NEXT", next ? next.name : next);
+  }
+}
+ToolOp.register(DeleteActivePresetOp);
+
+export class DownloadPresetsOp extends ToolOp {
+  static tooldef() {
+    return {
+      uiname : "Export Presets (json)",
+      toolpath : "app.export_presets",
+      undoflag : UndoFlags.NO_UNDO
+    }
+  }
+  
+  exec(ctx) {
+    let a = document.createElement("a");
+    a.download = "presets.json";
+    
+    let presets = util.list(presetManager);
+    let json = JSON.stringify(presets, undefined, 2);
+    
+    let blob = new Blob([json], {type : "text/json"});
+    let url = URL.createObjectURL(blob);
+
+    a.href = url;
+    a.click();
+  }
+}
+ToolOp.register(DownloadPresetsOp);

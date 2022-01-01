@@ -4,10 +4,23 @@ import {
 } from '../path.ux/pathux.js';
 import {PatternsEnum} from '../pattern/pattern.js';
 import {CanvasEditor} from '../editors/canvas/canvas.js';
+import {presetManager} from '../pattern/preset.js';
 
 export class BaseOverlay extends ContextOverlay {
   constructor(appstate) {
     super(appstate);
+  }
+
+  get presets() {
+    return presetManager;
+  }
+
+  presets_save() {
+    return presetManager;
+  }
+
+  presets_load(ctx, val) {
+    return presetManager;
   }
 
   get api() {

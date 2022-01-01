@@ -5,6 +5,7 @@ import {
 } from '../../path.ux/pathux.js';
 
 import {Editor} from '../editor_base.js';
+import {presetManager} from '../../pattern/preset.js';
 
 export class PropsEditor extends Editor {
   constructor() {
@@ -39,6 +40,8 @@ export class PropsEditor extends Editor {
       this.tabBar.remove();
     }
 
+    this.style["overflow"] = "scroll";
+
     let tabs = this.tabBar = this.container.tabs("left");
 
     let tab = tabs.tab("Main");
@@ -53,6 +56,28 @@ export class PropsEditor extends Editor {
 
       let pat = this.ctx.pattern;
       pat.constructor.buildSidebar(this.ctx, con);
+    }
+
+    let panel = tab.panel("Builtin Presets");
+    let list = UIBase.createElement("preset-category-x");
+    list.dataPath = `presets.types.active.categories['Builtin']`;
+
+    panel.add(list);
+
+    let keys = util.list(presetManager.categoryKeys);
+    if (keys.indexOf("My Presets") >= 0) {
+      keys.remove("My Presets");
+      keys = ["My Presets"].concat(keys);
+    }
+
+    keys.remove("Builtin");
+
+    for (let k of keys) {
+      panel = tab.panel(k);
+      let list = UIBase.createElement("preset-category-x");
+      list.dataPath = `presets.types.active.categories['${k}']`;
+
+      panel.add(list);
     }
 
     this.setCSS();

@@ -4,6 +4,32 @@ import {
 } from '../path.ux/pathux.js';
 
 import {Pattern} from '../pattern/pattern.js';
+import {savePreset} from '../pattern/preset.js';
+
+export const NewtonPresets = [];
+
+export function add_preset(sliders, options) {
+  let preset = new NewtonPattern();
+
+  for (let k in options) {
+    k = k.toLowerCase();
+
+    if (k in preset) {
+      preset[k] = options[k];
+    }
+  }
+
+  let tot = Math.min(sliders.length, preset.sliders.length);
+  for (let i = 0; i < tot; i++) {
+    preset.sliders[i] = sliders[i];
+  }
+
+  preset.sliders[4] = 1.0 / preset.sliders[4];
+
+  let name = "Builtin #" + (NewtonPresets.length + 1);
+
+  NewtonPresets.push(savePreset(preset, name, "Builtin"));
+}
 
 const shader = `
 //uniform vec2 iRes;
@@ -238,6 +264,7 @@ export class NewtonPattern extends Pattern {
         x    : 5,
         y    : 6,
       },
+      presets      : NewtonPresets,
       sliderDef    : [
         {
           name : "steps", integer: true,
@@ -246,7 +273,7 @@ export class NewtonPattern extends Pattern {
           speed: 7.0,
           exp  : 1.5,
         }, //0
-        {name: "offset", range: [-5.0, 5.0], speed : 0.1}, //1
+        {name: "offset", range: [-5.0, 5.0], speed: 0.1}, //1
         {name: "gain", value: 1.0, range: [0.001, 1000], speed: 4.0, exp: 2.0},  //2
         "color", //3
         {name: "scale", value: 4.75, range: [0.001, 1000000.0]}, //4

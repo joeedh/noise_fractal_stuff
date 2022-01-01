@@ -1,4 +1,7 @@
-import {UIBase, Vector2, util, ToolProperty, eventWasTouch} from '../path.ux/pathux.js';
+import {
+  UIBase, Vector2, util, ToolProperty, eventWasTouch, Container, saveUIData, loadUIData
+} from '../path.ux/pathux.js';
+import {presetManager} from '../pattern/preset.js';
 
 export class SlidersWidget extends UIBase {
   constructor() {
@@ -126,7 +129,7 @@ export class SlidersWidget extends UIBase {
 
     let f = Math.pow(Math.abs(this.sum), item.exp);
     if (!isNaN(f) && f !== 0.0) {
-      dy *= f / Math.abs(this.sum);
+      dy *= f/Math.abs(this.sum);
     }
 
     let value = sliders[this.actslider] + dy;
@@ -210,7 +213,7 @@ export class SlidersWidget extends UIBase {
     this._rebuild = true;
 
     const defaults = {
-      range  : [-100000, 100000],
+      range: [-100000, 100000],
       exp  : 1.0,
       speed: 1.0,
     };
@@ -262,13 +265,13 @@ export class SlidersWidget extends UIBase {
     canvas.style["height"] = (canvas.height/dpi) + "px";
 
     const w = this.sliderWidth;
-    const ts = this.textHeight * UIBase.getDPI();
+    const ts = this.textHeight*UIBase.getDPI();
 
     let fontsize = (ts).toFixed(2);
     g.font = `${fontsize}px Georgia`;
 
     function drawTextShadow(text, x, y) {
-      for (let i=0; i<15; i++) {
+      for (let i = 0; i < 15; i++) {
         g.shadowBlur = 3.0;
         g.shadowColor = "black";
         //g.font = "16px bold courier";
@@ -300,7 +303,7 @@ export class SlidersWidget extends UIBase {
         g.fill();
       }
 
-      let offset = (item.index % 2) * ts;
+      let offset = (item.index%2)*ts;
 
       let x = item.pos[0], y = item.pos[1] + item.size[1] + ts;
 
@@ -394,3 +397,148 @@ export class SlidersWidget extends UIBase {
 }
 
 UIBase.register(SlidersWidget);
+
+export class PresetCategoryWidget extends Container {
+  constructor() {
+    super();
+
+    this._last_update_key = "";
+    this._rebuild = true;
+    this._last_active = -1;
+  }
+
+  get activePath() {
+    return this.getAttribute("datapath");
+  }
+
+  set activePath(v) {
+    this.setAttribute("datapath", v);
+  }
+
+  get dataPath() {
+    return this.getAttribute("datapath");
+  }
+
+  set dataPath(v) {
+    this.setAttribute("datapath", v);
+  }
+
+  static define() {
+    return {
+      tagname: "preset-category-x",
+      style  : "preset-category"
+    }
+  }
+
+  getList() {
+    try {
+      return this.ctx.api.getValue(this.ctx, this.dataPath);
+    } catch (error) {
+      util.print_stack(error);
+      return undefined;
+    }
+  }
+
+  rebuild() {
+    this._rebuild = false;
+    let uidata = saveUIData(this, "categorylist");
+    let pat = this.ctx.pattern;
+
+    this.clear();
+
+    this._last_active = -1;
+    let list = this.getList();
+
+    if (!list) {
+      console.warn("no list!", this.dataPath);
+      this._rebuild = true;
+      return;
+    }
+
+    //this.label(list.category + " Presets");
+    this.list = this.listbox();
+
+    let act;
+
+    for (let item of list) {
+      this.list.addItem(item.name, item.categoryIndex);
+
+      if (item.preset.name === pat.activePreset) {
+        act = item.categoryIndex;
+      }
+    }
+
+    if (act !== undefined) {
+      this.list.setActive(act);
+    }
+
+    this.list.onchange = (id, item) => {
+      let preset = list[id];
+      let pat = this.ctx.pattern;
+
+      console.log("PRESET", preset, pat);
+
+      if (!pat || !preset || preset.name === pat.activePreset || preset.preset.typeName !== pat.typeName) {
+        return;
+      }
+
+      console.warn("Setting preset!", preset, id);
+      this.ctx.api.execTool(C, `app.change_presets(preset='${preset.name}')`);
+    }
+
+    this.setCSS();
+    loadUIData(this, uidata);
+
+    let strip = this.strip();
+    strip.tool("app.delete_active_preset()");
+  }
+
+  setCSS() {
+    super.setCSS();
+  }
+
+  update() {
+    super.update();
+
+    if (!this.ctx || !this.ctx.pattern) {
+      return;
+    }
+
+    let key = this.dataPath;
+    let list = this.getList();
+
+    if (list) {
+      key += ":" + list.length;
+    }
+
+    if (key !== this._last_update_key) {
+      this._last_update_key = key;
+      this._rebuild = true;
+    }
+
+    let preset = this.ctx.pattern.getActivePreset();
+    let act = -1;
+
+    if (preset) {
+      act = preset.categoryIndex;
+    }
+
+    if (preset && this.list && act !== this._last_active) {
+      this._last_active = act;
+
+      let change = this.list.onchange;
+      this.list.onchange = null;
+
+      console.warn("Setting active!", preset.name);
+
+      this.list.setActive(act);
+      this.list.onchange = change;
+    }
+
+    if (this._rebuild) {
+      this.rebuild();
+    }
+  }
+}
+
+UIBase.register(PresetCategoryWidget);
