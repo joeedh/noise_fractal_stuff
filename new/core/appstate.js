@@ -1,5 +1,5 @@
 import {FileState, saveFile, loadFile} from './file.js';
-import {nstructjs, UIBase, DataAPI} from '../path.ux/pathux.js';
+import {nstructjs, UIBase, DataAPI, util} from '../path.ux/pathux.js';
 import {api_define} from './api_define.js';
 import {AppToolStack} from './toolstack.js';
 import {AppScreen} from '../screen.js';
@@ -41,9 +41,41 @@ export class AppState {
 
     this.ctx = new ToolContext(this);
 
-    //craete dummy screen to make context system happy
+    //create dummy screen to make context system happy
     this.screen = UIBase.createElement("app-screen-x");
     this.screen.ctx = this.ctx;
+
+    this._autosave_req = undefined;
+    this.lastAutoSaveTime = util.time_ms();
+  }
+
+  autoSave() {
+    if (this._autosave_req) {
+      return;
+    }
+
+    this._autosave_req = true;
+
+    window.setTimeout(() => {
+      this._autosave_req = undefined;
+      this.saveStartupFile();
+      this.lastAutoSaveTime = util.time_ms();
+    }, 250);
+  }
+
+  saveStartupFile() {
+    let file = new Uint8Array(this.saveFile());
+
+    let s = '';
+
+    for (let i = 0; i < file.length; i++) {
+      s += String.fromCharCode(file[i]);
+    }
+
+    s = btoa(s);
+
+    localStorage[cconst.STARTUP_FILE_KEY] = s;
+    console.log("saved startup file:", (s.length/1024.0).toFixed(2) + "kb");
   }
 
   reset(screen=makeScreen(this.ctx), resetToolStack=true) {

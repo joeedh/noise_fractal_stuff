@@ -74,18 +74,7 @@ export class SaveStartup extends ToolOp {
   }
 
   exec(ctx) {
-    let file = new Uint8Array(ctx.state.saveFile());
-
-    let s = '';
-
-    for (let i = 0; i < file.length; i++) {
-      s += String.fromCharCode(file[i]);
-    }
-
-    s = btoa(s);
-
-    localStorage[cconst.STARTUP_FILE_KEY] = s;
-    console.log("saved startup file:", (s.length/1024.0).toFixed(2) + "kb");
+    this.ctx.state.saveStartupFile();
   }
 }
 
@@ -188,29 +177,51 @@ export class DeleteActivePresetOp extends ToolOp {
     console.error("NEXT", next ? next.name : next);
   }
 }
+
 ToolOp.register(DeleteActivePresetOp);
 
 export class DownloadPresetsOp extends ToolOp {
   static tooldef() {
     return {
-      uiname : "Export Presets (json)",
-      toolpath : "app.export_presets",
-      undoflag : UndoFlags.NO_UNDO
+      uiname  : "Export Presets (json)",
+      toolpath: "app.export_presets",
+      undoflag: UndoFlags.NO_UNDO
     }
   }
-  
+
   exec(ctx) {
     let a = document.createElement("a");
     a.download = "presets.json";
-    
+
     let presets = util.list(presetManager);
     let json = JSON.stringify(presets, undefined, 2);
-    
-    let blob = new Blob([json], {type : "text/json"});
+
+    let blob = new Blob([json], {type: "text/json"});
     let url = URL.createObjectURL(blob);
 
     a.href = url;
     a.click();
   }
 }
+
 ToolOp.register(DownloadPresetsOp);
+
+export class AppExitOp extends ToolOp {
+  static tooldef() {
+    return {
+      uiname  : "Exit",
+      toolpath: "app.exit",
+      undoflag : UndoFlags.NO_UNDO
+    }
+  }
+
+  exec(ctx) {
+    ctx.state.saveStartupFile();
+
+    if (window.haveElectron) {
+      window.close();
+    }
+  }
+}
+
+ToolOp.register(AppExitOp);

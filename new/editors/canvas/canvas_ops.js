@@ -78,6 +78,8 @@ export class CanvasOp extends ToolOp {
 
     pat.drawGen++;
     window.redraw_viewport();
+
+    ctx.state.autoSave();
   }
 
   exexPre(ctx) {
@@ -87,6 +89,8 @@ export class CanvasOp extends ToolOp {
   execPost(ctx) {
     ctx.pattern.drawGen++;
     window.redraw_viewport();
+
+    ctx.state.autoSave();
   }
 }
 
@@ -238,7 +242,7 @@ export class CanvasZoomOp extends CanvasOp {
 
     if (!cancel) {
       //this.exec(ctx);
-      taskManager.range("zoom", 0, 32, (i) => {
+      taskManager.range("zoom", 0, steps, (i) => {
         let t = i*dt;
 
         let x = startx + (endx - startx)*t;
@@ -253,6 +257,10 @@ export class CanvasZoomOp extends CanvasOp {
 
         pat.drawGen++;
         window.redraw_viewport();
+
+        if (i === steps-1) {
+          ctx.state.autoSave();
+        }
       }).unique().start();
     }
   }

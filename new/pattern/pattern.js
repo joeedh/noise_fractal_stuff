@@ -23,6 +23,7 @@ export class Pattern {
 
     this.activePreset = 'My Preset';
 
+    this.fast_mode = false;
     this.filter_width = 1.4;
     this.no_gradient = false;
     this.old_gradient = true;
@@ -135,6 +136,7 @@ float pattern(float ix, float iy) {
   }
 
   static buildSidebar(ctx, con) {
+    con.prop("fast_mode");
     con.prop("filter_width");
     con.prop("pixel_size");
     con.prop("no_gradient");
@@ -152,7 +154,11 @@ float pattern(float ix, float iy) {
     let onchange = function () {
       this.dataref.drawGen++;
       window.redraw_viewport();
+      window._appstate.autoSave();
     };
+
+    st.bool("fast_mode", "fast_mode", "Fast Mode",
+      "Render at lower resolution\n Multiplies pixel_size by 0.5");
 
     st.bool("no_gradient", "no_gradient", "B/W mode");
     st.bool("old_gradient", "old_gradient", "Old Gradient");
@@ -337,6 +343,14 @@ float pattern(float ix, float iy) {
     this.finalShader = new ShaderProgram(gl, sdef.vertex, sdef.fragment, sdef.attributes);
   }
 
+  getPixelSize() {
+    if (this.fast_mode) {
+      return this.pixel_size * 0.5;
+    }
+
+    return this.pixel_size;
+  }
+
   _doViewportDraw(ctx, canvas, gl, enableAccum) {
     if (this.drawGen !== this._lastDrawGen) {
       this.drawSample = 0;
@@ -349,7 +363,7 @@ float pattern(float ix, float iy) {
     }
 
     let editor = ctx.canvas;
-    let fbos = editor.ensureFbos(gl, 2, this.pixel_size);
+    let fbos = editor.ensureFbos(gl, 2, this.getPixelSize());
 
     let defines = {};
 
@@ -466,18 +480,18 @@ float pattern(float ix, float iy) {
 Pattern.STRUCT = `
 Pattern {
   typeName            : string;
-  sliders             : array(double);
-  pixel_size          : double;
-  filter_width        : double;
   activePreset        : string;
-  
+  sliders             : array(double);
+
+  fast_mode           : bool;
+  pixel_size          : double;
+  filter_width        : double;  
   per_pixel_random    : bool;
   print_test          : bool;
   use_monty_sharpness : bool;
   old_gradient        : bool;
   no_gradient         : bool;
-  use_sharpness       : bool;
-  
+  use_sharpness       : bool;  
   sharpness           : double;
 }
 `;

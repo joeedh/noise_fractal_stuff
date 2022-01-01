@@ -46,15 +46,18 @@ export class MainMenu extends Editor {
     row.noMarginsOrPadding();
     //this.container.noMarginsOrPadding();
 
-    row.menu("File", []);
+    row.menu("File", [
+      "app.exit()"
+    ]);
+
     row.menu("Edit", [
       "app.undo()",
       "app.redo()"
     ]);
 
     row.menu("Session", [
-      "app.save_startup_file()",
-      "app.clear_startup_file()",
+      //"app.save_startup_file()",
+      //"app.clear_startup_file()",
       "app.export_presets()"
     ]);
 

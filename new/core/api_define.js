@@ -122,6 +122,7 @@ function api_define_model(api) {
 
     function setActive(api, list, pat) {
       list.setActive(pat);
+      window._appstate.autoSave();
     },
 
     function getIter(api, list) {
@@ -162,6 +163,7 @@ export function api_define() {
   }, function (val) {
     this.dataref.model.setActivePattern(PatternsEnum.keys[val]);
     window.redraw_viewport();
+    window._appstate.autoSave();
   });
 
   cst.struct("canvas", "canvas", "Canvas", api.mapStruct(CanvasEditor));

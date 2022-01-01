@@ -108,7 +108,10 @@ export class CanvasEditor extends EditorGL {
   init() {
     super.init();
 
-    let strip = this.header.strip();
+    let strip = this.header.row();
+    strip.noMarginsOrPadding();
+    strip.useIcons(false);
+
     strip.label("Pattern:");
     strip.prop("activePattern");
 
@@ -232,6 +235,9 @@ export class CanvasEditor extends EditorGL {
 
   copy() {
     let ret = document.createElement(this.constructor.define().tagname);
+
+    ret.showSliders = this.showSliders;
+
     return ret;
   }
 

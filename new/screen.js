@@ -1,4 +1,4 @@
-import {Screen, UIBase, KeyMap, HotKey} from './path.ux/pathux.js';
+import {Screen, UIBase, KeyMap, HotKey, util, nstructjs} from './path.ux/pathux.js';
 import {init_webgl} from './webgl/webgl.js';
 
 export var canvas;
@@ -62,6 +62,12 @@ export class AppScreen extends Screen {
   update() {
     super.update();
     this.checkCanvas();
+
+    let appstate = this.ctx.state;
+
+    if (util.time_ms() - appstate.lastAutoSaveTime > 2000) {
+      appstate.autoSave();
+    }
   }
 };
 

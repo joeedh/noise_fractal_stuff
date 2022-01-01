@@ -1,4 +1,5 @@
 const { app, BrowserWindow } = require('electron')
+let config = require('./config.cjs');
 
 function createWindow () {
   // Create the browser window.
@@ -17,7 +18,12 @@ function createWindow () {
   // and load the index.html of the app.
   win.loadFile('window.html');
 
-  win.webContents.openDevTools();
+  if (!config.RELEASE) {
+    win.webContents.openDevTools();
+  }
 }
 
 app.whenReady().then(createWindow)
+app.on('window-all-closed', () => {
+  app.quit();
+})
