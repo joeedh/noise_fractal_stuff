@@ -1,0 +1,25 @@
+<!doctype html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>Fractal Explorer</title>
+  <style>
+      body {
+          overflow : hidden;
+      }
+  </style>
+  <script type="module">
+    window.haveElectron = true;
+
+    import {start} from '../entry_point.js';
+
+    window.init = function() {
+      console.log("init");
+
+      start();
+    }
+  </script>
+</head>
+<body onload='init()'>
+</body>
+</html>

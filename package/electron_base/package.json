@@ -1,0 +1,12 @@
+{
+  "name" : "FractalExplorer",
+  "description": "",
+  "author": "Joseph Eagar",
+  "version": "0.0.1",
+  "main": "app.cjs",
+  "type": "module",
+  "dependencies": {
+    "pngjs": "^6.0.0",
+    "pngjs-nozlib": "^1.0.0"
+  }
+}
