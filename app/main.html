@@ -9,14 +9,14 @@
       }
   </style>
   <script type="module">
-    window.haveElectron = true;
-
-    import {start} from '../entry_point.js';
+    window.haveElectron = false;
 
     window.init = function() {
-      console.log("init");
+      let url = './entry_point.js';
 
-      start();
+      import(url).then((module) => {
+        module.start();
+      });
     }
   </script>
 </head>

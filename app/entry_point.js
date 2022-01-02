@@ -6,6 +6,7 @@ import {Icons} from './editors/icon_enum.js';
 import {theme} from './editors/theme.js';
 import {initGL, canvas, gl} from './screen.js';
 import {initPresets} from './pattern/preset.js';
+import {resolveURL} from './util/urlutil.js';
 
 function setupToolOpBase() {
   ToolOp.prototype.undoPre = function (ctx) {
@@ -30,7 +31,7 @@ export function setupPathUX() {
     nstructjs.validateStructs();
 
     let img = document.createElement("img");
-    img.src = "../assets/iconsheet.svg";
+    img.src = resolveURL("assets/iconsheet.svg");
 
     img.onload = () => {
       accept();
@@ -82,17 +83,20 @@ export function setupDrawGlobals() {
     }
   }
 
-  window.redraw_viewport = function () {
+  window.force_redraw_viewport = function () {
     if (animreq !== undefined) {
       return;
     }
-
     animreq = requestAnimationFrame(draw);
+  }
+
+  window.redraw_viewport = function() {
+    //fixed fps for now
   }
 
   /* start main rendering loop */
   window.setInterval(() => {
-    window.redraw_viewport();
+    window.force_redraw_viewport();
   }, 33);
 }
 

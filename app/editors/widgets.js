@@ -1,5 +1,7 @@
 import {
-  UIBase, Vector2, util, ToolProperty, eventWasTouch, Container, saveUIData, loadUIData
+  UIBase, Vector2, util, ToolProperty, eventWasTouch,
+  Container, saveUIData, loadUIData, pushModalLight, popModalLight,
+  keymap
 } from '../path.ux/pathux.js';
 import {presetManager} from '../pattern/preset.js';
 
@@ -25,6 +27,8 @@ export class SlidersWidget extends UIBase {
     this.sliderWidth = 30.0;
 
     this.size = [400, 400];
+    this.height = 400;
+
     this.pos = [15, 55];
 
     this._last_pos_size_key = '';
@@ -73,13 +77,40 @@ export class SlidersWidget extends UIBase {
     this.last_mpos.load(this.mpos);
 
 
-    this.mdown = e.button === 0 || eventWasTouch(e);
+    //this.mdown = e.button === 0 || eventWasTouch(e);
     this.sum = 0;
 
-    if (this.mdown) {
+    if (e.button === 0 || eventWasTouch(e)) {
+      this.startSlide(e);
       e.preventDefault();
       e.stopPropagation();
     }
+  }
+
+  startSlide(e) {
+    let end = () => {
+      if (this.modalData) {
+        popModalLight(this.modalData);
+        this.modalData = undefined;
+      }
+    }
+
+    this.modalData = pushModalLight({
+      on_mousemove: (e) => {
+        this.doSlide(e);
+      },
+      on_mouseup  : (e) => {
+        end();
+      },
+      on_keydown  : (e) => {
+        switch (e.keyCode) {
+          case keymap['Enter']:
+          case keymap['Escape']:
+            end();
+            break;
+        }
+      }
+    });
   }
 
   _getMouse(e) {
@@ -179,8 +210,8 @@ export class SlidersWidget extends UIBase {
   findSlider(x, y) {
     let dpi = UIBase.getDPI();
 
-    x *= dpi;
-    y *= dpi;
+    //x *= dpi;
+    //y *= dpi;
 
     for (let item of this.sliderDef) {
       let ok = x >= item.pos[0] && x <= item.pos[0] + item.size[0];
@@ -270,6 +301,9 @@ export class SlidersWidget extends UIBase {
     let fontsize = (ts).toFixed(2);
     g.font = `${fontsize}px Georgia`;
 
+    g.save();
+    g.scale(dpi, dpi);
+
     function drawTextShadow(text, x, y) {
       for (let i = 0; i < 15; i++) {
         g.shadowBlur = 3.0;
@@ -318,6 +352,8 @@ export class SlidersWidget extends UIBase {
       drawTextShadow(val, x, y);
       drawTextShadow(item.name, x, y + ts*1.5 + offset);
     }
+
+    g.restore();
   }
 
   getSliders() {
@@ -337,12 +373,14 @@ export class SlidersWidget extends UIBase {
     this.size[0] = width;
     let x = pad;
 
+    let dpi = UIBase.getDPI();
+
     for (let item of this.sliderDef) {
       item.pos[0] = x;
       item.pos[1] = 0;
 
       item.size[0] = w;
-      item.size[1] = this.size[1] - this.textHeight*3.5;
+      item.size[1] = this.size[1] - this.textHeight*dpi*4.5;
 
       x += w;
     }
@@ -371,6 +409,8 @@ export class SlidersWidget extends UIBase {
   }
 
   updatePos() {
+    this.size[1] = this.height / UIBase.getDPI();
+
     let key = this.pos[0].toFixed(2) + ":" + this.pos[1].toFixed(2) + ":";
     key = this.size[0].toFixed(2) + ":" + this.size[1].toFixed(2);
 

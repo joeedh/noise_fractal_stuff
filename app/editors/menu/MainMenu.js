@@ -34,16 +34,17 @@ export class MainMenu extends Editor {
     return ret;
   }
 
-  makeHeader(container) {
+  makeHeader() {
     if (!this.header) {
       this.header = this.container.row();
+      this.header.setCSS.after(() => row.background = this.getDefault("AreaHeaderBG"));
     } else {
       this.header.clear();
     }
 
     let row = this.header;
 
-    row.noMarginsOrPadding();
+    //row.noMarginsOrPadding();
     //this.container.noMarginsOrPadding();
 
     row.menu("File", [
@@ -61,13 +62,12 @@ export class MainMenu extends Editor {
       "app.export_presets()"
     ]);
 
-    let notef = UIBase.createElement("noteframe-x");
-    //this.container.add(notef);
-
     if (window.haveElectron) {
       this.maxSize[1] = this.minSize[1] = 1;
       electron_api.initMenuBar(this);
-      return;
+    } else {
+      let notef = UIBase.createElement("noteframe-x");
+      this.container.add(notef);
     }
   }
 

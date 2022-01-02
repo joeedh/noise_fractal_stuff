@@ -61,7 +61,7 @@ export class Pattern {
     this.sliders[def.offsetSliders.scale] = v;
 
     this.drawGen++;
-    window.redraw_viewport();
+    //window.redraw_viewport();
   }
 
   get offsetx() {
@@ -74,7 +74,7 @@ export class Pattern {
     this.sliders[def.offsetSliders.x] = v;
 
     this.drawGen++;
-    window.redraw_viewport();
+    //window.redraw_viewport();
   }
 
   get offsety() {

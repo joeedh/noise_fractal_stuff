@@ -1,4 +1,8 @@
 {
+  "name" : "FractalExplorer",
+  "description": "",
+  "author": "Joseph Eagar",
+  "version": "0.0.1",
   "main": "app.cjs",
   "type": "module",
   "dependencies": {
