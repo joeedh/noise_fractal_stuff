@@ -27,6 +27,28 @@ export class PatternList extends Array {
     return super.push(item);
   }
 
+  has(typeName_or_pattern) {
+    let pat = typeName_or_pattern;
+
+    if (typeof pat === "string") {
+      return this.typeMap.has(pat);
+    } else if (typeof pat === "object") {
+      return this.typeMap.get(pat.typeName) === pat;
+    }
+
+    return false;
+  }
+
+  remove(item) {
+    super.remove(item);
+
+    if (item === this.active) {
+      this.active = this.length > 0 ? this[0] : undefined;
+    }
+
+    this.typeMap.delete(item);
+  }
+
   ensure(typeName) {
     for (let pat of this) {
       if (pat.typeName === typeName) {
@@ -69,6 +91,7 @@ export class PatternList extends Array {
     this._items = undefined;
   }
 }
+
 PatternList.STRUCT = `
 PatternList {
   _items : array(abstract(Pattern)) | this;
@@ -109,6 +132,7 @@ export class FileHeader {
     reader(this);
   }
 }
+
 FileHeader.STRUCT = `
 FileHeader {
   magic         : static_string[4] | "${cconst.FILE_MAGIC}";
@@ -149,6 +173,23 @@ export class FileState extends FileHeader {
     }
 
     return pat;
+  }
+
+  resetPattern(typeName) {
+    if (!this.patterns.has(typeName)) {
+      this.getPattern(typeName);
+      return;
+    }
+
+    let pat = this.getPattern(typeName);
+    let active = pat === this.patterns.active;
+
+    this.patterns.remove(pat);
+    pat = this.getPattern(typeName);
+
+    if (active) {
+      this.patterns.active = pat;
+    }
   }
 
   getPattern(typeName) {
@@ -210,7 +251,7 @@ export function saveFile(appstate, args) {
   return data;
 }
 
-export function loadFile(appstate, buf, args={}) {
+export function loadFile(appstate, buf, args = {}) {
   let doScreen = args.screen;
   let resetToolStack = args.resetToolStack;
 
@@ -243,7 +284,7 @@ export function loadFile(appstate, buf, args={}) {
   let model = istruct.readObject(buf, cls);
   let screen;
 
-  if (args.screen && model instanceof  FileWithScreen) {
+  if (args.screen && model instanceof FileWithScreen) {
     screen = model.screen;
     screen.ctx = appstate.ctx;
   }

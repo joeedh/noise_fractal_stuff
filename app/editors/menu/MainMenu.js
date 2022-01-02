@@ -59,6 +59,7 @@ export class MainMenu extends Editor {
     row.menu("Session", [
       //"app.save_startup_file()",
       //"app.clear_startup_file()",
+      "app.reset_pattern()",
       "app.export_presets()"
     ]);
 
