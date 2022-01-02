@@ -211,7 +211,7 @@ export class AppExitOp extends ToolOp {
     return {
       uiname  : "Exit",
       toolpath: "app.exit",
-      undoflag : UndoFlags.NO_UNDO
+      undoflag: UndoFlags.NO_UNDO
     }
   }
 
@@ -225,3 +225,19 @@ export class AppExitOp extends ToolOp {
 }
 
 ToolOp.register(AppExitOp);
+
+export class ResetPatternOp extends ToolOp {
+  static tooldef() {
+    return {
+      uiname  : "Reset Pattern",
+      toolpath: "app.reset_pattern"
+    }
+  }
+
+  exec(ctx) {
+    ctx.model.resetPattern(ctx.pattern.typeName);
+    window.redraw_viewport();
+  }
+}
+
+ToolOp.register(ResetPatternOp);
