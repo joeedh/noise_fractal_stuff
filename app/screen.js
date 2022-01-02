@@ -20,7 +20,7 @@ export class AppScreen extends Screen {
 
     this.keymap = new KeyMap([
       new HotKey("Z", ["CTRL"], "app.undo"),
-      new HotKey("Z", ["CTRL", "SHIFT"], "app.undo"),
+      new HotKey("Z", ["CTRL", "SHIFT"], "app.redo"),
       new HotKey("T", [], (ctx) => {
         ctx.canvas.showSliders ^= true;
       }),
