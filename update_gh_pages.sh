@@ -1,4 +1,7 @@
-#!/user/bin/env bash
+#!/usr/bin/env bash
+
+git commit -a
+git push
 
 git checkout gh-pages
 git merge master -m "merge"
