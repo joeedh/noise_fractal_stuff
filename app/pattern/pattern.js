@@ -371,7 +371,8 @@ float pattern(float ix, float iy) {
       defines.NO_GRADIENT = true;
     }
 
-    if (this.old_gradient) {
+    //XXX get new gradient system ported over to path.ux
+    if (true || this.old_gradient) {
       defines.OLD_GRADIENT = null;
     } else {
       defines.GRAD_STEPS = config.GRADIENT.tableSteps;

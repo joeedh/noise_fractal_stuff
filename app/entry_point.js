@@ -1,12 +1,18 @@
 import * as app from './core/appstate.js';
 import {
-  nstructjs, ToolOp, setIconManager, setIconMap, setTheme, IconManager, util, vectormath, UIBase
+  nstructjs, ToolOp, setIconManager, setIconMap, setTheme,
+  IconManager, util, vectormath, UIBase, cconst
 } from './path.ux/pathux.js';
 import {Icons} from './editors/icon_enum.js';
 import {theme} from './editors/theme.js';
 import {initGL, canvas, gl} from './screen.js';
 import {initPresets} from './pattern/preset.js';
 import {resolveURL} from './util/urlutil.js';
+
+let pathux_config = {
+  simpleNumSliders     : true,
+  useNumSliderTextboxes: true
+};
 
 function setupToolOpBase() {
   ToolOp.prototype.undoPre = function (ctx) {
@@ -27,6 +33,8 @@ function setupToolOpBase() {
 export function setupPathUX() {
   return new Promise((accept, reject) => {
     setupToolOpBase();
+
+    cconst.loadConstants(pathux_config);
 
     nstructjs.validateStructs();
 
@@ -90,7 +98,7 @@ export function setupDrawGlobals() {
     animreq = requestAnimationFrame(draw);
   }
 
-  window.redraw_viewport = function() {
+  window.redraw_viewport = function () {
     //fixed fps for now
   }
 

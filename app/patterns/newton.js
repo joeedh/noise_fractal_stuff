@@ -8,7 +8,14 @@ import {savePreset} from '../pattern/preset.js';
 
 export const NewtonPresets = [];
 
-export function add_preset(sliders, options, fixScale = true) {
+let presetCountBase = 1;
+
+export function add_preset(sliders, options, fixScale = true, hide=false) {
+  if (hide) {
+    presetCountBase++;
+    return;
+  }
+
   let preset = new NewtonPattern();
 
   for (let k in options) {
@@ -34,13 +41,14 @@ export function add_preset(sliders, options, fixScale = true) {
     preset.sliders[4] = 1.0/preset.sliders[4];
   }
 
-  let name = "Builtin #" + (NewtonPresets.length + 1);
+  let name = "Builtin #" + presetCountBase;
+  presetCountBase++;
 
   NewtonPresets.push(savePreset(preset, name, "Builtin"));
 }
 
-export function add_preset_new(sliders, options) {
-  return add_preset(sliders, options, false);
+export function add_preset_new(sliders, options, hide=false) {
+  return add_preset(sliders, options, false, hide);
 }
 
 const shader = `
@@ -262,6 +270,8 @@ float pattern(float ix, float iy) {
 export class NewtonPattern extends Pattern {
   constructor() {
     super();
+
+    this.sharpness = 0.33; //use different default sharpness
   }
 
   static patternDef() {

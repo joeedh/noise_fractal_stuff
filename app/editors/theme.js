@@ -280,9 +280,12 @@ export var theme = {
   },
 
   numslider_simple:  {
-    SlideHeight       : 10,
+    SlideHeight       : 8,
     TextBoxWidth      : 45,
-    'background-color': 'rgba(219,219,219, 1)',
+    'background-color': 'rgba(247,247,247, 1)',
+    'border-color'    : 'rgba(0,0,0, 1)',
+    'border-radius'   : 5,
+    'border-width'    : 2,
     height            : 18,
     labelOnTop        : true,
     width             : 135,
