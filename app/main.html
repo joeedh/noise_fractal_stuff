@@ -10,13 +10,10 @@
   </style>
   <script type="module">
     window.haveElectron = false;
+    import {start} from './entry_point.js';
 
     window.init = function() {
-      let url = './entry_point.js';
-
-      import(url).then((module) => {
-        module.start();
-      });
+      start();
     }
   </script>
 </head>
