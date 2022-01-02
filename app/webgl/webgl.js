@@ -213,14 +213,19 @@ export class FBO {
     gl.viewport(vb[0], vb[1], vb[2], vb[3]);
   }
 
-  destroy() {
+  destroy(gl) {
+    if (!this.gl) {
+      this.gl = gl;
+    }
+
     if (this.fbo !== undefined) {
       this.gl.deleteFramebuffer(this.fbo);
 
-      if (this.target === this.gl.TEXTURE_2D) {
+      //console.warn(this.target, this.gl.TEXTURE_2D);
+      //if (this.target === this.gl.TEXTURE_2D) {
         this.gl.deleteTexture(this.texDepth.texture);
         this.gl.deleteTexture(this.texColor.texture);
-      }
+      //}
 
       this.texDepth.texture = this.texColor.texture = undefined;
       this.fbo = undefined;
@@ -245,6 +250,7 @@ export class FBO {
 
     if (width !== this.size[0] || height !== this.size[1] || gl !== this.gl) {
       debuglog("fbo update", width, height);
+
       this.size[0] = width;
       this.size[1] = height;
 
@@ -254,6 +260,8 @@ export class FBO {
 
       this.texDepth = this.texColor = undefined;
       this.create(gl);
+
+      return true;
     }
   }
 }

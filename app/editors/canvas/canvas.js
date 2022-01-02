@@ -213,6 +213,8 @@ export class CanvasEditor extends EditorGL {
       this.fbos[i].destroy(gl);
     }
 
+    let updated = false;
+
     this.fbos.length = count;
 
     let w = ~~(this.glSize[0]*pixel_size);
@@ -223,15 +225,16 @@ export class CanvasEditor extends EditorGL {
 
       if (!fbo) {
         fbo = this.fbos[i] = new FBO(gl, w, h);
+        updated = true;
       } else {
-        fbo.update(gl, w, h);
+        updated |= fbo.update(gl, w, h);
       }
 
       fbo.bind(gl);
       fbo.unbind(gl);
     }
 
-    return this.fbos;
+    return updated;
   }
 
   on_resize(size, oldsize) {
