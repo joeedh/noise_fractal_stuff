@@ -23,6 +23,8 @@ export class Pattern {
 
     this.activePreset = 'My Preset';
 
+    this.max_samples = 64;
+
     this.fast_mode = false;
     this.filter_width = 1.4;
     this.no_gradient = false;
@@ -139,6 +141,7 @@ float pattern(float ix, float iy) {
     con.prop("fast_mode");
     con.prop("filter_width");
     con.prop("pixel_size");
+    con.prop("max_samples");
     con.prop("no_gradient");
     con.prop("use_sharpness");
     con.prop("use_monty_sharpness");
@@ -156,6 +159,13 @@ float pattern(float ix, float iy) {
       window.redraw_viewport();
       window._appstate.autoSave();
     };
+
+    st.int("max_samples", "max_samples", "Samples", "Maximum number of samples to take")
+      .noUnits()
+      .range(1, 1024)
+      .expRate(1.5)
+      .step(1)
+      .rollerSlider();
 
     st.bool("fast_mode", "fast_mode", "Fast Mode",
       "Render at lower resolution\n Multiplies pixel_size by 0.5");
@@ -345,25 +355,27 @@ float pattern(float ix, float iy) {
 
   getPixelSize() {
     if (this.fast_mode) {
-      return this.pixel_size * 0.5;
+      return this.pixel_size*0.5;
     }
 
     return this.pixel_size;
   }
 
   _doViewportDraw(ctx, canvas, gl, enableAccum) {
-    if (this.drawGen !== this._lastDrawGen) {
-      this.drawSample = 0;
-      this._lastDrawGen = this.drawGen;
-      this.T = 0.0;
-    }
 
     if (!this.shader) {
       this.compileShader(gl);
     }
 
     let editor = ctx.canvas;
-    let fbos = editor.ensureFbos(gl, 2, this.getPixelSize());
+    let fbosUpdated = editor.ensureFbos(gl, 2, this.getPixelSize());
+    let fbos = editor.fbos;
+
+    if (fbosUpdated || this.drawGen !== this._lastDrawGen) {
+      this.drawSample = 0;
+      this._lastDrawGen = this.drawGen;
+      this.T = 0.0;
+    }
 
     let defines = {};
 
@@ -413,12 +425,16 @@ float pattern(float ix, float iy) {
 
     gl.disable(gl.SCISSOR_TEST);
 
-    let fbo = fbos[0];
-    fbo.bind(gl);
+    const do_main_draw = this.drawSample <= this.max_samples;
 
-    this.viewportDraw(ctx, gl, uniforms, defines);
+    if (do_main_draw) {
+      let fbo = fbos[0];
+      fbo.bind(gl);
 
-    fbo.unbind(gl);
+      this.viewportDraw(ctx, gl, uniforms, defines);
+
+      fbo.unbind(gl);
+    }
 
     if (!this.use_sharpness || this.use_monty_sharpness) {
       delete defines.USE_SHARPNESS;
@@ -439,12 +455,16 @@ float pattern(float ix, float iy) {
     gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
     gl.drawArrays(gl.TRIANGLES, 0, 6);
 
-    let t = fbos[0];
-    fbos[0] = fbos[1];
-    fbos[1] = t;
+    if (do_main_draw) {
+      let t = fbos[0];
+      fbos[0] = fbos[1];
+      fbos[1] = t;
+    }
 
-    this.drawSample++;
-    this.T += 0.001;
+    if (do_main_draw) {
+      this.drawSample++;
+      this.T += 0.001;
+    }
   }
 
   regenMesh(gl) {
@@ -494,6 +514,8 @@ Pattern {
   no_gradient         : bool;
   use_sharpness       : bool;  
   sharpness           : double;
+  
+  max_samples         : int;
 }
 `;
 nstructjs.register(Pattern);
