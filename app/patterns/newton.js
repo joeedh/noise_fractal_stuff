@@ -8,15 +8,21 @@ import {savePreset} from '../pattern/preset.js';
 
 export const NewtonPresets = [];
 
-export function add_preset(sliders, options) {
+export function add_preset(sliders, options, fixScale = true) {
   let preset = new NewtonPattern();
 
   for (let k in options) {
     k = k.toLowerCase();
 
-    if (k in preset) {
+    if (preset[k] !== undefined) {
       preset[k] = options[k];
     }
+  }
+
+  /* we don't want to use normal defaults, stick with zero--
+     except for hoff*/
+  while (sliders.length < preset.sliders.length) {
+    sliders.push(sliders.length === 9 ? 0.32 : 0.0);
   }
 
   let tot = Math.min(sliders.length, preset.sliders.length);
@@ -24,11 +30,17 @@ export function add_preset(sliders, options) {
     preset.sliders[i] = sliders[i];
   }
 
-  preset.sliders[4] = 1.0 / preset.sliders[4];
+  if (fixScale) {
+    preset.sliders[4] = 1.0/preset.sliders[4];
+  }
 
   let name = "Builtin #" + (NewtonPresets.length + 1);
 
   NewtonPresets.push(savePreset(preset, name, "Builtin"));
+}
+
+export function add_preset_new(sliders, options) {
+  return add_preset(sliders, options, false);
 }
 
 const shader = `
@@ -273,16 +285,16 @@ export class NewtonPattern extends Pattern {
           speed: 7.0,
           exp  : 1.5,
         }, //0
-        {name: "offset", value : 0.54, range: [-5.0, 5.0], speed: 0.1}, //1
+        {name: "offset", value: 0.54, range: [-5.0, 5.0], speed: 0.1}, //1
         {name: "gain", value: 0.19, range: [0.001, 1000], speed: 4.0, exp: 2.0},  //2
-        {name: "color", range: [-50, 50], speed: 0.25, exp : 1.0}, //3
+        {name: "color", range: [-50, 50], speed: 0.25, exp: 1.0}, //3
         {name: "scale", value: 4.75, range: [0.001, 1000000.0]}, //4
         "x",  //5
         "y",  //6
         {name: "colorscale", value: 5.9},//7
         {name: "brightness", value: 1.0, range: [0.001, 10.0]}, //8
         {name: "hoff", value: 0.32, range: [0.0001, 10.0]}, //9
-        {name: "poff", value: 0.39, range: [-8.0, 4.0], speed: 0.1, exp: 1.0}, //10
+        {name: "poff", value: 0.39, range: [-8.0, 8.0], speed: 0.1, exp: 1.0}, //10
         {name: "simple", value: 0.5, range: [-44.0, 44.0]}
       ],
       shader

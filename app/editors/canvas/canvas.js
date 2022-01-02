@@ -2,6 +2,7 @@ import {
   UIBase, nstructjs, util, vectormath, math,
   Vector2, Vector3, Vector4, Matrix4, Quat, HotKey, KeyMap, eventWasTouch
 } from '../../path.ux/pathux.js';
+import {Icons} from '../icon_enum.js';
 
 import {Editor} from '../editor_base.js';
 import {EditorGL} from '../editor_base_3d.js';
@@ -53,6 +54,12 @@ export class CanvasEditor extends EditorGL {
     this.header.tool("app.redo()");
 
     this.header.tool("canvas.reset_view()");
+    this.header.tool("canvas.step_zoom(dir=1)").icon = Icons.ZOOM_IN;
+    this.header.tool("canvas.step_zoom(dir=-1)");
+
+    this.header.useIcons(false);
+    this.header.prop("activePattern");
+    this.header.prop("pattern.fast_mode");
   }
 
 
@@ -108,12 +115,12 @@ export class CanvasEditor extends EditorGL {
   init() {
     super.init();
 
-    let strip = this.header.row();
-    strip.noMarginsOrPadding();
-    strip.useIcons(false);
+    //let strip = this.header.row();
+    //strip.noMarginsOrPadding();
+    //strip.useIcons(false);
 
-    strip.label("Pattern:");
-    strip.prop("activePattern");
+    //strip.label("Pattern:");
+    //strip.prop("activePattern");
 
     this.addEventListener("mousedown", (e) => {
       if (!this._doMouseEvent(e)) {

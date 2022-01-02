@@ -114,6 +114,7 @@ export class ResetOp extends CanvasOp {
     pat.scale = pdef.sliderDef[pdef.offsetSliders.scale].value ?? 4.75;
   }
 }
+
 ToolOp.register(ResetOp);
 
 export class CanvasZoomOp extends CanvasOp {
@@ -186,6 +187,9 @@ export class CanvasZoomOp extends CanvasOp {
 
     this.addDrawBox(pos[0], pos[1], size[0], size[1]);
 
+    //be slightly above .5 to give some wiggle room
+    size.mulScalar(0.6);
+
     let dimen = Math.max(size[0], size[1]);
     let cent = new Vector2(pos).addFac(size, 0.5);
 
@@ -231,7 +235,7 @@ export class CanvasZoomOp extends CanvasOp {
     let startscale = pat.scale;
     let startx = pat.offsetx*pat.scale;
     let starty = pat.offsety*pat.scale;
-    let steps = 32;
+    let steps = 18;
 
     let off = this.inputs.offset.getValue();
     let endx = off[0];
@@ -258,7 +262,7 @@ export class CanvasZoomOp extends CanvasOp {
         pat.drawGen++;
         window.redraw_viewport();
 
-        if (i === steps-1) {
+        if (i === steps - 1) {
           ctx.state.autoSave();
         }
       }).unique().start();
@@ -281,3 +285,38 @@ export class CanvasZoomOp extends CanvasOp {
 }
 
 ToolOp.register(CanvasZoomOp);
+
+export class StepZoomOp extends CanvasOp {
+  static tooldef() {
+    return {
+      uiname  : "Zoom (step)",
+      toolpath: "canvas.step_zoom",
+      inputs  : {
+        dir   : new IntProperty(1),
+        amount: new FloatProperty(0.2)
+      },
+      icon : Icons.ZOOM_OUT
+    }
+  }
+
+  exec(ctx) {
+    let pat = ctx.pattern;
+
+    let scale = pat.scale;
+    let x = pat.offsetx * scale;
+    let y = pat.offsety * scale;
+
+    let amount = this.inputs.amount.getValue();
+    let dir = -this.inputs.dir.getValue();
+
+    scale *= 1.0 + amount * dir;
+
+    pat.scale = scale;
+    pat.offsetx = x / scale;
+    pat.offsety = y / scale;
+
+    pat.drawGen++;
+  }
+}
+
+ToolOp.register(StepZoomOp);
