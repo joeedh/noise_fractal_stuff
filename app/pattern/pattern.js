@@ -175,7 +175,7 @@ float pattern(float ix, float iy) {
       .noUnits();
     st.float("filter_width", "filter_width", "Filter Width")
       .noUnits()
-      .range(0.0, 5.0)
+      .range(0.0, 105.0)
       .on('change', onchange);
 
     st.float("pixel_size", "pixel_size", "Pixel Size")

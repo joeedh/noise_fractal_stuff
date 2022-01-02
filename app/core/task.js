@@ -7,6 +7,7 @@ export const TaskFlags = {
 export class Task {
   constructor(name, interval=15) {
     this.name = name;
+
     this.id = -1;
     this.flag = 0;
     this.interval = interval;
@@ -19,11 +20,21 @@ export class Task {
 
   unique() {
     this.flag |= TaskFlags.UNIQUE;
+
     return this;
   }
 
   start(iterable) {
     this.started = true;
+
+    if (this.flag & TaskFlags.UNIQUE) {
+      for (let task of new Set(this.manager.tasks)) {
+        if (task !== this && task.name === this.name) {
+          task.stop();
+          this.manager.removeTask(task);
+        }
+      }
+    }
 
     if (iterable) {
       this.iter = iterable[Symbol.iterator];
@@ -92,6 +103,7 @@ export class TaskManager {
 
   newTask(name, interval = undefined) {
     let task = new Task(name, interval);
+
     task.id = this.idgen++;
     task.manager = this;
 

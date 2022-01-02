@@ -76,6 +76,7 @@ export class SlidersWidget extends UIBase {
     this.mpos.load(this._getMouse(e));
     this.last_mpos.load(this.mpos);
 
+    this.findHighlight(e);
 
     //this.mdown = e.button === 0 || eventWasTouch(e);
     this.sum = 0;
