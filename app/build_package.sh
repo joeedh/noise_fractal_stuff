@@ -2,11 +2,10 @@
 
 echo Copying Files
 
-mkdir package 2> /dev/null
 mkdir package/resources
 
-cp -r assets core editors electron_base path.ux pattern patterns util webgl package
-cp screen.js entry_point.js package
+export PACKAGE_DIR=package
+source ./copy_package_files.sh
 
 rm package/path.ux/.git
 

@@ -1,4 +1,4 @@
-[submodule "new/path.ux"]
+[submodule "app/path.ux"]
 	path = app/path.ux
 	url = https://github.com/joeedh/path.ux.git
 [submodule "app/path.ux/scripts/path-controller"]
