@@ -12,7 +12,7 @@ export class CanvasEditor extends EditorGL {
   constructor() {
     super();
 
-    this.showSliders = true;
+    this.showSliders = false;
     this.sliderWidget = undefined;
     this.fbos = [];
 
