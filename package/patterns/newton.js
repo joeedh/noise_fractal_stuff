@@ -10,7 +10,7 @@ export const NewtonPresets = [];
 
 let presetCountBase = 1;
 
-export function add_preset(sliders, options, fixScale = true, hide=false) {
+export function add_preset(sliders, options, fixScale = true, hide = false) {
   if (hide) {
     presetCountBase++;
     return;
@@ -47,7 +47,7 @@ export function add_preset(sliders, options, fixScale = true, hide=false) {
   NewtonPresets.push(savePreset(preset, name, "Builtin"));
 }
 
-export function add_preset_new(sliders, options, hide=false) {
+export function add_preset_new(sliders, options, hide = false) {
   return add_preset(sliders, options, false, hide);
 }
 
@@ -309,6 +309,13 @@ export class NewtonPattern extends Pattern {
       ],
       shader
     }
+  }
+
+  setup(ctx, gl, uniforms, defines) {
+    defines.GAIN = "SLIDERS[2]";
+    defines.COLOR_SHIFT = "SLIDERS[3]";
+    defines.COLOR_SCALE = "SLIDERS[7]";
+    defines.BRIGHTNESS = "SLIDERS[8]";
   }
 
   viewportDraw(ctx, gl, uniforms, defines) {
