@@ -394,6 +394,11 @@ export class SlidersWidget extends UIBase {
     let digest = this._digest.reset();
     let sliders = this.getSliders();
 
+    if (this.sliderDef && sliders.length !== this.sliderDef.length) {
+      this.setSliderDef(this.ctx.pattern.constructor.getPatternDef().sliderDef);
+      this.rebuild();
+    }
+
     if (!sliders) {
       return;
     }

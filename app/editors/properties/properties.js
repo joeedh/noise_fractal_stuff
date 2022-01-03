@@ -78,6 +78,10 @@ export class PropsEditor extends Editor {
       list.dataPath = `presets.types.active.categories['${k}']`;
 
       panel.add(list);
+
+      if (k !== 'Builtin') {
+        panel.closed = true;
+      }
     }
 
     this.setCSS();

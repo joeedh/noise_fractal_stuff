@@ -76,6 +76,7 @@ export class PatternList extends Array {
       this.push(item);
 
       if (item.typeName === this.active) {
+        //console.error("Found active", this.active, item);
         this.active = item;
       }
     }
