@@ -45,21 +45,23 @@ export class CanvasEditor extends EditorGL {
   }
 
   makeHeader() {
-    super.makeHeader(this.container, true, false);
+    this.doOnce(() => {
+      super.makeHeader(this.container, true, false);
 
-    this.header.prop("canvas.showSliders");
-    this.header.useIcons(true);
+      this.header.prop("canvas.showSliders");
+      this.header.useIcons(true);
 
-    this.header.tool("app.undo()");
-    this.header.tool("app.redo()");
+      this.header.tool("app.undo()");
+      this.header.tool("app.redo()");
 
-    this.header.tool("canvas.reset_view()");
-    this.header.tool("canvas.step_zoom(dir=1)").icon = Icons.ZOOM_IN;
-    this.header.tool("canvas.step_zoom(dir=-1)");
+      this.header.tool("canvas.reset_view()");
+      this.header.tool("canvas.step_zoom(dir=1)").icon = Icons.ZOOM_IN;
+      this.header.tool("canvas.step_zoom(dir=-1)");
 
-    this.header.useIcons(false);
-    this.header.prop("activePattern");
-    this.header.prop("pattern.fast_mode");
+      this.header.useIcons(false);
+      this.header.prop("activePattern");
+      this.header.prop("pattern.fast_mode");
+    });
   }
 
 

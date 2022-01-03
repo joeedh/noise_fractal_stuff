@@ -165,6 +165,50 @@ const finalShader = {
         uniform float agrad[GRAD_STEPS];
         #endif
         
+        #ifndef GAIN
+        #define GAIN 1.0
+        #endif
+        
+        #ifndef COLOR_SCALE
+        #define COLOR_SCALE 1.0
+        #endif
+        
+        #ifndef BRIGHTNESS
+        #define BRIGHTNESS 1.0
+        #endif
+        
+        #ifndef COLOR_SHIFT
+        #define COLOR_SHIFT 1.5
+        #endif
+
+      float tent(float f) {
+        return 1.0 - abs(fract(f)-0.5)*2.0;
+      }
+      
+      vec2 tent(vec2 p) {
+        return vec2(tent(p.x), tent(p.y));
+      }
+
+      float hash(float seed) {
+          float f = fract(sin(seed*13.0) + seed*8.9);
+          //float f = fract(seed);
+          return fract(1.0 / (f*0.0001 + 0.0000001));
+      }
+
+      float hash2(vec2 p) {
+          p *= 1.0;
+          float a = 0.445325234;// + 0.01*fract(T*0.1);
+          
+          p += tent(p*4.1234)*2.0 - 1.0;
+          
+          float f = p[0]*a + p[1]/a;
+          
+          f += T*100.0;
+          
+          return hash(f);
+          return fract(f);
+      }
+        
       vec3 rgb_to_hsv(float r, float g, float b) {
         float computedH = 0.0;
         float computedS = 0.0;
@@ -217,33 +261,6 @@ const finalShader = {
         return vec3(0.0, 0.0, 0.0);
       }
       
-      float tent(float f) {
-        return 1.0 - abs(fract(f)-0.5)*2.0;
-      }
-      
-      vec2 tent(vec2 p) {
-        return vec2(tent(p.x), tent(p.y));
-      }
-
-      float hash(float seed) {
-          float f = fract(sin(seed*13.0) + seed*8.9);
-          //float f = fract(seed);
-          return fract(1.0 / (f*0.0001 + 0.0000001));
-      }
-
-      float hash2(vec2 p) {
-          p *= 1.0;
-          float a = 0.445325234;// + 0.01*fract(T*0.1);
-          
-          p += tent(p*4.1234)*2.0 - 1.0;
-          
-          float f = p[0]*a + p[1]/a;
-          
-          f += T*100.0;
-          
-          return hash(f);
-          return fract(f);
-      }
       
 #ifndef NO_GRADIENT
 #ifndef OLD_GRADIENT
@@ -276,10 +293,10 @@ const finalShader = {
 #else
           float f = color.r;
           
-          f = mix(f*1.5, pow(f, 1.0 / SLIDERS[2]), 0.5);
-          f = tent(f*SLIDERS[7]+0.5);
+          f = mix(f*1.5, pow(f, 1.0 / GAIN), 0.5);
+          f = tent(f*COLOR_SCALE+0.5);
           
-          float off = SLIDERS[3];
+          float off = COLOR_SHIFT;
           float f2 = f*pow(off*0.05, 0.25) + off + 0.45;
           
           color.r = tent(f2);
@@ -289,8 +306,8 @@ const finalShader = {
           
           color.rgb = normalize(color.rgb);
           //color.b *= 0.1;
-          color.rgb *= f*1.5*SLIDERS[8];
-          //color.rgb = vec3(f, f, f)*SLIDERS[8]*1.5;
+          color.rgb *= f*1.5*BRIGHTNESS;
+          //color.rgb = vec3(f, f, f)*BRIGHTNESS*1.5;
          
 #endif
 
@@ -325,7 +342,8 @@ const finalShader = {
           fragColor /= w1+w2+w3+w4+w5;
 #else
           fragColor = fsample(vCo);
-#endif          
+#endif        
+  
   #ifdef PRINT_TEST
           vec3 hsv = rgb_to_hsv(fragColor.r, fragColor.g, fragColor.b);
           
@@ -344,6 +362,9 @@ const finalShader = {
           //float f = abs(1.5-hsv[1]);
           //fragColor.rgb = vec3(f, f, f);
   #endif
+           vec3 dither = (vec3(hash2(vCo), hash2(vCo+0.23423), hash2(vCo+0.432))-0.5) / 255.0;
+           fragColor.rgb += dither;
+           
         }`.trim()
 }
 

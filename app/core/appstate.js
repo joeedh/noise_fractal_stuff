@@ -124,10 +124,9 @@ export function loadDefaultFile(appstate) {
       util.print_stack(error);
 
       console.error("failed to load startup file!");
+      appstate.api.execTool(appstate.ctx, "app.root_file_op()");
     }
   }
-
-  appstate.api.execTool(appstate.ctx, "app.root_file_op()");
 }
 
 window.loadDefaultFile = loadDefaultFile;
