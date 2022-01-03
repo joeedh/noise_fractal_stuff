@@ -17,7 +17,7 @@ class DrawBox {
     div.style["top"] = y + "px";
     div.style["width"] = w + "px";
     div.style["height"] = h + "px";
-    div.style["border"] = `${lineWidth}px solid orange`;
+    div.style["border"] = `${lineWidth}px solid white`;
     div.style["pointer-events"] = "none";
     div.style["padding"] = div.style["margin"] = "0px";
   }
