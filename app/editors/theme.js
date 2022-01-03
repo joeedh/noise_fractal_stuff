@@ -7,7 +7,7 @@ import {CSSFont} from '../path.ux/pathux.js';
 
 export var theme = {
   base:  {
-    AreaHeaderBG        : 'rgba(200, 200, 200, 0.95)',
+    AreaHeaderBG        : 'rgba(226,226,226, 1.0)',
     BasePackFlag        : 0,
     BoxDepressed        : 'rgba(130,130,130, 1)',
     BoxHighlight        : 'rgba(151,208,239, 1)',
@@ -127,6 +127,11 @@ export var theme = {
   },
 
   checkbox:  {
+    "background-color" : "white",
+    "border-color" : "orange",
+    "border-radius" : 5,
+    "border-width" : 2,
+    "border-style" : "solid",
     CheckSide: 'left',
     height   : 32,
     width    : 32,
@@ -303,7 +308,7 @@ export var theme = {
   panel:  {
     HeaderBorderRadius    : 5.329650280441558,
     HeaderRadius          : 4,
-    TitleBackground       : 'rgba(222,239,255, 1)',
+    TitleBackground       : 'rgba(193,225,255, 1)',
     TitleBorder           : 'rgba(104,104,104, 1)',
     TitleText             : new CSSFont({
       font    : 'sans-serif',
@@ -314,10 +319,10 @@ export var theme = {
       color   : 'rgba(0,0,0, 1)'
     }),
     'background-color'    : 'rgba(184,184,184, 0.7594818376068376)',
-    'border-color'        : 'rgba(0,0,0, 0.5598061397157866)',
+    'border-color'        : 'rgba(70,70,70, 0.0)',
     'border-radius'       : 4,
     'border-style'        : 'groove',
-    'border-width'        : 0,
+    'border-width'        : 1,
     'margin-bottom'       : 2,
     'margin-bottom-closed': 2,
     'margin-left'         : 5.6584810220495445,
@@ -394,7 +399,7 @@ export var theme = {
       size    : 15,
       color   : 'rgba(0,0,0, 1)'
     }),
-    'background-color': 'rgba(222,222,222, 1)',
+    'background-color': 'rgba(228,228,228, 1)',
   },
 
   textbox:  {
