@@ -1,4 +1,4 @@
-import {EnumProperty, nstructjs} from '../path.ux/pathux.js';
+import {EnumProperty, util, nstructjs} from '../path.ux/pathux.js';
 import {renderPattern} from './pattern_draw.js';
 import {ShaderProgram, RenderBuffer} from '../webgl/webgl.js';
 import {Shaders} from './pattern_shaders.js';
@@ -9,6 +9,63 @@ import {PatternClasses} from './pattern_base.js';
 export {PatternClasses} from './pattern_base.js';
 
 let CachedPatternTok = Symbol("cached-pattern");
+
+export class Sliders extends Array {
+  constructor(n=0, pat) {
+    super(n);
+    this._pattern = pat;
+  }
+  
+  toJSON() {
+    return util.list(this);
+  }
+  
+  static from(b, pattern) {
+    let ret = new Sliders(0, pattern);
+    
+    for (let item of b) {
+      ret.push(item);
+    }
+    
+    return ret;
+  }
+  
+  loadSliderDef(def) {
+    let defineProp = (k, i) => {
+      Object.defineProperty(this, k, {
+        get: function() {
+          return this[i];
+        }, 
+        set: function(v) {
+          this._pattern.drawGen++;
+          this[i] = v;
+        }
+      })
+    }
+    
+    const badkeys = new Set([
+      "length", "push", "pop", "remove", "indexOf", "toString",
+      
+    ]);
+    
+    for (let i=0; i<def.length; i++) {
+      let item = def[i];
+      let k;
+      
+      if (typeof item === "string") {
+        k = item;
+      } else {
+        k = item.name;
+      }
+      
+      if (badkeys.has(k)) {
+        continue;
+      }
+      
+      defineProp(k, i);
+    }
+  }
+}
 
 export class Pattern {
   constructor() {
@@ -44,7 +101,7 @@ export class Pattern {
     this.uiName = def.uiName;
     this.flag = def.flag !== undefined ? def.flag : 0;
 
-    this.sliders = [];
+    this.sliders = new Sliders(0, this);
     this.pixel_size = 1.0;
 
     this.shader = undefined;
@@ -329,6 +386,8 @@ float pattern(float ix, float iy) {
       }
     }
 
+    this.sliders.loadSliderDef(sliderDef);
+    
     return this;
   }
 
@@ -490,6 +549,9 @@ float pattern(float ix, float iy) {
 
       this.sliders.push(value);
     }
+    
+    this.sliders = Sliders.from(this.sliders, this);
+    this.sliders.loadSliderDef(sliderdef);
   }
 
   regenMesh(gl) {

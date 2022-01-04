@@ -12,9 +12,16 @@ export const MoireFuncs = {
   SUM : 0, DIST : 1, MUL1 : 2, DIFF1 : 3, DIFF2: 4 
 };
 
+export const MoireModes = {
+  ZERO  : 0,
+  ONE   : 1,
+  TWO   : 2,
+  THREE : 3
+};
+
 let namegen = 1;
 
-export function add_preset(func, sliders, options={}) {
+export function add_preset(func, mode, sliders, options={}) {
   let pat = new MoireNewtonPattern();
   
   for (let i=0; i<sliders.length; i++) {
@@ -26,6 +33,7 @@ export function add_preset(func, sliders, options={}) {
   }
   
   pat.func = func;
+  pat.newton_mode = mode;
   
   for (let k in options) {
     pat[k] = options[k];
@@ -76,9 +84,15 @@ fdiff2 := abs(abs(dx1-dx2) + abs(dy1-dy2) + abs(dx2-dx3) + abs(dy2-dy3))/6.0;
 fdiff2_dx := df(fdiff2, x);
 fdiff2_dy := df(fdiff2, y);
 
+fdist_dx := df(fdist, x);
+fdist_dy := df(fdist, y);
+
 on fort;
 fdiff2_dx;
 fdiff2_dy;
+
+fdist_dx;
+fdist_dy;
 off fort;
 
 */
@@ -147,8 +161,51 @@ vec2 dv_sample(vec2 p) {
   float x = p.x, y = p.y;
   
   const float eps = 0.0000001;
-  
-#if PATTERN == 4
+
+#if PATTERN == 0
+    float dx = -0.523598775598*(sin(6.28318530718*costh1*scale1*x+
+       6.28318530718*scale1*sinth1*y)*costh1*scale1-sin(6.28318530718
+       *costh1*scale1*y-6.28318530718*scale1*sinth1*x)*scale1*sinth1+
+       sin(6.28318530718*costh2*scale1*scale2*x+6.28318530718*scale1*
+       scale2*sinth2*y)*costh2*scale1*scale2-sin(6.28318530718*costh2
+       *scale1*scale2*y-6.28318530718*scale1*scale2*sinth2*x)*scale1*
+       scale2*sinth2+sin(6.28318530718*x));
+     
+    float dy = -0.523598775598*((sin(6.28318530718*(costh1*y-sinth1*x)*
+       scale1)*costh1+sin(6.28318530718*(costh2*x+sinth2*y)*scale1*
+       scale2)*scale2*sinth2+sin(6.28318530718*(costh1*x+sinth1*y)*
+       scale1)*sinth1)*scale1+sin(6.28318530718*costh2*scale1*scale2*
+       y-6.28318530718*scale1*scale2*sinth2*x)*costh2*scale1*scale2+
+       sin(6.28318530718*y));
+    
+    return vec2(dx, dy);
+    
+#elif PATTERN == 1
+    float dx =1.28254983016*(cos(6.28318530718*(costh2*y-sinth2*x)*scale1
+    *scale2)+1.0)*sin(6.28318530718*(costh2*y-sinth2*x)*scale1*
+    scale2)*scale1*scale2*sinth2-1.28254983016*(cos(6.28318530718*
+    x)+1.0)*sin(6.28318530718*x)-1.28254983016*(cos(6.28318530718*(
+    costh1*x+sinth1*y)*scale1)+1.0)*sin(6.28318530718*(costh1*x+
+    sinth1*y)*scale1)*costh1*scale1+(1.28254983016*(cos(
+    6.28318530718*(costh1*y-sinth1*x)*scale1)+1.0)*sin(6.28318530718
+    *(costh1*y-sinth1*x)*scale1)*sinth1-1.28254983016*(cos(
+    6.28318530718*(costh2*x+sinth2*y)*scale1*scale2)+1.0)*sin(
+    6.28318530718*(costh2*x+sinth2*y)*scale1*scale2)*costh2*scale2
+    )*scale1;
+     
+    float dy =-1.28254983016*((cos(6.28318530718*(costh2*y-sinth2*x)*
+    scale1*scale2)+1.0)*sin(6.28318530718*(costh2*y-sinth2*x)*scale1
+    *scale2)*costh2*scale1*scale2+(cos(6.28318530718*y)+1.0)*sin(
+    6.28318530718*y)+(cos(6.28318530718*(costh1*x+sinth1*y)*scale1
+    )+1.0)*sin(6.28318530718*(costh1*x+sinth1*y)*scale1)*scale1*
+    sinth1+((cos(6.28318530718*(costh1*y-sinth1*x)*scale1)+1.0)*sin(
+    6.28318530718*(costh1*y-sinth1*x)*scale1)*costh1+(cos(
+    6.28318530718*(costh2*x+sinth2*y)*scale1*scale2)+1.0)*sin(
+    6.28318530718*(costh2*x+sinth2*y)*scale1*scale2)*scale2*sinth2
+    )*scale1);
+    
+    return vec2(dx, dy);
+#elif PATTERN == 4
    float ans5=-6.28318530718*(cos(6.28318530718*costh1*scale1*y-
     6.28318530718*scale1*sinth1*x)-cos(6.28318530718*costh2*scale1
     *scale2*y-6.28318530718*scale1*scale2*sinth2*x))*(cos(
@@ -307,7 +364,47 @@ float pattern(float ix, float iy) {
       
       dp = mix(dp, perp, SLIDERS[9]);
       
-      p += -dp*0.1;
+      if (dot(dp, dp) > 0.0) {
+#if MODE == 1 || MODE == 2 || MODE == 3
+#if MODE == 2
+        if (dp.x > 0.0) {
+          dp.x = f / dp.x;
+        }
+        if (dp.y > 0.0) {
+          dp.y = f / dp.y;
+        }
+#endif        
+        mat2 mat = mat2(vec2(dp.x*dp.x, dp.x*dp.y), vec2(dp.x*dp.y, dp.y*dp.y));
+        
+        //mat = inverse(mat);
+        
+        vec2 dp2 = dp;
+        
+        for (int j=0; j<10; j++) {
+          dp2 = normalize(dp2);
+          dp2 = mat * dp2;
+        }
+        
+        float l = length(dp2);
+        if (l > 0.0) {
+          dp2 /= l;
+        }
+        
+        dp2 *= f;
+        //dp2.xy = -vec2(-dp2.y, dp2.x);
+        
+#if MODE == 3
+      dp = dp2;
+      
+#else
+        dp = mix(dp, dp2, 0.5);
+        dp *= f / dot(dp, dp);
+#endif
+#endif
+
+        p += -dp*SLIDERS[12];
+      }
+      
       sum += length(dp)/(1000.0*SLIDERS[8]);
       
       lastdp = dp;
@@ -322,6 +419,7 @@ export class MoireNewtonPattern extends Pattern {
   constructor() {
     super();
 
+    this.newton_mode = MoireModes.ONE;
     this.func = MoireFuncs.DIST;
     this.sharpness = 0.33; //use different default sharpness
   }
@@ -330,6 +428,7 @@ export class MoireNewtonPattern extends Pattern {
     super.buildSidebar(ctx, con);
     
     con.prop("func");
+    con.prop("newton_mode");
   }
   
   static apiDefine(api) {
@@ -341,6 +440,12 @@ export class MoireNewtonPattern extends Pattern {
       //window.redraw_viewport();
     });
     
+    st.enum("newton_mode", "newton_mode", MoireModes, "Mode")
+    .on("change", function() {
+      this.ctx.pattern.drawGen++;
+      //window.redraw_viewport();
+    });
+
     return st;
   }
   
@@ -361,28 +466,35 @@ export class MoireNewtonPattern extends Pattern {
         {
           name : "steps", integer: true,
           range: [5, 955],
-          value: 100,
+          value: 15,
           speed: 7.0,
           exp  : 1.5,
         }, //0
-        {name: "gain", value: 0.19, range: [0.001, 1000], speed: 4.0, exp: 2.0},  //1
-        {name: "color", value: 0.75, range: [-50, 50], speed: 0.25, exp: 1.0}, //2
+        {name: "gain", value: 4.695, range: [0.001, 1000], speed: 4.0, exp: 2.0},  //1
+        {name: "color", value: 0.72, range: [-50, 50], speed: 0.25, exp: 1.0}, //2
         {name: "scale", value: 4.75, range: [0.001, 1000000.0]}, //3
         "x",  //4
         "y",  //5
-        {name: "colorscale", value: 1.0},//6
-        {name: "brightness", value: 1.0, range: [0.001, 10.0]}, //7
-        {name: "hoff", value: 0.1, range: [0.0001, 10.0]}, //8
-        {name: "poff", value: 1.0, range: [-8.0, 8.0], speed: 0.1, exp: 1.0}, //9
-        {name: "offset1", value: 0.54, range: [-5.0, 25.0], speed: 1.0}, //10
-        {name: "offset2", value: 0.54, range: [-5.0, 25.0], speed: 1.0}, //11
-        {name: "offset3", value: 0.54, range: [-5.0, 25.0], speed: 1.0}, //12
+        {name: "colorscale", value: 46.79},//6
+        {name: "brightness", value: 1.04, range: [0.001, 10.0]}, //7
+        {name: "hoff", value: 2.738, range: [0.0001, 10.0], speed: 0.05, exp : 1.5}, //8
+        {name: "poff", value: 1.642, range: [-8.0, 8.0], speed: 0.1, exp: 1.0}, //9
+        {name: "offset1", value: 2.2809, range: [-5.0, 25.0], speed: 0.1}, //10
+        {name: "offset2", value: 0.8471, range: [-5.0, 25.0], speed: 0.1}, //11
+        {name: "offset3", value: 0.62189, range: [-5.0, 25.0], speed: 0.5}, //12
         ],
       shader
     }
   }
 
+  savePresetText() {
+    let sliders = JSON.stringify(this.sliders);
+    
+    return `add_preset(${this.func}, ${this.newton_mode}, ${sliders}, {sharpness : ${this.sharpness}});`
+  }
+  
   setup(ctx, gl, uniforms, defines) {
+    defines.MODE = this.newton_mode;
     defines.GAIN = "SLIDERS[1]";
     defines.COLOR_SHIFT = "SLIDERS[2]";
     defines.PATTERN = this.func;
@@ -399,12 +511,14 @@ export class MoireNewtonPattern extends Pattern {
   copyTo(b) {
     super.copyTo(b);
     
+    b.newton_mode = this.newton_mode;
     b.func = this.func;
   }
 }
 
 MoireNewtonPattern.STRUCT = nstructjs.inherit(MoireNewtonPattern, Pattern) + `
-  func : int;
+  func        : int;
+  newton_mode : int;
 }`;
 
 Pattern.register(MoireNewtonPattern);
