@@ -11,58 +11,61 @@ export {PatternClasses} from './pattern_base.js';
 let CachedPatternTok = Symbol("cached-pattern");
 
 export class Sliders extends Array {
-  constructor(n=0, pat) {
+  constructor(n = 0, pat) {
     super(n);
     this._pattern = pat;
   }
-  
-  toJSON() {
-    return util.list(this);
-  }
-  
+
   static from(b, pattern) {
     let ret = new Sliders(0, pattern);
-    
+
     for (let item of b) {
       ret.push(item);
     }
-    
+
     return ret;
   }
-  
+
+  toJSON() {
+    return util.list(this);
+  }
+
   loadSliderDef(def) {
-    let defineProp = (k, i) => {
+    let defineProp = (k, i, sdef) => {
       Object.defineProperty(this, k, {
-        get: function() {
+        get: function () {
           return this[i];
-        }, 
-        set: function(v) {
-          this._pattern.drawGen++;
+        },
+        set: function (v) {
+          if (!sdef.noReset) {
+            this._pattern.drawGen++;
+          }
           this[i] = v;
         }
       })
     }
-    
+
     const badkeys = new Set([
       "length", "push", "pop", "remove", "indexOf", "toString",
-      
+
     ]);
-    
-    for (let i=0; i<def.length; i++) {
+
+    for (let i = 0; i < def.length; i++) {
       let item = def[i];
       let k;
-      
+
       if (typeof item === "string") {
         k = item;
+        item = {name : item};
       } else {
         k = item.name;
       }
-      
+
       if (badkeys.has(k)) {
         continue;
       }
-      
-      defineProp(k, i);
+
+      defineProp(k, i, item);
     }
   }
 }
@@ -75,8 +78,11 @@ export class Pattern {
       throw new Error("patternDef is missing typeName!");
     }
 
+    this.enableAccum = true;
+
     this.vbuf = undefined;
     this.vbo = undefined;
+    this.fboCount = 2;
 
     this.activePreset = 'My Preset';
 
@@ -293,7 +299,8 @@ float pattern(float ix, float iy) {
     }
 
     let floatst = api.mapStruct(dummy, true);
-    floatst.float("value", "value", "Value");
+    floatst.float("value", "value", "Value")
+      .noUnits().rollerSlider();
 
     st.string("typeName", "type", "").readOnly();
     st.list("sliders", "sliders", [
@@ -387,7 +394,7 @@ float pattern(float ix, float iy) {
     }
 
     this.sliders.loadSliderDef(sliderDef);
-    
+
     return this;
   }
 
@@ -421,13 +428,22 @@ float pattern(float ix, float iy) {
   }
 
   _doViewportDraw(ctx, canvas, gl, enableAccum) {
+    enableAccum = enableAccum && this.enableAccum;
 
     if (!this.shader) {
       this.compileShader(gl);
     }
 
+    for (let i = 0; i < this.sliders.length; i++) {
+      let f = this.sliders[i];
+      if (isNaN(f) || !isFinite(f)) {
+        console.warn("NaN! SLIDERS[" + i + "]");
+        this.sliders[i] = 0.1;
+      }
+    }
+
     let editor = ctx.canvas;
-    let fbosUpdated = editor.ensureFbos(gl, 2, this.getPixelSize());
+    let fbosUpdated = editor.ensureFbos(gl, this.fboCount, this.getPixelSize());
     let fbos = editor.fbos;
 
     if (fbosUpdated || this.drawGen !== this._lastDrawGen) {
@@ -488,6 +504,12 @@ float pattern(float ix, float iy) {
 
     this.setup(ctx, gl, uniforms, defines);
 
+    if (!this.vbuf) {
+      this.regenMesh(gl);
+    }
+
+    this.vbuf.bind(gl, 0);
+
     if (do_main_draw) {
       let fbo = fbos[0];
       fbo.bind(gl);
@@ -512,8 +534,7 @@ float pattern(float ix, float iy) {
     gl.clearColor(0.0, 0.5, 1.0, 1.0);
     gl.clear(gl.COLOR_BUFFER_BIT);
 
-    gl.enableVertexAttribArray(0);
-    gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+    this.vbuf.bind(gl, 0);
     gl.drawArrays(gl.TRIANGLES, 0, 6);
 
     if (do_main_draw) {
@@ -549,7 +570,7 @@ float pattern(float ix, float iy) {
 
       this.sliders.push(value);
     }
-    
+
     this.sliders = Sliders.from(this.sliders, this);
     this.sliders.loadSliderDef(sliderdef);
   }
@@ -557,16 +578,20 @@ float pattern(float ix, float iy) {
   regenMesh(gl) {
     this.vbo = new RenderBuffer();
 
-    let vbuf = this.mesh = this.vbo.get(gl, "co");
+    let vbuf = this.vbuf = this.vbo.get(gl, "co");
 
     this.regen = 0;
-    var mesh = [
+    var mesh = new Float32Array([
       0, 0, 0, 1, 1, 1,
       0, 0, 1, 1, 1, 0
-    ];
+    ]);
 
-    gl.bindBuffer(gl.ARRAY_BUFFER, vbuf);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(mesh), gl.STATIC_DRAW);
+    vbuf.upload(gl, {
+      elemSize: 2,
+      type    : gl.FLOAT,
+      target  : gl.ARRAY_BUFFER,
+      perfHint: gl.STATIC_DRAW,
+    }, mesh);
   }
 
   viewportDraw(ctx, gl, uniforms = {}, defines = {}) {
@@ -577,10 +602,7 @@ float pattern(float ix, float iy) {
     let shader = this.shader;
     shader.bind(gl, uniforms, defines);
 
-    var vbuf = this.vbuf;
-
-    gl.enableVertexAttribArray(0);
-    gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+    this.vbuf.bind(gl, 0);
     gl.drawArrays(gl.TRIANGLES, 0, 6);
   }
 }

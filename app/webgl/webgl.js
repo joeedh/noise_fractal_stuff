@@ -410,6 +410,18 @@ export class ShaderProgram {
     this._use_def_shaders = true;
   }
 
+  static fromDef(gl, def) {
+    let ret = new ShaderProgram(gl, def.vertex, def.fragment, def.attributes);
+
+    if (def.uniforms) {
+      for (let k in def.uniforms) {
+        ret.uniforms[k] = def.uniforms[k];
+      }
+    }
+
+    return ret;
+  }
+
   static load_shader(path, attrs) {
     var ret = new ShaderProgram(undefined, undefined, undefined, ["position", "normal", "uv", "color", "id"]);
     ret.ready = false;
@@ -659,17 +671,105 @@ export class ShaderProgram {
   }
 }
 
+export class GPUVertexAttr {
+  constructor() {
+    this.type = undefined;
+    this.size = undefined;
+    this.buf = undefined;
+    this.perfhint = undefined;
+    this.elemSize = undefined;
+    this.normalized = false;
+  }
+
+  upload(gl, args, data) {
+    let {target, type, perfHint, elemSize, normalized} = args;
+
+    perfHint = perfHint ?? gl.STATIC_DRAW;
+    target = target ?? gl.ARRAY_BUFFER;
+    type = type ?? gl.FLOAT;
+    normalized = normalized ?? false;
+
+    this.elemSize = elemSize;
+    this.type = type;
+    this.target = target;
+    this.perfHint = perfHint;
+    this.normalized = normalized;
+
+    let cls;
+    switch (type) {
+      case gl.FLOAT:
+        cls = Float32Array;
+        break;
+      case gl.BYTE:
+        cls = Int8Array;
+        break;
+      case gl.UNSIGNED_BYTE:
+        cls = data instanceof Uint8ClampedArray ? Uint8ClampedArray : Uint8Array;
+        break;
+      case gl.SHORT:
+        cls = Int16Array;
+        break;
+      case gl.UNSIGNED_SHORT:
+        cls = Uint16Array;
+        break;
+      case gl.INT:
+        cls = Int32Array;
+        break;
+      case gl.UNSIGNED_INT:
+        cls = Uint32Array;
+        break;
+    }
+
+    if (!(data instanceof cls)) {
+      data = new cls(data);
+    }
+
+    if (this.buf && this.size && data.length/elemSize >= this.size) {
+      gl.deleteBuffer(this.buf);
+      this.buf = undefined;
+    }
+
+    this.size = ~~(data.length / elemSize);
+
+    if (!this.buf) {
+      this.buf = gl.createBuffer();
+    }
+
+    gl.bindBuffer(target, this.buf);
+    gl.bufferData(target, data, perfHint);
+
+    return this;
+  }
+
+  bind(gl, idx) {
+    //console.error(idx, this.elemSize, this.type, this.normalized, this.buf);
+    gl.bindBuffer(this.target, this.buf);
+
+    gl.enableVertexAttribArray(idx);
+    gl.vertexAttribPointer(idx, this.elemSize, this.type, this.normalized, 0, 0);
+  }
+
+  destroy(gl) {
+    if (this.buf !== undefined) {
+      gl.deleteBuffer(this.buf);
+      this.buf = undefined;
+    }
+
+    return this;
+  }
+}
+
 export class RenderBuffer {
   constructor() {
     this._layers = {};
   }
 
   get(gl, name) {
-    if (this[name] != undefined) {
+    if (this[name] !== undefined) {
       return this[name];
     }
 
-    var buf = gl.createBuffer();
+    let buf = new GPUVertexAttr();
 
     this._layers[name] = buf;
     this[name] = buf;
@@ -678,23 +778,23 @@ export class RenderBuffer {
   }
 
   destroy(gl, name) {
-    if (name == undefined) {
+    if (name === undefined) {
       for (var k in this._layers) {
-        gl.deleteBuffer(this._layers[k]);
+        this._layers[k].destroy(gl);
 
-        this._layers[k] = undefined;
-        this[k] = undefined;
+        delete this._layers[k];
+        delete this[k];
       }
     } else {
-      if (this._layers[name] == undefined) {
+      if (this._layers[name] === undefined) {
         console.trace("WARNING: gl buffer no in RenderBuffer!", name, gl);
         return;
       }
 
-      gl.deleteBuffer(this._layers[name]);
+      this._layers[name].destroy(gl);
 
-      this._layers[name] = undefined;
-      this[name] = undefined;
+      delete this._layers[name];
+      delete this[name];
     }
   }
 }

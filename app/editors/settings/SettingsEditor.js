@@ -69,6 +69,8 @@ export ${themejs}
   setCSS() {
     super.setCSS();
 
+    this.style["overflow"] = "scroll";
+
     if (this.tabs) {
       this.tabs.style["height"] = this.size[1] + "px";
     }

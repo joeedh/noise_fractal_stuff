@@ -45,6 +45,7 @@ export class PropsEditor extends Editor {
     let tabs = this.tabBar = this.container.tabs("left");
 
     let tab = tabs.tab("Main");
+    let pat = this.ctx ? this.ctx.pattern : undefined;
 
     tab.prop("canvas.showSliders");
 
@@ -54,14 +55,22 @@ export class PropsEditor extends Editor {
       con.dataPrefix = "pattern";
       con.noMarginsOrPadding();
 
-      let pat = this.ctx.pattern;
       pat.constructor.buildSidebar(this.ctx, con);
     }
 
     let panel = tab.panel("Builtin Presets");
     let list = UIBase.createElement("preset-category-x");
+    list.setAttribute("no-delete-button", true);
     list.dataPath = `presets.types.active.categories['Builtin']`;
+    panel.add(list);
 
+    tab = tabs.tab("Presets");
+
+    //add builtin presets again here
+    panel = tab.panel("Builtin Presets");
+    list = UIBase.createElement("preset-category-x");
+    list.setAttribute("no-delete-button", true);
+    list.dataPath = `presets.types.active.categories['Builtin']`;
     panel.add(list);
 
     let keys = util.list(presetManager.categoryKeys);
@@ -81,6 +90,39 @@ export class PropsEditor extends Editor {
 
       if (k !== 'Builtin') {
         panel.closed = true;
+      }
+    }
+
+    tab = tabs.tab("Sliders");
+    if (pat) {
+      let sdefs = pat.constructor.patternDef().sliderDef;
+
+      for (let i = 0; i < pat.sliders.length; i++) {
+        let sdef = sdefs[i];
+
+        if (typeof sdef === "string") {
+          sdef = {name : sdef};
+        }
+
+        let range = sdef.range ?? [-1000000, 1000000];
+
+        let path = `pattern.sliders[${i}].value`;
+        let elem = tab.prop(path);
+
+        elem.useDataPathUndo = true;
+
+        elem.setAttribute("labelOnTop", false);
+        elem.setAttribute("name", sdef.name);
+        elem.setAttribute("decimalPlaces", 2);
+
+        elem.setAttribute("min", range[0]);
+        elem.setAttribute("max",  range[1]);
+        //elem.setAttribute("expRate", sdef.exp ?? 1.0);
+        //let speed = (range[1] - range[0])*0.001*(sdef.speed ?? 1.0);
+        let speed = sdef.speed ?? 1.0;
+
+        elem.setAttribute("step", speed);
+
       }
     }
 
