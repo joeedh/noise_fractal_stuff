@@ -535,8 +535,10 @@ export class PresetCategoryWidget extends Container {
     this.setCSS();
     loadUIData(this, uidata);
 
-    let strip = this.strip();
-    strip.tool("app.delete_active_preset()");
+    if (!this.hasAttribute("no-delete-button")) {
+      let strip = this.strip();
+      strip.tool("app.delete_active_preset()");
+    }
   }
 
   setCSS() {

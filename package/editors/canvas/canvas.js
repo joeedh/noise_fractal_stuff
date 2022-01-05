@@ -186,7 +186,7 @@ export class CanvasEditor extends EditorGL {
   }
 
   on_mousemove(e, x, y) {
-    console.log("mouse move!", x, y);
+    //console.log("mouse move!", x, y);
   }
 
   on_mouseup(e, x, y) {
@@ -261,8 +261,13 @@ export class CanvasEditor extends EditorGL {
 
     let digest = this._digest.reset();
     let sliders = this.ctx.pattern.sliders;
+    let sdefs = this.ctx.pattern.constructor.patternDef().sliderDef;
 
     for (let i = 0; i < sliders.length; i++) {
+      if (typeof sdefs[i] === "object" && sdefs[i].noReset) {
+        continue;
+      }
+
       digest.add(sliders[i]);
     }
 
