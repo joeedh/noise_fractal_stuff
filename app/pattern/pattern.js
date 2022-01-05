@@ -371,6 +371,8 @@ float pattern(float ix, float iy) {
     b.sharpness = this.sharpness;
     b.per_pixel_random = this.per_pixel_random;
 
+    b.max_samples = this.max_samples;
+
     for (let i = 0; i < this.sliders.length; i++) {
       b.sliders[i] = this.sliders[i];
     }
