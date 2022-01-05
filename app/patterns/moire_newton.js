@@ -16,7 +16,10 @@ export const MoireModes = {
   ZERO  : 0,
   ONE   : 1,
   TWO   : 2,
-  THREE : 3
+  THREE : 3,
+  FOUR  : 4,
+  FIVE  : 5,
+  SIX   : 6
 };
 
 let namegen = 1;
@@ -107,6 +110,9 @@ const shader = `
 
 float ctent(float f) {
   return cos(f*M_PI*2.0)*0.5 + 0.5;
+  //return 1.0 / (cos(f*M_PI*2.0)*0.5 + 0.5 + 1.333333);
+  //return 1.0 - abs(fract(f)-0.5)*2.0;
+  //return fract(f);
 }
 
 float fsample(vec2 p) {
@@ -131,7 +137,7 @@ float fsample(vec2 p) {
 #if PATTERN == 0
   float f = (dx1+dy1+dx2+dy2+dx3+dy3)/6.0;
 #elif PATTERN == 1
-  float f = (dx1*dx1 + dy1*dy1 + dx2*dx2 + dy2*dy2 + dx3*dx3 + dy3*dy3) / sqrt(6.0);
+  float f = sqrt(dx1*dx1 + dy1*dy1 + dx2*dx2 + dy2*dy2 + dx3*dx3 + dy3*dy3) / sqrt(6.0);
 #elif PATTERN == 2
   float f = pow(dx1*dy1*dx2*dy2*dx3*dy3, 1.0/6.0);
 #elif PATTERN == 3
@@ -140,8 +146,11 @@ float fsample(vec2 p) {
   float f = abs(abs(dx1-dx2) + abs(dy1-dy2) + abs(dx2-dx3)  + abs(dy2-dy3))/6.0;
 #endif
   
-
+#ifdef SQUARE_F
   return f*f;
+#else
+  return f;
+#endif
 }
 
 const float df = 0.00001;
@@ -402,6 +411,30 @@ float pattern(float ix, float iy) {
 #endif
 #endif
 
+#if MODE == 4
+    if (dot(dp, dp) > 0.0) {
+      dp /= dot(dp, dp);
+    }
+#endif
+
+#if MODE == 5
+    if (dot(dp, dp) > 0.0) {
+      dp /= dot(dp, dp);
+      dp *= f;
+    }
+#endif
+
+#if MODE == 6
+    if (dot(dp, dp) > 0.0) {
+      dp /= dot(dp, dp);
+      dp *= f;
+      
+      vec2 dp2 = dp - lastdp;
+      dp += dp2*0.5;
+      dp *= 0.5;
+    }
+#endif
+
         p += -dp*SLIDERS[12];
       }
       
@@ -420,6 +453,7 @@ export class MoireNewtonPattern extends Pattern {
     super();
 
     this.newton_mode = MoireModes.ONE;
+    this.square_f = true;
     this.func = MoireFuncs.DIST;
     this.sharpness = 0.33; //use different default sharpness
   }
@@ -429,22 +463,24 @@ export class MoireNewtonPattern extends Pattern {
     
     con.prop("func");
     con.prop("newton_mode");
+    con.prop("square_f");
   }
   
   static apiDefine(api) {
     let st = super.apiDefine(api);
     
-    st.enum("func", "func", MoireFuncs, "Func")
-    .on("change", function() {
+    let onchange = function() {
       this.ctx.pattern.drawGen++;
-      //window.redraw_viewport();
-    });
+    }
+    
+    st.bool("square_f", "square_f", "Square F")
+    .on('change', onchange);
+    
+    st.enum("func", "func", MoireFuncs, "Func")
+    .on("change", onchange);
     
     st.enum("newton_mode", "newton_mode", MoireModes, "Mode")
-    .on("change", function() {
-      this.ctx.pattern.drawGen++;
-      //window.redraw_viewport();
-    });
+    .on("change", onchange);
 
     return st;
   }
@@ -494,6 +530,12 @@ export class MoireNewtonPattern extends Pattern {
   }
   
   setup(ctx, gl, uniforms, defines) {
+    if (this.square_f) {
+      defines.SQUARE_F = true;
+    } else {
+      delete defines.SQUARE_F;
+    }
+    
     defines.MODE = this.newton_mode;
     defines.GAIN = "SLIDERS[1]";
     defines.COLOR_SHIFT = "SLIDERS[2]";
@@ -513,12 +555,14 @@ export class MoireNewtonPattern extends Pattern {
     
     b.newton_mode = this.newton_mode;
     b.func = this.func;
+    b.square_f = this.square_f;
   }
 }
 
 MoireNewtonPattern.STRUCT = nstructjs.inherit(MoireNewtonPattern, Pattern) + `
   func        : int;
   newton_mode : int;
+  square_f    : bool;
 }`;
 
 Pattern.register(MoireNewtonPattern);
