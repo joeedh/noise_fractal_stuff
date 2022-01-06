@@ -3,14 +3,17 @@ import {
   Vector3, Vector4, Matrix4, Quat
 } from '../path.ux/pathux.js';
 
-import {Pattern} from '../pattern/pattern.js';
+import {Pattern, PatternFlags} from '../pattern/pattern.js';
 import {savePreset} from '../pattern/preset.js';
 import {ShaderProgram} from '../webgl/webgl.js';
+import {taskManager} from '../core/task.js';
+import {Shaders} from '../pattern/pattern_shaders.js';
 
 let nameBase = 1;
 
 export const MandelbrotPresets = [];
-export function add_preset(orbit_mode, orbit_seed, sliders, options={}, name=undefined) {
+
+export function add_preset(orbit_mode, orbit_seed, sliders, options = {}, name = undefined) {
   let pat = new MandelbrotPattern();
 
   pat.orbit_seed = orbit_seed;
@@ -21,7 +24,7 @@ export function add_preset(orbit_mode, orbit_seed, sliders, options={}, name=und
     pat[k] = options[k];
   }
 
-  for (let i=0; i<sliders.length; i++) {
+  for (let i = 0; i < sliders.length; i++) {
     if (i >= pat.sliders.length) {
       break;
     }
@@ -41,6 +44,117 @@ export function add_preset(orbit_mode, orbit_seed, sliders, options={}, name=und
 
 let presetCountBase = 1;
 
+/*
+
+on factor;
+off period;
+
+procedure bez(a, b);
+  a + (b - a)*s;
+  
+lin := bez(k1, k2);
+quad := bez(lin, sub(k2=k3, k1=k2, lin));
+cubic := bez(quad, sub(k3=k4, k2=k3, k1=k2, quad));
+quart := bez(quad, sub(k4=k5, k3=k4, k2=k3, k1=k2, cubic));
+quint := bez(quad, sub(k5=k6, k4=k5, k3=k4, k2=k3, k1=k2, quart));
+
+ax4 := 0.0;
+ay4 := 0.0;
+bx1 := 0.0;
+by1 := 0.0;
+
+px := sub(k1=x1, k2=x2, k3=x3, k4=x4, cubic);
+py := sub(k1=y1, k2=y2, k3=y3, k4=y4, cubic);
+
+dx1 := df(px, s);
+dy1 := df(py, s);
+dx2 := df(px, s, 2);
+dy2 := df(py, s, 2);
+
+fk := (dx1*dy2 - dy1*dx2) / ((dx1*dx1 + dy1*dy1)**(3.0/2.0));
+
+fk1 := sub(x1=ax1, x2=ax2, x3=ax3, x4=ax4, 
+           y1=ay1, y2=ay2, y3=ay3, y4=ay4, fk);
+fk2 := sub(x1=bx1, x2=bx2, x3=bx3, x4=bx4, 
+           y1=by1, y2=by2, y3=by3, y4=by4, fk);
+
+adx1 := sub(x1=ax1, x2=ax2, x3=ax3, x4=ax4, 
+           y1=ay1, y2=ay2, y3=ay3, y4=ay4, dx1);
+ady1 := sub(x1=ax1, x2=ax2, x3=ax3, x4=ax4, 
+           y1=ay1, y2=ay2, y3=ay3, y4=ay4, dy1);
+bdx1 := sub(x1=bx1, x2=bx2, x3=bx3, x4=bx4, 
+           y1=by1, y2=by2, y3=by3, y4=by4, dx1);
+bdy1 := sub(x1=bx1, x2=bx2, x3=bx3, x4=bx4, 
+           y1=by1, y2=by2, y3=by3, y4=by4, dy1);
+
+f1 := sub(s=1.0, fk1) - sub(s=0.0, fk2);
+f2 := sub(s=1.0, df(fk1, s)) - sub(s=0.0, df(fk2, s));
+f3 := sub(s=1.0, df(fk1, s, 2)) - sub(s=0.0, df(fk2, s, 2));
+f4 := ady1/adx1 - bdy1/bdx1;
+
+comment: solve({f1, f2, f3, f4}, {ax3, ay3, bx2, by2});
+
+fk  := k1 + (k2 - k1)*s;
+fth := int(fk, s);
+
+f1 := ady1/adx1 - bdy1/bdx1;
+
+x2 := x1 + dvx1*t1;
+y2 := y1 + dvy1*t1;
+
+x3 := x4 - dvx2*t2;
+y3 := y4 - dvy2*t2;
+
+f1 := sub(s=0, (dx2*dx2 + dy2*dy2)**1.0) - goal1;
+f2 := sub(s=1, (dx2*dx2 + dy2*dy2)**1.0) - goal2;
+
+jacob := mat(
+  (df(f1, t1), df(f1, t2)),
+  (df(f2, t1), df(f2, t2))
+);
+
+ff := solve({f1, f2}, {t1, t2});
+
+comment: ff := solve(f2, t2); 
+
+on fort;
+part(ff, 1);
+part(ff, 2);
+off fort;
+*/
+
+/*
+
+on factor;
+off period;
+
+procedure bez(a, b);
+  a + (b - a)*s;
+  
+lin := bez(k1, k2);
+quad := bez(lin, sub(k2=k3, k1=k2, lin));
+cubic := bez(quad, sub(k3=k4, k2=k3, k1=k2, quad));
+quart := bez(quad, sub(k4=k5, k3=k4, k2=k3, k1=k2, cubic));
+quint := bez(quad, sub(k5=k6, k4=k5, k3=k4, k2=k3, k1=k2, quart));
+
+
+f1 := sub(s=0, quint) - x1;
+f2 := sub(s=1, quint) - x4;
+f3 := sub(s=0, df(quint, s)) - dx1;
+f4 := sub(s=1, df(quint, s)) - dx4;
+f5 := sub(s=0, df(quint, s, 2)) - d2x1;
+f6 := sub(s=1, df(quint, s, 2)) - d2x4;
+
+ff := solve({f1, f2, f3, f4, f5, f6}, {k1, k2, k3, k4, k5, k6});
+
+fa := part(ff, 1, 1);
+fb := part(ff, 1, 2);
+fc := part(ff, 1, 3);
+fd := part(ff, 1, 4);
+fe := part(ff, 1, 5);
+ff := part(ff, 1, 6);
+
+*/
 export const OrbitFinalShader = {
   vertex    : `#version 300 es
 precision highp float;
@@ -149,16 +263,70 @@ vec2 cmul(vec2 a, vec2 b) {
     );
 }
 
-vec2 solve(float fsteps, vec2 uv2) {
+vec2 calcdv(vec2 p, vec2 uv) {
+  return cmul(p, vec2(2.0, 2.0));
+  return vec2(
+    -2.0*p.y,
+    2.0*p.x
+  );
+}
+
+vec2 solve(float fsteps, vec2 uv2, out vec2 dv) {
   vec2 p = uv2;
   
+  dv = vec2(0.0, 0.0);
+  vec2 lastdv = calcdv(uv2, uv2);
+  vec2 lastdv2 = lastdv;
+  
   for (int i=0; i<STEPS; i++) {
-    if (float(i) > fsteps) {
+    if (float(i) > fsteps+0.0001) {
       break;
     }
     
-    p = cmul(p, p) + uv2;
+    //p = cmul(p, p) + uv2;
+    vec2 p2;
+    
+    /*
+    procedure xmul(x, y);
+      x*x - y*y + u;
+    procedure ymul(x, y);
+      2.0*x*y + v;
+    
+    dx := xmul(x, y);
+    dy := ymul(x, y);
+    
+    dx2 := xmul(dx, dy);
+    dy2 := ymul(dx, dy);
+    
+    dvx := df(dx2, y);
+    dvy := df(dx2, x);
+    
+    */
+    //p2.x = p.x*p.x - p.y*p.y + uv2.x;
+    //p2.y = 2.0*p.x*p.y + uv2.y;
+    
+    p2 = cmul(p, p) + uv2;
+    //dv = calcdv(p, uv2) * lastdv;
+    dv = cmul(lastdv, calcdv(p, uv2));
+    
+    p = p2;        
+    lastdv2 = lastdv;
+    lastdv = dv;
   }
+  
+  vec2 p2 = p;
+  
+  for (int i=0;i<OFFSET2; i++) {
+    p2 = cmul(p2, p2) + uv2;
+    dv = cmul(calcdv(p2, uv2), lastdv);
+    lastdv2 = lastdv;
+    lastdv = dv;
+  }
+  
+  dv = lastdv2;
+  //dv = vec2(-dv.y, dv.x);
+  dv *= 0.25;
+  //dv = normalize(dv)*0.05;
   
   return p;
 }
@@ -193,38 +361,76 @@ void main() {
   uv2 = (uv2 + vec2(SLIDERS[7], SLIDERS[8])) * SLIDERS[6];
   vUv = uv2;
   
-  vec2 p0 = solve(fsteps, uv2);
-
-  vec2 p1 = solve(fsteps-1.0, uv2);
-  vec2 p2 = solve(fsteps+2.0, uv2);
-
-  vec2 p3 = solve(fsteps+1.0, uv2);
+  vec2 dv1, dv2, dv3, none;
   
-  p1 = (p0 - p1)*0.5 + (p3 - p0)*0.5;
-  p2 = (p3 - p2)*0.5 + (p0 - p3)*0.5;
- 
+  vec2 pn1 = solve(fsteps-2.0, uv2, none);
+
+  vec2 p1 = solve(fsteps-1.0, uv2, none);
+  vec2 p0 = solve(fsteps, uv2, dv1);
+  
+  vec2 p3 = solve(fsteps+1.0, uv2, dv2);
+  vec2 p2 = solve(fsteps+2.0, uv2, dv3);
+  
+  vec2 p4 = solve(fsteps+3.0, uv2, none);
+  
+  float ln1 = length(p1 - pn1);
+  float l4 = length(p4 - p2);
+  
+  vec2 d1 = -(p1 - pn1);
+  vec2 d2 = (p4 - p2);
+  
+  p1 = (p0 - p1) + (p3 - p0);
+  p2 = (p3 - p2) + (p0 - p3);
+  
+  p1 *= 0.5;
+  p2 *= 0.5;
+  
+  /*
+  p1 += d1*0.25;
+  p2 += d2*0.25;
+  p1 /= 2.25;
+  p2 /= 2.25;
+  //*/
+  
   float l1 = length(p1), l3 = length(p2);
   float l2 = length(p0 - p3);
+  
+  l1 = l1*0.5 + ln1*0.5;
+  l3 = l3*0.5 + l4*0.5;
   
   //l1 += (l2 - l1)*0.5;
   //l3 += (l2 - l3)*0.5;
   
   //p1 += normalize(p0)*l1;
   //p2 += normalize(p3)*l3;
+#if 0
+  p1 = normalize(p1)*l1;
+  p2 = normalize(p2)*l3;
   
-  //p1 = normalize(p1)*l1;
-  //p2 = normalize(p2)*l3;
+  //dv1 = dv2;
+  //dv2 = dv3;
   
+  p1 = dv1;
+  p2 = -dv2;
+  
+  dv1 = normalize(dv1);
+  dv2 = normalize(dv2);
+  vec2 addp = normalize(dv1 + (dv2 - dv1)*s);
+#endif 
+ 
   p1 = p0 + p1 / 3.0;
   p2 = p3 + p2 / 3.0;
   
-  vec2 p = p1 + (p2 - p1)*s;
+  vec2 p = p0 + (p3 - p0)*s;
   
   //p1 = p0;
   //p2 = p3;
-  
+#ifdef CUBIC  
   p.x = cubic(p0.x, p1.x, p2.x, p3.x, s);
   p.y = cubic(p0.y, p1.y, p2.y, p3.y, s);
+#endif 
+
+  //p += addp*0.2*SLIDERS[1]*(sin(s*55.0)*0.5+0.5);//*(sin(T*100.0)*0.5+0.5);
   
   p /= SLIDERS[6];
   p.x -= SLIDERS[7];
@@ -289,8 +495,6 @@ const shader = `
 //uniform float T;
 //uniform float SLIDERS[MAX_SLIDERS];
 
-#define M_PI 3.141592654
-
 vec2 cmul(vec2 a, vec2 b) {
     return vec2(
         a[0]*b[0] - a[1]*b[1],
@@ -298,9 +502,18 @@ vec2 cmul(vec2 a, vec2 b) {
     );
 }
 
+#if 0
+#ifdef SHOW_DV
+float pattern(float ix, float iy, out vec2 dv) {
+#else
 float pattern(float ix, float iy) {
+#endif
     vec2 uv = vec2(ix, iy)/iRes;
     
+#ifndef SHOW_DV
+    vec2 dv;
+#endif
+
 #ifdef BLANK
     return SLIDERS[15];
 #endif
@@ -313,13 +526,17 @@ float pattern(float ix, float iy) {
 
     uv *= SLIDERS[6];
     
-    vec2 p = vec2(0.0, 0.0);
+    vec2 p = uv;
     float f = 0.0;
+    
+    dv = cmul(p, vec2(2.0, 0.0));
     
     for (int i=0; i<STEPS; i++) {
       vec2 dp = p;
       
       p = cmul(p, p) + uv;
+      dv = cmul(p, vec2(2.0, 0.0)) * dv;
+
       dp = p - dp;
       
       //p += vec2(-1.0/dp.y, 1.0/dp.x)*SLIDERS[11]*0.0001;
@@ -362,6 +579,127 @@ float pattern(float ix, float iy) {
     f = fract(f);
     return f;
 }
+#endif
+
+
+#ifdef SHOW_DV
+float pattern(float ix, float iy, out vec2 dv) {
+#else
+float pattern(float ix, float iy) {
+#endif
+    vec2 uv = vec2(ix, iy)/iRes;
+    
+#ifndef SHOW_DV
+    vec2 dv;
+#endif
+    
+    float limit = 46.34;
+    
+    uv = uv*2.0 - 1.0;
+    uv.x *= aspect;
+    
+    uv.x += SLIDERS[7];
+    uv.y += SLIDERS[8];
+
+    uv *= SLIDERS[6];
+    
+    vec2 p = uv;
+    dv = cmul(p, vec2(2.0, 0.0));
+
+//#define TREE
+#ifdef TREE
+    dv = cmul(vec2(-p.y, p.x), vec2(2.0, 0.0));
+#endif
+    
+    for (int i=0; i<STEPS; i++) {
+#ifdef TREE
+      dv = cmul(vec2(-p.y, p.x), vec2(2.0, 0.0))*dv;
+#else
+      dv = cmul(cmul(p, vec2(2.0, 0.0)), dv);
+#endif
+
+      p = cmul(p, p) + uv;
+            
+      if (dot(p, p) > limit) {
+        dv /= float((i+1)*(i+1));
+        
+        float wid = 0.1*SLIDERS[4];
+        
+        //calc distance between steps
+        float f = float(i);
+        float f2 = length(p) / limit;
+        
+        float a = 3.5;
+        float b = 1.7;
+        
+        //linearize
+        f2 = exp(-f2*a)*b;
+         
+        //add fractional to step
+        f += f2;
+        
+        //take log for nicer results
+        //f = pow(f, 1.0/30.0);
+        //f = log(max(0.1 + f, 1.0));
+        //f *= 5.0;
+        //float fa = log(1.0 + f) / log(2.0);
+        //float fb = SLIDERS[1] / (f + 1.0);
+        
+        //f = fb*0.5 + fa*0.5;
+        f = pow(1.0 + f, -(1.0/3.0))*2.5;
+        //f = fb;
+        
+        return f;
+      }
+    }
+    
+    dv /= float(STEPS*STEPS);
+    
+    return 0.0;
+}
+
+#ifdef SHOW_DV
+void main() {
+  vec2 p = vCo*iRes;
+  vec2 dv;
+  
+  float df = 0.001;
+  
+  float fx = pattern(p.x+df, p.y, dv);
+  float fy = pattern(p.x, p.y+df, dv);
+  float f = pattern(p.x, p.y, dv);
+
+  vec2 dv1 = vec2(pattern(p.x+df, p.y, dv),
+                  pattern(p.x, p.y+df, dv));
+                  
+  vec2 dv2 = vec2(pattern(p.x+df*2.0, p.y, dv),
+                  pattern(p.x, p.y+df*2.0, dv));
+  vec2 dv3 = vec2(pattern(p.x+df*3.0, p.y, dv),
+                  pattern(p.x, p.y+df*3.0, dv));
+  
+  dv3 = (dv3 - dv2) / df;
+  dv2 = (dv2 - dv1) / df;
+  dv1 = (dv1 - vec2(f, f)) / df;
+  
+  float th = atan(dv1.y, dv1.x); // M_PI;
+  //th = th*0.5 + 0.5;
+  
+  //f = dot(normalize(dv), normalize(vec2(0.2, 0.5)))*0.5 + 0.5;
+  f = vCo.x*cos(th) + vCo.y*sin(th);
+  f = fract(f*10.0);
+  
+  f = fract(length(dv*0.001));
+  dv = normalize(dv)*0.5 + 0.5;
+  //dv = dv*0.5 + 0.5;
+  
+  dv = normalize(dv1)*0.5 + 0.5;
+  fragColor = vec4(dv.x, dv.y, 0.0, 1.0);
+  
+  fragColor.r += (uhash2(vCo)-0.5)/255.0;
+  fragColor.g += (uhash2(vCo+0.1)-0.5)/255.0;
+  fragColor.b += (uhash2(vCo+0.2)-0.5)/255.0;
+}
+#endif
 
 `
 
@@ -373,11 +711,14 @@ export class MandelbrotPattern extends Pattern {
     this._digest = new util.HashDigest();
 
     this.expandFrame = 4.0;
+    this.showDv = false;
 
+    this.cubicInterp = true;
     this._last_drawgen_pointbuf = undefined;
 
     //this.enableAccum = false;
 
+    this.filter_width = 1.1;
     this.max_samples = 512;//use different max_samples
     this.sharpness = 0.33; //use different default sharpness
 
@@ -399,13 +740,31 @@ export class MandelbrotPattern extends Pattern {
     this.pointbuf = undefined;
   }
 
+  get orbit_mode() {
+    return this._orbit_mode;
+  }
+
   set orbit_mode(v) {
     this.fboCount = v ? 3 : 2;
     this._orbit_mode = v;
   }
 
-  get orbit_mode() {
-    return this._orbit_mode;
+  get showDv() {
+    return this._showDv;
+  }
+
+  set showDv(v) {
+    if (v) {
+      this.flag |= PatternFlags.CUSTOM_SHADER;
+    } else {
+      this.flag &= ~PatternFlags.CUSTOM_SHADER;
+    }
+
+    if (!!v !== this._showDv) {
+      this.shader = undefined; //recompile shader
+    }
+
+    this._showDv = !!v;
   }
 
   static patternDef() {
@@ -429,46 +788,34 @@ export class MandelbrotPattern extends Pattern {
           speed: 7.0,
           exp  : 1.5,
         },//0
-        {name: "offset", value: 0.0, range: [-5.5, 15.5]}, //1
-        {name: "gain", value: 2.43, range: [0.001, 1000], speed: 4.0, exp: 2.0, noReset:true},  //2
-        {name: "color", value: 0.75, range: [-50, 50], speed: 0.25, exp: 1.0}, //3
-        {name: "colorscale", value: 1.54, speed : 0.1, noReset:true},//4
-        {name: "brightness", value: 1.0, range: [0.001, 10.0], noReset:true}, //5
+        {name: "offset", value: 0.0, range: [0.0, 15.5]}, //1
+        {name: "gain", value: 0.5, range: [0.001, 1000], speed: 0.4, exp: 1.5, noReset: true},  //2
+        {name: "color", value: 0.692, range: [-50, 50], speed: 0.25, exp: 1.0}, //3
+        {name: "colorscale", value: 2.1, speed: 0.1, noReset: true},//4
+        {name: "brightness", value: 1.0, range: [0.001, 10.0], noReset: true}, //5
         {name: "scale", value: 1.75, range: [0.001, 1000000.0]}, //6
         {name: "x", value: -0.42},  //7
         {name: "y"},  //8
         {name: "offset2"}, //9
         {name: "offset3", value: 0.85}, //10
         {name: "offset4"}, //11
-        {name        : "orbpoints", value: 1000, range: [1, 20000], speed: 10.0, exp: 2.5,
+        {
+          name       : "orbpoints", value: 1000, range: [1, 20000], speed: 10.0, exp: 2.5,
           description: "orbit trail points (in thousands)"
         }, //12
-        {name: "psize", value: 2.5, range: [0.1, 500], speed: 0.4, description: "orbit trail point size"}, //13
-        {name: "orbalpha", value: 0.5, speed : 0.1, range: [0.0, 1.0], description: "orbit trail alpha"}, //14
+        {name: "psize", value: 2.5, range: [0.1, 15], speed: 0.2, description: "orbit trail point size"}, //13
+        {name: "orbalpha", value: 0.5, speed: 0.1, range: [0.0, 1.0], description: "orbit trail alpha"}, //14
         {name: "orbshift", value: 0.94, speed: 0.1, range: [0.0, 1.0], description: "color shift orbit trail"}, //15
-        {name: "orbtrail", value: 15, range: [1, 500], speed: 2.5, description: "steps in orbit rail"},//16
-        {name: "orbtdist", value: 1.0, range: [0.001, 15], speed: 0.07, description: "length of orbit rail"},//17
-        {name: "orbdecay", value : 0.0, speed : 0.01, range: [0.0, 1.0]}, //18
-        {name: "orbspeed", value : 0.1, speed : 0.01, range: [0.0001, 2.0]}, //19
-        {name: "orbthresh", value : 4, speed : 1, range: [-1, 100]}, //20
+        {name: "orbtrail", value: 15, range: [1, 500], speed: 0.5, description: "steps in orbit rail"},//16
+        {name: "orbtdist", value: 1.0, range: [0.001, 275], speed: 0.07, description: "length of orbit rail"},//17
+        {name: "orbdecay", value: 0.0, speed: 0.01, range: [0.0, 1.0]}, //18
+        {name: "orbspeed", value: 0.1, speed: 0.01, range: [0.0001, 2.0]}, //19
+        {name: "orbthresh", value: 4, speed: 1, range: [-1, 500]}, //20
       ],
       shader
     }
   }
 
-  savePresetText(opts={}, name=undefined) {
-    opts.sharpness = opts.sharpness ?? this.sharpness;
-    opts.max_samples = opts.max_samples ?? this.max_samples;
-
-    let sliders = JSON.stringify(this.sliders);
-    opts = JSON.stringify(opts);
-
-    name = name ? `, "${name}"` : "";
-
-    return `
-add_preset(${this.orbit_mode}, ${this.orbit_seed}, ${sliders}, ${opts}${name});
-    `.trim();
-  }
   static apiDefine(api) {
     let st = super.apiDefine(api);
 
@@ -476,6 +823,10 @@ add_preset(${this.orbit_mode}, ${this.orbit_seed}, ${sliders}, ${opts}${name});
       this.dataref.regenPointBuf = true;
       this.dataref.drawGen++;
     }
+
+    st.bool("showDv", "showDv", "ShowDv")
+      .on('change', onchange);
+
 
     st.float("expandFrame", "expandFrame", "Expand Frame")
       .noUnits()
@@ -493,18 +844,49 @@ add_preset(${this.orbit_mode}, ${this.orbit_seed}, ${sliders}, ${opts}${name});
 
     st.bool("orbit_mode", "orbit_mode", "Orbit Mode")
       .on('change', onchange);
+
+    st.bool("cubicInterp", "cubicInterp", "Curved Paths").on('change', onchange);
   }
 
   static buildSidebar(ctx, con) {
     super.buildSidebar(ctx, con);
 
+    con.prop("showDv");
+
     con.prop("orbit_mode");
     con.prop("orbit_seed");
     con.prop("orbit_time_step");
     con.prop("expandFrame");
+    con.prop("cubicInterp");
+  }
+
+  savePresetText(opts = {}, name = undefined) {
+    opts.sharpness = opts.sharpness ?? this.sharpness;
+    opts.max_samples = opts.max_samples ?? this.max_samples;
+
+    let sliders = JSON.stringify(this.sliders);
+    opts = JSON.stringify(opts);
+
+    name = name ? `, "${name}"` : "";
+
+    return `
+add_preset(${this.orbit_mode}, ${this.orbit_seed}, ${sliders}, ${opts}${name});
+    `.trim();
   }
 
   setup(ctx, gl, uniforms, defines) {
+    defines.OFFSET2 = ~~this.sliders.offset2;
+
+    if (this.showDv) {
+      defines.SHOW_DV = null;
+    }
+
+    if (this.cubicInterp) {
+      defines.CUBIC = null;
+    } else {
+      delete defines.CUBIC;
+    }
+
     defines.GAIN = "SLIDERS[2]";
     defines.COLOR_SHIFT = "SLIDERS[3]";
     defines.COLOR_SCALE = "SLIDERS[4]";
@@ -546,27 +928,42 @@ add_preset(${this.orbit_mode}, ${this.orbit_seed}, ${sliders}, ${opts}${name});
     let start_time = util.time_ms();
     let last_totpoint;
 
+    let seed = this.orbit_seed;
+
+    function random() {
+      return rand.random();
+    }
+
     while (this.totpoint < totpoint) {
-      if (util.time_ms()-start_time > 500 && this.totpoint === last_totpoint) {
+      if (util.time_ms() - start_time > 1500 && this.totpoint === last_totpoint) {
         console.error("Could not make any orbit points", last_totpoint, this.totpoint, totpoint);
         break;
       }
 
       last_totpoint = this.totpoint;
 
-      let u = rand.random();
-      let v = rand.random();
+      let u = random();
+      let v = random();
 
-      let u2 = (u*2.0 - 1.0) * aspect * expandFrame;
-      let v2 = (v*2.0 - 1.0) * expandFrame;
+      let u2 = (u*2.0 - 1.0)*aspect*expandFrame;
+      let v2 = (v*2.0 - 1.0)*expandFrame;
 
-      u2 = (u2 + offx) * scale;
-      v2 = (v2 + offy) * scale;
+      u2 = (u2 + offx)*scale;
+      v2 = (v2 + offy)*scale;
 
       let x = u2, y = v2;
       let bad = true;
 
-      for (let j=0; j<800; j++) {
+      /*
+      on factor
+      off period;
+
+      procedure f(p);
+        p*p + uv;
+
+        2*p + lastdv;
+      */
+      for (let j = 0; j < 800; j++) {
         let x2 = x*x - y*y + u2;
         let y2 = 2.0*x*y + v2;
 
@@ -611,7 +1008,7 @@ add_preset(${this.orbit_mode}, ${this.orbit_seed}, ${sliders}, ${opts}${name});
       this.orbit_t = 0.0;
     }
 
-    let speed = this.sliders.orbtdist * this.sliders.orbspeed * 0.1 * this.sliders.scale;
+    let speed = /*this.sliders.orbtdist * */ this.sliders.orbspeed*0.1*this.sliders.scale;
 
     if (this.orbit_time_step > 0 && this.orbit_t_counter >= this.orbit_time_step) {
       this.orbit_t_counter = 0;
@@ -641,18 +1038,20 @@ add_preset(${this.orbit_mode}, ${this.orbit_seed}, ${sliders}, ${opts}${name});
     digest.add(this.sliders.orbtrail);
     digest.add(this.sliders.orbthresh);
 
-    let key = digest.get();
+    if (!taskManager.has("zoom")) {
+      let key = digest.get();
 
-    if (this.regenPointBuf || !this.pointbuf || key !== this._orbit_update_key) {
-      this._orbit_update_key = key;
+      if (this.regenPointBuf || !this.pointbuf || key !== this._orbit_update_key) {
+        this._orbit_update_key = key;
 
-      if (!this.regenPointBuf) {
-        this.drawGen++;
+        if (!this.regenPointBuf) {
+          this.drawGen++;
+        }
+
+        let glSize = ctx.canvas.glSize;
+        let aspect = glSize[0]/glSize[1];
+        this.makePointBuf(gl, aspect);
       }
-
-      let glSize = ctx.canvas.glSize;
-      let aspect = glSize[0] / glSize[1];
-      this.makePointBuf(gl, aspect);
     }
 
     gl.disable(gl.DEPTH_TEST);
@@ -665,6 +1064,26 @@ add_preset(${this.orbit_mode}, ${this.orbit_seed}, ${sliders}, ${opts}${name});
     gl.drawArrays(gl.POINTS, 0, totpoint);
 
     gl.disable(gl.BLEND);
+  }
+
+  compileShader(gl) {
+    if (!this.showDv) {
+      return super.compileShader(gl);
+    }
+
+    let fragment = this.constructor.patternDef().shader;
+    let vertex = Shaders.fragmentBase.vertex;
+
+    fragment = Shaders.fragmentBase.fragmentPre + "\n" + fragment;
+
+    let sdef = {
+      fragment, vertex, attributes: ["co"], uniforms: {}
+    };
+
+    this.shader = new ShaderProgram(gl, sdef.vertex, sdef.fragment, sdef.attributes);
+
+    sdef = Shaders.finalShader;
+    this.finalShader = new ShaderProgram(gl, sdef.vertex, sdef.fragment, sdef.attributes);
   }
 
   viewportDraw(ctx, gl, uniforms, defines) {
@@ -707,7 +1126,7 @@ add_preset(${this.orbit_mode}, ${this.orbit_seed}, ${sliders}, ${opts}${name});
       fbos[0].bind(gl);
 
       let uniforms2 = Object.assign({}, uniforms, {
-        inRgba : fbo.texColor
+        inRgba: fbo.texColor
       });
 
       this.orbit_accum_shader.bind(gl, uniforms2, defines);
@@ -722,10 +1141,12 @@ add_preset(${this.orbit_mode}, ${this.orbit_seed}, ${sliders}, ${opts}${name});
   copyTo(b) {
     super.copyTo(b);
 
+    b.showDv = this.showDv;
     b.orbit_mode = this.orbit_mode;
     b.orbit_seed = this.orbit_seed;
     b.orbit_time_step = this.orbit_time_step;
     b.expandFrame = this.expandFrame;
+    b.cubicInterp = this.cubicInterp;
   }
 }
 
@@ -734,6 +1155,8 @@ MandelbrotPattern.STRUCT = nstructjs.inherit(MandelbrotPattern, Pattern) + `
   orbit_seed      : int;
   orbit_time_step : double;
   expandFrame     : double;
+  cubicInterp     : bool;
+  showDv          : bool;
 }`;
 
 Pattern.register(MandelbrotPattern);
