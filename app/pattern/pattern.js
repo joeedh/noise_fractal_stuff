@@ -5,13 +5,10 @@ import {Shaders} from './pattern_shaders.js';
 import {loadPreset, presetManager, savePreset} from './preset.js';
 
 import {PatternClasses} from './pattern_base.js';
+
 export {PatternClasses} from './pattern_base.js';
 
 let CachedPatternTok = Symbol("cached-pattern");
-
-export const PatternFlags = {
-  CUSTOM_SHADER : 1
-};
 
 export class Sliders extends Array {
   constructor(n = 0, pat) {
@@ -80,9 +77,6 @@ export class Pattern {
     if (!def.typeName) {
       throw new Error("patternDef is missing typeName!");
     }
-
-    this.mul_with_orig = false;
-    this.mul_with_orig_exp = 0.333;
 
     this.enableAccum = true;
 
@@ -211,7 +205,6 @@ float pattern(float ix, float iy) {
     con.prop("filter_width");
     con.prop("pixel_size");
     con.prop("max_samples");
-    con.prop("mul_with_orig");
     con.prop("no_gradient");
     con.prop("use_sharpness");
     con.prop("use_monty_sharpness");
@@ -229,8 +222,6 @@ float pattern(float ix, float iy) {
       window.redraw_viewport();
       window._appstate.autoSave();
     };
-
-    st.bool("mul_with_orig", "mul_with_orig", "Multiply");
 
     st.int("max_samples", "max_samples", "Samples", "Maximum number of samples to take")
       .noUnits()
@@ -369,7 +360,6 @@ float pattern(float ix, float iy) {
   }
 
   copyTo(b) {
-    b.mul_with_orig = this.mul_with_orig;
     b.pixel_size = this.pixel_size;
     b.activePreset = this.activePreset;
     b.filter_width = this.filter_width;
@@ -419,8 +409,7 @@ float pattern(float ix, float iy) {
     let fragment = this.constructor.patternDef().shader;
     let vertex = Shaders.fragmentBase.vertex;
 
-    let main = Shaders.fragmentBase.fragment;
-    fragment = Shaders.fragmentBase.fragmentPre + fragment + main;
+    fragment = Shaders.fragmentBase.fragment.replace(/\$PATTERN_HERE/, fragment);
 
     let sdef = {
       fragment, vertex, attributes: ["co"], uniforms: {}
@@ -488,15 +477,6 @@ float pattern(float ix, float iy) {
 
     if (this.per_pixel_random) {
       defines.PER_PIXEL_RANDOM = null;
-    }
-
-    if (this.flag & PatternFlags.CUSTOM_SHADER) {
-      defines.CUSTOM_SHADER = null;
-    }
-
-    if (this.mul_with_orig) {
-      defines.MULTIPLY_ORIG = null;
-      defines.MULTIPLY_ORIG_EXP = this.mul_with_orig_exp;
     }
 
     let uniforms = {};
@@ -647,7 +627,6 @@ Pattern {
   sharpness           : double;
   
   max_samples         : int;
-  mul_with_orig       : bool;
 }
 `;
 nstructjs.register(Pattern);

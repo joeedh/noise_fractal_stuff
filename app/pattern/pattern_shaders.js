@@ -11,9 +11,8 @@ const fragmentBase = {
       }`.trim(),
   uniforms  : {},
   attributes: ["co"],
-  fragmentPre : `
-#version 300 es
-precision highp float;
+  fragment  : `#version 300 es
+      precision highp float;
 uniform vec2 iRes;
 uniform vec2 iInvRes;
 uniform float aspect;
@@ -26,7 +25,6 @@ uniform float sharpness;
 uniform sampler2D rgba;
 
 in vec2 vCo;
-out vec4 fragColor;
 
 #define M_PI 3.141592654
 
@@ -74,8 +72,8 @@ float uhash2(vec2 p) {
     return f*2.0 - 1.0;
 }
 
-  `.trim(),
-  fragment  : `
+$PATTERN_HERE
+
 float mainImage( vec2 uv, out float w) {    
 #ifdef PER_PIXEL_RANDOM
     float dx = uhash2(uv);
@@ -115,6 +113,8 @@ float mainImage( vec2 uv, out float w) {
     
     return f;
 }
+
+out vec4 fragColor;
 
 void main() {
   float w;
@@ -282,13 +282,7 @@ const finalShader = {
           vec4 color = texture(rgba, uv).rgba;
           
           color.rgb /= color.a;
-          
-#ifdef CUSTOM_SHADER
-          return color;
-#endif 
 
-          float value = color.r;
-          
 #ifndef OLD_GRADIENT
           float f = color.r;
 
@@ -317,9 +311,6 @@ const finalShader = {
          
 #endif
 
-#ifdef MULTIPLY_ORIG
-          color.rgb *= pow(1.0-min(value, 1.0), MULTIPLY_ORIG_EXP);
-#endif          
           color.rgb += (vec3(hash2(uv), hash2(uv+0.23423), hash2(uv+0.432))-0.5) / 255.0;
           return color;
         }
