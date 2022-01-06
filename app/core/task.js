@@ -114,8 +114,12 @@ export class TaskManager {
     return task;
   }
 
-  has(task) {
-    return task.id in this.task_idmap;
+  has(task_or_name) {
+    if (typeof task_or_name === 'string') {
+      return task_or_name in this.task_namemap;
+    } else {
+      return task_or_name.id in this.task_idmap;
+    }
   }
 
   [Symbol.iterator]() {

@@ -3,7 +3,8 @@
 git commit -a
 git push
 
-git checkout gh-pages
+git checkout gh-pages || exit 1
+
 git merge master -m "merge"
 ./package.sh
 git commit -a -m "update gh-pages"
