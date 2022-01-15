@@ -18,7 +18,7 @@ export function add_preset(orbit_mode, orbit_seed, sliders, options = {}, name =
 
   pat.orbit_seed = orbit_seed;
   pat.orbit_mode = orbit_mode;
-  pat.orbit_time_step = 4;
+  pat.orbit_time_step = 1;
 
   for (let k in options) {
     pat[k] = options[k];
@@ -188,6 +188,7 @@ uniform float filterWidth;
 uniform sampler2D rgba;
 uniform sampler2D inRgba;
 uniform float enableAccum;
+uniform float noDecay;
 
 in vec2 vCo;
 out vec4 fragColor;
@@ -197,13 +198,14 @@ void main() {
   vec4 c2 = texture(inRgba, vCo);
   
   if (enableAccum != 0.0) {
-#if 1
+    if (noDecay == 0.0) {
+
     float decay = SLIDERS[18];
-    decay = 1.0 - decay*decay*decay;
-        
-    c1 *= decay;
-    c1.rgb *= decay;
-#endif
+      decay = 1.0 - decay*decay*decay;
+          
+      c1 *= decay;
+      c1.rgb *= decay;
+    }
 
     c1.rgb += c2.rgb;
     c1.a += 1.0;
@@ -618,7 +620,19 @@ float pattern(float ix, float iy) {
       dv = cmul(cmul(p, vec2(2.0, 0.0)), dv);
 #endif
 
+      //uv += vec2(SLIDERS[10], SLIDERS[10])*0.1;
+      //uv += vec2(-dv.y, dv.x)*SLIDERS[9]*1.0;
+      //uv += dv*SLIDERS[11]*0.05;
+      
+      //p *= SLIDERS[9] + 1.0;
+      
       p = cmul(p, p) + uv;
+      //p += -dv*SLIDERS[10]*0.05;
+      
+      //uv = mix(uv, uv*uv*uv*(3.0 - 2.0*uv), SLIDERS[9]);
+      //uv = mix(uv, p, SLIDERS[9]);
+      
+      //p = mix(p, cmul(p, vec2(-dv.y, dv.x)), SLIDERS[9]);
             
       if (dot(p, p) > limit) {
         dv /= float((i+1)*(i+1));
@@ -727,7 +741,7 @@ export class MandelbrotPattern extends Pattern {
 
     this._orbit_mode = false;
     this.orbit_seed = 1;
-    this.orbit_time_step = 4; //for anti-aliasing
+    this.orbit_time_step = 1; //for anti-aliasing
     this.orbit_t = 0.0;
     this.orbit_t_counter = 0;
 
@@ -791,7 +805,7 @@ export class MandelbrotPattern extends Pattern {
         {name: "offset", value: 0.0, range: [0.0, 15.5]}, //1
         {name: "gain", value: 0.5, range: [0.001, 1000], speed: 0.4, exp: 1.5, noReset: true},  //2
         {name: "color", value: 0.692, range: [-50, 50], speed: 0.25, exp: 1.0}, //3
-        {name: "colorscale", value: 2.1, speed: 0.1, noReset: true},//4
+        {name: "colorscale", value: 2.1, speed: 0.01, noReset: true},//4
         {name: "brightness", value: 1.0, range: [0.001, 10.0], noReset: true}, //5
         {name: "scale", value: 1.75, range: [0.001, 1000000.0]}, //6
         {name: "x", value: -0.42},  //7
@@ -1009,15 +1023,25 @@ add_preset(${this.orbit_mode}, ${this.orbit_seed}, ${sliders}, ${opts}${name});
     }
 
     let speed = /*this.sliders.orbtdist * */ this.sliders.orbspeed*0.1*this.sliders.scale;
+    let noDecay = 1.0;
 
-    if (this.orbit_time_step > 0 && this.orbit_t_counter >= this.orbit_time_step) {
-      this.orbit_t_counter = 0;
-      this.orbit_t += speed;
+    /*XXX doesn't work*/
+    if (0) {
+      if (this.orbit_t_counter >= this.orbit_time_step) {
+        this.orbit_t_counter = 0;
+        this.orbit_t += speed;
+        this.T += 0.001;
+        uniforms.T = this.T;
+        noDecay = 0.0;
+      }
+      uniforms.noDecay = noDecay;
     } else {
+      this.T += 0.001;
       this.orbit_t += speed;
     }
 
     this.orbit_t_counter++;
+    //this.orbit_t += speed;
 
     //console.log(uniforms.T, this.orbit_t.toFixed(5), this.orbit_t_counter);
     uniforms.ORBIT_T = this.orbit_t;
@@ -1102,6 +1126,8 @@ add_preset(${this.orbit_mode}, ${this.orbit_seed}, ${sliders}, ${opts}${name});
     this.fboCount = this.orbit_mode ? 3 : 2;
 
     if (this.orbit_mode) {
+      this.DT = 0.0;
+
       //ctx.canvas.fbos is setup in Pattern parent class, see _doViewPortDraw method
       let fbos = ctx.canvas.fbos;
 
@@ -1134,6 +1160,7 @@ add_preset(${this.orbit_mode}, ${this.orbit_seed}, ${sliders}, ${opts}${name});
       gl.drawArrays(gl.TRIANGLES, 0, 6);
       //super.viewportDraw(ctx, gl, uniforms, defines);
     } else {
+      this.DT = 0.001;
       super.viewportDraw(ctx, gl, uniforms, defines);
     }
   }

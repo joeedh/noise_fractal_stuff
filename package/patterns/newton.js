@@ -70,8 +70,8 @@ vec2 cmul(vec2 a, vec2 b) {
 vec2 fsample(vec2 z, vec2 p) {
     const float d = 1.0;
     //(z-1)(z+1)(z-p)
-    vec2 a = z - vec2(d, 0.0);
-    vec2 b = z + vec2(d, 0.0);
+    vec2 a = z - vec2(d, 0.0+SLIDERS[12]);
+    vec2 b = z + vec2(d, 0.0-SLIDERS[12]);
     vec2 c = z - p;
     return cmul(cmul(a, b), c);
 }
@@ -231,6 +231,12 @@ float pattern(float ix, float iy) {
             break;
         }
         
+        //uv += abs(off.x) > abs(off.y) ? off.x : off.y;
+        //off.x = pow(abs(off.x), SLIDERS[14]+1.0)*sign(off.x);
+        //off.y = pow(abs(off.y), SLIDERS[14]+1.0)*sign(off.y);
+        
+        off += 0.0 + SLIDERS[14];
+          
         uv += off;
     }
     
@@ -296,28 +302,45 @@ export class NewtonPattern extends Pattern {
           exp  : 1.5,
         }, //0
         {name: "offset", value: 0.54, range: [-5.0, 5.0], speed: 0.1}, //1
-        {name: "gain", value: 0.19, range: [0.001, 1000], speed: 4.0, exp: 2.0},  //2
-        {name: "color", value: 0.75, range: [-50, 50], speed: 0.25, exp: 1.0}, //3
+        {name: "gain", value: 0.19, range: [0.001, 1000], speed: 4.0, exp: 2.0, noReset : true},  //2
+        {name: "color", value: 0.75, range: [-50, 50], speed: 0.25, exp: 1.0, noReset : true}, //3
         {name: "scale", value: 4.75, range: [0.001, 1000000.0]}, //4
         "x",  //5
         "y",  //6
-        {name: "colorscale", value: 5.9},//7
-        {name: "brightness", value: 1.0, range: [0.001, 10.0]}, //8
+        {name: "colorscale", value: 5.9, noReset : true},//7
+        {name: "brightness", value: 1.0, range: [0.001, 10.0], noReset : true}, //8
         {name: "hoff", value: 0.1, range: [0.0001, 10.0]}, //9
         {name: "poff", value: 0.39, range: [-8.0, 8.0], speed: 0.1, exp: 1.0}, //10
-        {name: "simple", value: 0.5, range: [-44.0, 44.0]}
+        {name: "simple", value: 0.5, range: [-44.0, 44.0]}, //11
+        {name: "offset2", value: 0.0, range : [-5, 5], speed : 0.2},//12
+        {name: "valueoff", value: 0.0, range : [-15.0, 45.0], speed : 0.15, exp : 1.35, noReset: true}, //13
+        {name: "offset3", value: 0.0, range: [-2.0, 10.0], speed: 0.025}, //14
       ],
       shader
     }
   }
 
   setup(ctx, gl, uniforms, defines) {
+    defines.VALUE_OFFSET = "SLIDERS[13]";
     defines.GAIN = "SLIDERS[2]";
     defines.COLOR_SHIFT = "SLIDERS[3]";
     defines.COLOR_SCALE = "SLIDERS[7]";
     defines.BRIGHTNESS = "SLIDERS[8]";
   }
 
+  savePresetText(opt={}) {
+    opt.sharpness = opt.sharpness ?? this.sharpness;
+    opt.filter_width = opt.filter_width ?? this.filter_width;
+    //opt.max_samples = opt.max_samples ?? this.max_samples;
+
+    opt = JSON.stringify(opt);
+
+    let sliders = JSON.stringify(util.list(this.sliders));
+
+    return `
+add_preset_new(${sliders}, ${opt});
+    `.trim();
+  }
   viewportDraw(ctx, gl, uniforms, defines) {
     defines.STEPS = ~~this.sliders[0];
 

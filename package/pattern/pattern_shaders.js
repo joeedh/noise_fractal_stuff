@@ -22,6 +22,7 @@ uniform float T;
 uniform float enableAccum;
 uniform float filterWidth;
 uniform float sharpness;
+uniform float uSample;
 
 uniform sampler2D rgba;
 
@@ -46,13 +47,13 @@ float hash(float seed) {
 
 float hash2(vec2 p) {
     p *= 1.0;
-    float a = 0.445325234;// + 0.01*fract(T*0.1);
+    float a = 0.445325234;// + 0.01*fract(uSample*0.001);
     
     p += tent(p*4.1234)*2.0 - 1.0;
     
     float f = p[0]*a + p[1]/a;
     
-    f += T*100.0;
+    f += uSample;
     
     return hash(f);
     return fract(f);
@@ -84,8 +85,8 @@ float mainImage( vec2 uv, out float w) {
     float dx = uhash2(vec2(0.,0.));
     float dy = uhash2(-vec2(0.,0.) + 2.432);
     
-    //dx = fract(T*100.0)*2.0 - 1.0;
-    //dy = fract(T*100.0+0.45)*2.0 - 1.0;
+    //dx = fract(uSample)*2.0 - 1.0;
+    //dy = fract(uSample+0.45)*2.0 - 1.0;
 #endif    
     
     //apply some sharpening in the monte carlo distribution,
@@ -112,6 +113,10 @@ float mainImage( vec2 uv, out float w) {
 
     // Output to screen
     vec4 color = vec4(f, f, f, 1.0);
+    
+    if (isnan(f) || f+f != 2.0*f) {
+      f = 0.5; 
+    }
     
     return f;
 }
@@ -152,7 +157,7 @@ const finalShader = {
         uniform sampler2D rgba;
         uniform vec2 iRes;
         uniform float sharpness;
-        uniform float SLIDERS[11];
+        uniform float SLIDERS[MAX_SLIDERS];
         uniform float T;
         
         in vec2 vCo;
@@ -278,10 +283,39 @@ const finalShader = {
         }
 #endif
 
-        vec4 fsample(vec2 uv) {
-          vec4 color = texture(rgba, uv).rgba;
+        vec3 tsample(vec2 uv) {
+          vec4 color = texture(rgba, uv);
           
           color.rgb /= color.a;
+          color.a = 1.0;
+          
+          return color.rgb;
+        }
+        
+        vec4 fsample(vec2 uv) {
+          vec4 color;
+          
+#ifdef USE_SHARPNESS
+          float du = 1.0 / iRes.x;
+          float dv = 1.0 / iRes.y;
+          
+          float w1 = 2.0, w2, w3, w4, w5;
+          
+          w2 = w3 = w4 = w5 = -sharpness*0.5;
+          
+          color.a = 1.0;
+          color.rgb = tsample(vCo)*w1
+                    + tsample(vCo + vec2(-du, -dv))*w2
+                    + tsample(vCo + vec2(-du, dv))*w3
+                    + tsample(vCo + vec2(du, dv))*w3
+                    + tsample(vCo + vec2(du, -dv))*w5;
+                    
+          color /= w1+w2+w3+w4+w5;
+#else
+
+          color = texture(rgba, uv);
+          color.rgb /= color.a;
+#endif
           
 #ifdef CUSTOM_SHADER
           return color;
@@ -297,7 +331,7 @@ const finalShader = {
           color.b = evalgrad(f, bgrad);
           color.a = 1.0;
 #else
-          float f = color.r;
+          float f = color.r + VALUE_OFFSET;
           
           f = mix(f*1.5, pow(f, 1.0 / GAIN), 0.5);
           f = tent(f*COLOR_SCALE+0.5);
@@ -334,7 +368,7 @@ const finalShader = {
         }
 #endif        
         void main() {
-#ifdef USE_SHARPNESS          
+#if 0 //def USE_SHARPNESS          
           float du = 1.0 / iRes.x;
           float dv = 1.0 / iRes.y;
           

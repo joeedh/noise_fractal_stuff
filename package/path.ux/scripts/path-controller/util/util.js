@@ -22,7 +22,7 @@ export function isDenormal(f) {
 
   return test === 0;
 }
-window._isDenormal = isDenormal;
+globalThis._isDenormal = isDenormal;
 
 
 let colormap = {
@@ -33,9 +33,11 @@ let colormap = {
   "blue"    : 34,
   "magenta" : 35,
   "cyan"    : 36,
+  "teal"    : 36,
   "white"   : 37,
   "reset"   : 0,
   "grey"    : 2,
+  "gray"    : 2,
   "orange"  : 202,
   "pink"    : 198,
   "brown"   : 314,
@@ -165,7 +167,7 @@ export function termPrint() {
   return out;
 }
 
-window.termColor = termColor;
+globalThis.termColor = termColor;
 
 export class MovingAvg extends Array {
   constructor(size = 64) {
@@ -211,8 +213,6 @@ export function pollTimer(id, interval) {
 
   return false;
 }
-
-window._pollTimer = pollTimer;
 
 let mdetect = undefined;
 let mret = undefined;
@@ -450,7 +450,7 @@ export class SmartConsole {
 
 export const console = new SmartConsole();
 
-window.tm = 0.0;
+globalThis.tm = 0.0;
 
 var EmptySlot = {};
 
@@ -464,7 +464,7 @@ export function getClassParent(cls) {
 }
 
 //make global for debugging purposes in console
-window._getClassParent = getClassParent;
+//window._getClassParent = getClassParent;
 
 export function list(iterable) {
   let ret = [];
@@ -529,7 +529,7 @@ export function getAllKeys(obj) {
   return keys;
 }
 
-window._getAllKeys = getAllKeys;
+//globalThis._getAllKeys = getAllKeys;
 
 export function btoa(buf) {
   if (buf instanceof ArrayBuffer) {
@@ -1264,8 +1264,8 @@ export function print_stack(err) {
   }
 }
 
-window.get_callstack = get_callstack;
-window.print_stack = print_stack;
+globalThis.get_callstack = get_callstack;
+globalThis.print_stack = print_stack;
 
 export function fetch_file(path) {
   var url = location.origin + "/" + path
@@ -1660,7 +1660,7 @@ window._test_hash2 = () => {
 
 digestcache = cachering.fromConstructor(HashDigest, 512);
 
-window._HashDigest = HashDigest;
+//globalThis._HashDigest = HashDigest;
 
 export function hashjoin(hash, val) {
   let sum = 0;
@@ -1836,7 +1836,7 @@ export class map {
 
 }
 
-window._test_map = function () {
+globalThis._test_map = function () {
   let m = new map();
 
   m.set("1", 2);
@@ -1984,7 +1984,7 @@ export class IDMap extends Array {
   }
 }
 
-window._test_idmap = function() {
+globalThis._test_idmap = function() {
   let map = new IDMap();
 
   for (let i=0; i<5; i++) {
@@ -2185,7 +2185,7 @@ export class MinHeapQueue {
   }
 }
 
-window.testHeapQueue = function(list1=[1, 8, -3, 11, 33]) {
+globalThis.testHeapQueue = function(list1=[1, 8, -3, 11, 33]) {
   let h = new MinHeapQueue(list1);
 
   window.console.log(h.heap.concat([]));
@@ -2270,7 +2270,7 @@ export class Queue {
   }
 }
 
-window._testQueue = function(steps=15, samples=15) {
+globalThis._testQueue = function(steps=15, samples=15) {
   let queue = new Queue(3);
 
   for (let i=0; i<steps; i++) {
