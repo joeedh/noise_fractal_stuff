@@ -78,12 +78,26 @@ export class AppState {
     console.log("saved startup file:", (s.length/1024.0).toFixed(2) + "kb");
   }
 
-  reset(screen=makeScreen(this.ctx), resetToolStack=true) {
+  reset(screen=makeScreen(this.ctx), resetToolStack=true, resetModel=true) {
     if (this.screen) {
       this.screen.remove();
     }
 
+    console.error("reset");
+
+    if (resetModel) {
+      this.model = new FileState();
+      this.model.setActivePattern("newton");
+    }
+
+    if (resetToolStack) {
+      this.toolstack = new AppToolStack();
+      this._last_tool = undefined;
+    }
+
     this.screen = screen;
+
+    screen.ctx = this.ctx;
     document.body.appendChild(this.screen);
     this.screen.listen();
   }
@@ -105,10 +119,10 @@ export class AppState {
   }
 }
 
-export function loadDefaultFile(appstate) {
+export function loadDefaultFile(appstate, loadLocalStorage=true) {
   let key = cconst.STARTUP_FILE_KEY;
 
-  if (key in localStorage) {
+  if (loadLocalStorage && key in localStorage) {
     try {
       let buf = localStorage[key];
       buf = atob(buf);
@@ -124,6 +138,8 @@ export function loadDefaultFile(appstate) {
       util.print_stack(error);
 
       console.error("failed to load startup file!");
+
+      appstate.reset();
       appstate.api.execTool(appstate.ctx, "app.root_file_op()");
     }
   }
