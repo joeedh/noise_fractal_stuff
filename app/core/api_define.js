@@ -6,6 +6,7 @@ import {ToolContext} from './context.js';
 import {CanvasEditor} from '../editors/canvas/canvas.js';
 import '../editors/canvas/canvas_ops.js';
 import {CategoryList, Preset, PresetList, PresetManager, presetManager} from '../pattern/preset.js';
+import {autoDiffGLSL} from '../glsl_autodiff/autodiff.js';
 
 function api_define_preset(api) {
   let st = api.mapStruct(Preset, true);

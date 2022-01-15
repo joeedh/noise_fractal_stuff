@@ -123,8 +123,8 @@ define(['util'], function sliders(util) {
         
         if (this.actslider < 0) return;
         
-    //    e.stopPropagation();
-    //    e.preventDefault()
+        e.stopPropagation();
+        e.preventDefault()
         
       }, true);
       dom.addEventListener("touchcancel", (e) => {
@@ -311,7 +311,9 @@ define(['util'], function sliders(util) {
         }
         
         //console.warn(def.range, val)
-        console.log("SLIDERS=[" + sliders + "];");
+        if (!this.noPrintSliders) {
+          console.log("SLIDERS=[" + sliders + "];");
+        }
         
         this.save();
         

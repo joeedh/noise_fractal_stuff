@@ -203,8 +203,12 @@ export class CanvasEditor extends EditorGL {
 
     let pat = this.ctx.pattern;
     if (pat) {
-      pat._doViewportDraw(this.ctx, canvas, gl, !this._drawReset);
-      this._drawReset = false;
+      let time = util.time_ms();
+
+      //while (util.time_ms() - time < 10) {
+        pat._doViewportDraw(this.ctx, canvas, gl, !this._drawReset);
+        this._drawReset = false;
+      //}
     }
 
     //console.log("viewport draw!");
@@ -313,9 +317,14 @@ export class CanvasEditor extends EditorGL {
     }
   }
 
-  onSliderChange(e) {
-    this.ctx.pattern.drawGen++;
-    window.redraw_viewport();
+  onSliderChange(slideri) {
+    let pat = this.ctx.pattern;
+    let sdef = pat.constructor.getPatternDef().sliderDef[slideri];
+
+    if (!sdef || typeof sdef === "string" || !sdef.noReset) {
+      this.ctx.pattern.drawGen++;
+      window.redraw_viewport();
+    }
   }
 };
 

@@ -19,7 +19,8 @@ export const MoireModes = {
   THREE : 3,
   FOUR  : 4,
   FIVE  : 5,
-  SIX   : 6
+  SIX   : 6,
+  SEVEN : 7
 };
 
 let namegen = 1;
@@ -109,7 +110,13 @@ const shader = `
 #define M_PI 3.141592654
 
 float ctent(float f) {
+  //return fract(f+0.5);
   return cos(f*M_PI*2.0)*0.5 + 0.5;
+  //f = tent(f);
+  //f = f*f*(3.0 - 2.0*f);
+  
+  return f;
+  
   //return 1.0 / (cos(f*M_PI*2.0)*0.5 + 0.5 + 1.333333);
   //return 1.0 - abs(fract(f)-0.5)*2.0;
   //return fract(f);
@@ -171,6 +178,7 @@ vec2 dv_sample(vec2 p) {
   
   const float eps = 0.0000001;
 
+#if 1
 #if PATTERN == 0
     float dx = -0.523598775598*(sin(6.28318530718*costh1*scale1*x+
        6.28318530718*scale1*sinth1*y)*costh1*scale1-sin(6.28318530718
@@ -347,6 +355,15 @@ vec2 dv_sample(vec2 p) {
       
       return dp;
 #endif
+#else
+      float f = fsample(p);
+      float dx = fsample(p + vec2(df, 0.0));
+      float dy = fsample(p + vec2(0.0, df));
+      
+      vec2 dp = vec2(f - dx, f - dy) * df_inv;
+      
+      return dp;
+#endif
 }
 float pattern(float ix, float iy) {
     vec2 uv = vec2(ix, iy)/iRes;
@@ -369,6 +386,20 @@ float pattern(float ix, float iy) {
       float f = fsample(p);
       vec2 dp = dv_sample(p);
       
+#if MODE == 7
+      //dp = normalize(dp);
+      
+      if (dot(dp, dp) < 0.1) {
+      //if (dot(p, p) > 4.0) {
+      //if (abs(f) < 0.13) {
+        sum = float(i) * 0.01;
+        //sum *= abs(p.x+p.y)*0.5;
+        //sum = length(uv - p);
+        break;
+      }
+      //sum = length(uv - p);
+#endif
+
       vec2 perp = vec2(-dp.y, dp.x);
       
       dp = mix(dp, perp, SLIDERS[9]);
@@ -435,11 +466,16 @@ float pattern(float ix, float iy) {
     }
 #endif
 
+        dp.x = pow(abs(dp.x), 1.0 + SLIDERS[13])*sign(dp.x);
+        dp.y = pow(abs(dp.y), 1.0 + SLIDERS[13])*sign(dp.y);
+        
         p += -dp*SLIDERS[12];
       }
-      
+
+#if MODE != 7
       sum += length(dp)/(1000.0*SLIDERS[8]);
-      
+#endif
+
       lastdp = dp;
     }
     
@@ -506,18 +542,19 @@ export class MoireNewtonPattern extends Pattern {
           speed: 7.0,
           exp  : 1.5,
         }, //0
-        {name: "gain", value: 4.695, range: [0.001, 1000], speed: 4.0, exp: 2.0},  //1
-        {name: "color", value: 0.72, range: [-50, 50], speed: 0.25, exp: 1.0}, //2
+        {name: "gain", value: 4.695, range: [0.001, 1000], speed: 4.0, exp: 2.0, noReset: true},  //1
+        {name: "color", value: 0.72, range: [-50, 50], speed: 0.25, exp: 1.0, noReset: true}, //2
         {name: "scale", value: 4.75, range: [0.001, 1000000.0]}, //3
         "x",  //4
         "y",  //5
-        {name: "colorscale", value: 46.79},//6
-        {name: "brightness", value: 1.04, range: [0.001, 10.0]}, //7
+        {name: "colorscale", value: 46.79, noReset: true},//6
+        {name: "brightness", value: 1.04, range: [0.001, 10.0], noReset: true}, //7
         {name: "hoff", value: 2.738, range: [0.0001, 10.0], speed: 0.05, exp : 1.5}, //8
         {name: "poff", value: 1.642, range: [-8.0, 8.0], speed: 0.1, exp: 1.0}, //9
         {name: "offset1", value: 2.2809, range: [-5.0, 25.0], speed: 0.1}, //10
         {name: "offset2", value: 0.8471, range: [-5.0, 25.0], speed: 0.1}, //11
         {name: "offset3", value: 0.62189, range: [-5.0, 25.0], speed: 0.5}, //12
+        {name: "offset4", value : 0.0, range : [-15.0, 15.0], speed : 0.1}, //13
         ],
       shader
     }
