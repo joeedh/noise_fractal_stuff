@@ -303,7 +303,7 @@ export function loadFile(appstate, buf, args = {}) {
   }
 
   if (doScreen && screen) {
-    appstate.reset(screen, false);
+    appstate.reset(screen, false, false);
   }
 
   if (appstate.screen) {
