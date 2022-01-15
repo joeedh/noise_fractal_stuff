@@ -17,6 +17,9 @@ export class Sliders extends Array {
   constructor(n = 0, pat) {
     super(n);
     this._pattern = pat;
+
+    this.renderTiles = false;
+    this.samplesPerTile = 2;
   }
 
   static from(b, pattern) {
@@ -92,7 +95,7 @@ export class Pattern {
 
     this.activePreset = 'My Preset';
 
-    this.max_samples = 64;
+    this.max_samples = 145;
 
     this.fast_mode = false;
     this.filter_width = 1.4;
@@ -103,11 +106,14 @@ export class Pattern {
     this.use_sharpness = true;
     this.sharpness = 0.5;
     this.per_pixel_random = true;
+
+    this.DT = 0.001;
     this.T = 0.0;
 
     this.drawGen = 0;
     this.drawSample = 0;
     this._lastDrawGen = 0;
+    this._lastDrawGens = new Map();
 
     this.typeName = def.typeName;
     this.uiName = def.uiName;
@@ -229,6 +235,14 @@ float pattern(float ix, float iy) {
       window.redraw_viewport();
       window._appstate.autoSave();
     };
+
+    st.bool("renderTiles", "renderTiles", "Use Tiles")
+      .on('change', onchange);
+      
+    st.float("samplesPerTile", "samplesPerTile", "Samples Per Tile")
+      .noUnits()
+      .range(1, 20)
+      .on('change', onchange);
 
     st.bool("mul_with_orig", "mul_with_orig", "Multiply");
 
@@ -459,10 +473,38 @@ float pattern(float ix, float iy) {
     let fbosUpdated = editor.ensureFbos(gl, this.fboCount, this.getPixelSize());
     let fbos = editor.fbos;
 
-    if (fbosUpdated || this.drawGen !== this._lastDrawGen) {
+    let w = fbos[0].size[0];
+    let h = fbos[1].size[1];
+
+    let tilesize = 128;
+    let tilew = Math.ceil(w / tilesize);
+    let tileh = Math.ceil(h / tilesize);
+    let tottile = tilew*tileh;
+
+    let rand = new util.MersenneRandom(~~(this.drawSample / this.samplesPerTile))
+    let ri = ~~(Math.random()*tottile*0.99999);
+
+    //let ri = ~~(this.drawSample / this.samplesPerTile);
+    ri = ri % tottile;
+    ri = tottile - 1 - ri;
+
+    let lastDrawGen;
+    if (this.renderTiles) {
+      lastDrawGen = this._lastDrawGens.get(ri);
+    } else {
+      lastDrawGen = this._lastDrawGen;
+    }
+    
+    if (fbosUpdated || this.drawGen !== lastDrawGen) {
       this.drawSample = 0;
-      this._lastDrawGen = this.drawGen;
       this.T = 0.0;
+      
+      if (this.renderTiles) {
+        enableAccum = false;
+        this._lastDrawGens.set(ri, this.drawGen);
+      } else {
+        this._lastDrawGen = this.drawGen;
+      }
     }
 
     let defines = {};
@@ -506,9 +548,19 @@ float pattern(float ix, float iy) {
     for (let i = 0; i < this.sliders.length; i++) {
       uniforms[`SLIDERS[${i}]`] = this.sliders[i];
     }
+    
+    let setViewport = () => {
+      if (this.renderTiles) {
+        let ix = ri%tilew;
+        let iy = ~~(ri/tilew);
 
-    let w = fbos[0].size[0];
-    let h = fbos[1].size[1];
+        let x = ix*tilesize;
+        let y = iy*tilesize;
+
+        gl.scissor(x, y, tilesize, tilesize);
+        gl.enable(gl.SCISSOR_TEST);
+      }
+    }
 
     uniforms.sharpness = this.sharpness;
     uniforms.iRes = [w, h];
@@ -517,12 +569,16 @@ float pattern(float ix, float iy) {
     uniforms.filterWidth = this.filter_width;
     uniforms.rgba = fbos[1].texColor;
     uniforms.enableAccum = enableAccum && this.drawSample > 0 ? 1.0 : 0.0;
-    uniforms.sample = this.drawSample;
+    uniforms.uSample = this.drawSample;
     uniforms.T = this.T;
 
     gl.disable(gl.SCISSOR_TEST);
 
+    this.updateInfo(ctx);
+
     const do_main_draw = this.drawSample <= this.max_samples;
+
+    defines.VALUE_OFFSET = "0.0";
 
     this.setup(ctx, gl, uniforms, defines);
 
@@ -531,10 +587,12 @@ float pattern(float ix, float iy) {
     }
 
     this.vbuf.bind(gl, 0);
+    setViewport();
 
     if (do_main_draw) {
       let fbo = fbos[0];
       fbo.bind(gl);
+      setViewport();
 
       this.viewportDraw(ctx, gl, uniforms, defines);
 
@@ -555,8 +613,10 @@ float pattern(float ix, float iy) {
 
     gl.clearColor(0.0, 0.5, 1.0, 1.0);
     gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.disable(gl.SCISSOR_TEST);
 
     this.vbuf.bind(gl, 0);
+
     gl.drawArrays(gl.TRIANGLES, 0, 6);
 
     if (do_main_draw) {
@@ -567,12 +627,26 @@ float pattern(float ix, float iy) {
 
     if (do_main_draw) {
       this.drawSample++;
-      this.T += 0.001;
+      this.T += this.DT;
+    }
+  }
+
+  updateInfo(ctx) {
+    if (ctx && ctx.menubar && ctx.menubar.infoSpan) {
+      let span = ctx.menubar.infoSpan;
+
+      let text = `sample ${this.drawSample + 1} of ${this.max_samples}`;
+      span.innerHTML = text;
     }
   }
 
   setup(ctx, gl, uniforms, defines) {
-
+    /*
+    defines.GAIN = "SLIDERS[X]";
+    defines.COLOR_SHIFT = "SLIDERS[X]";
+    defines.COLOR_SCALE = "SLIDERS[X]";
+    defines.BRIGHTNESS = "SLIDERS[X]";
+    */
   }
 
   loadSTRUCT(reader) {
@@ -624,7 +698,7 @@ float pattern(float ix, float iy) {
     let shader = this.shader;
     shader.bind(gl, uniforms, defines);
 
-    this.vbuf.bind(gl, 0);
+    //this.vbuf.bind(gl, 0);
     gl.drawArrays(gl.TRIANGLES, 0, 6);
   }
 }

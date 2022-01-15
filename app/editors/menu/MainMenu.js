@@ -63,6 +63,9 @@ export class MainMenu extends Editor {
       "app.export_presets()"
     ]);
 
+    let info = this.infoSpan = UIBase.createElement("span");
+    row.shadow.appendChild(info);
+
     if (window.haveElectron) {
       this.maxSize[1] = this.minSize[1] = 1;
       electron_api.initMenuBar(this);

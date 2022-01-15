@@ -94,15 +94,8 @@ export class PropsEditor extends Editor {
     }
 
     tab = tabs.tab("Sliders");
-    if (pat) {
-      let sdefs = pat.constructor.patternDef().sliderDef;
 
-      for (let i = 0; i < pat.sliders.length; i++) {
-        let sdef = sdefs[i];
-
-        if (typeof sdef === "string") {
-          sdef = {name : sdef};
-        }
+    let makeSlider = (i, sdef) => {
 
         let range = sdef.range ?? [-1000000, 1000000];
 
@@ -113,7 +106,7 @@ export class PropsEditor extends Editor {
 
         elem.setAttribute("labelOnTop", false);
         elem.setAttribute("name", sdef.name);
-        elem.setAttribute("decimalPlaces", 2);
+        elem.setAttribute("decimalPlaces", 4);
 
         elem.setAttribute("min", range[0]);
         elem.setAttribute("max",  range[1]);
@@ -121,8 +114,25 @@ export class PropsEditor extends Editor {
         //let speed = (range[1] - range[0])*0.001*(sdef.speed ?? 1.0);
         let speed = sdef.speed ?? 1.0;
 
-        elem.setAttribute("step", speed);
+        elem.setAttribute("step", speed*0.1);
+        
+        elem.onchange = () => {
+          if (!sdef.noReset) {
+            this.ctx.pattern.drawGen++;
+          }
+        }
+    }
+    if (pat) {
+      let sdefs = pat.constructor.patternDef().sliderDef;
 
+      for (let i = 0; i < pat.sliders.length; i++) {
+        let sdef = sdefs[i];
+
+        if (typeof sdef === "string") {
+          sdef = {name : sdef};
+        }
+          
+        makeSlider(i, sdef);
       }
     }
 

@@ -5,6 +5,7 @@ import {
 import {PatternsEnum} from '../pattern/pattern.js';
 import {CanvasEditor} from '../editors/canvas/canvas.js';
 import {presetManager} from '../pattern/preset.js';
+import {MainMenu} from '../editors/menu/MainMenu.js';
 
 export class BaseOverlay extends ContextOverlay {
   constructor(appstate) {
@@ -64,6 +65,10 @@ export class BaseOverlay extends ContextOverlay {
 }
 
 export class ViewOverlay extends ContextOverlay {
+  get menubar() {
+    return contextWrangler.getLastArea(MainMenu);
+  }
+
   get canvas() {
     return contextWrangler.getLastArea(CanvasEditor);
   }

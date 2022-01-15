@@ -6,7 +6,7 @@ import {
 import {Pattern} from '../pattern/pattern.js';
 import {savePreset} from '../pattern/preset.js';
 
-export const NewtonPresets = [];
+export const NewtonTracePresets = [];
 
 let presetCountBase = 1;
 
@@ -16,7 +16,7 @@ export function add_preset(sliders, options, fixScale = true, hide = false) {
     return;
   }
 
-  let preset = new NewtonPattern();
+  let preset = new NewtonTracePattern();
 
   for (let k in options) {
     k = k.toLowerCase();
@@ -44,7 +44,7 @@ export function add_preset(sliders, options, fixScale = true, hide = false) {
   let name = "Builtin #" + presetCountBase;
   presetCountBase++;
 
-  NewtonPresets.push(savePreset(preset, name, "Builtin"));
+  NewtonTracePresets.push(savePreset(preset, name, "Builtin"));
 }
 
 export function add_preset_new(sliders, options, hide = false) {
@@ -70,8 +70,8 @@ vec2 cmul(vec2 a, vec2 b) {
 vec2 fsample(vec2 z, vec2 p) {
     const float d = 1.0;
     //(z-1)(z+1)(z-p)
-    vec2 a = z - vec2(d, 0.0+SLIDERS[12]);
-    vec2 b = z + vec2(d, 0.0-SLIDERS[12]);
+    vec2 a = z - vec2(d, 0.0);
+    vec2 b = z + vec2(d, 0.0);
     vec2 c = z - p;
     return cmul(cmul(a, b), c);
 }
@@ -91,17 +91,8 @@ float length2(vec2 p) {
   return f;
 }
 
-float pattern(float ix, float iy) {
-    vec2 uv = vec2(ix, iy)/iRes;
-    
-    uv = uv*2.0 - 1.0;
-    uv.x *= aspect;
-    
-    uv.x += SLIDERS[5];
-    uv.y += SLIDERS[6];//+0.5*SLIDERS[4];
-
-    uv *= SLIDERS[4];
-
+float pattern2(float ix, float iy, float offset) {
+    vec2 uv = vec2(ix, iy);
     vec2 seed;
     
     vec2 dr, di;
@@ -121,7 +112,7 @@ float pattern(float ix, float iy) {
     //seed = vec2(pow(SLIDERS[11], uv[0]*0.5+0.5), pow(SLIDERS[11], uv[1]*0.5+0.5));
 #endif
 
-    tm = SLIDERS[1];
+    tm = offset;
     //tm = pow(tm, 1.0/1.0);
     float toff = pow(tm, 0.25);
     
@@ -230,12 +221,6 @@ float pattern(float ix, float iy) {
         if (i > int(SLIDERS[0])) {
             break;
         }
-        
-        //uv += abs(off.x) > abs(off.y) ? off.x : off.y;
-        //off.x = pow(abs(off.x), SLIDERS[14]+1.0)*sign(off.x);
-        //off.y = pow(abs(off.y), SLIDERS[14]+1.0)*sign(off.y);
-        
-        off += 0.0 + SLIDERS[14];
           
         uv += off;
     }
@@ -270,20 +255,215 @@ float pattern(float ix, float iy) {
     return f;
 }
 
+
+vec2 rot2d(vec2 a, float th) {
+  return vec2(cos(th)*a.x + sin(th)*a.y, cos(th)*a.y - sin(th)*a.x);
+}
+
+struct RenderState {
+  vec3 co;
+  vec3 dir;
+  float t;
+  float f;
+  vec3 no;
+};
+
+RenderState cube(RenderState state) {
+  vec3 co = state.co;
+  
+  co.x = abs(co.x);
+  co.y = abs(co.y);
+  co.z = abs(co.z);
+  
+  float f = min(min(co.x, co.y), co.z) - 0.5;
+  
+  co -= 0.5;
+  //co -= 0.5;
+  
+  state.no = vec3(0.0, 0.0, 0.0);
+  state.f = -f;
+  
+  if (co.x > co.y && co.x > co.z) {
+    state.no[0] = sign(state.f);
+  } else if (co.y > co.x && co.y > co.z) {
+    state.no[1] = sign(state.f);
+  } else {
+    state.no[2] = sign(state.f);
+  }
+  
+  return state;
+}
+
+RenderState isect(RenderState a, RenderState b) {
+  if (b.f > a.f) {
+    return b;
+  }
+  
+  return a;
+}
+
+RenderState sphere(RenderState state) {
+  state.f = length(state.co) - 0.5;
+  state.no = normalize(state.co);
+  
+  return state;
+}
+
+RenderState cylinder(RenderState state) {
+  state.f = length(state.co.xy) - 2.5;
+  state.no = normalize(vec3(state.co.xy, 0.0));
+  
+  return state;
+}
+
+void field(inout RenderState state) {
+  //state = cube(state);
+  //state = sphere(state);
+  
+  float x = state.co.x*SLIDERS[20];
+  float y = state.co.y*SLIDERS[20];
+  
+  float off = SLIDERS[1] + (abs(state.co.z + 0.25))*SLIDERS[19]*SLIDERS[20];
+  
+  float f = pattern2(x, y, off)*SLIDERS[21];
+  
+  f -= SLIDERS[18];
+  f = -f;
+
+  f /= SLIDERS[20];
+  
+  //f *= abs(state.co.z);
+  
+  state.f = f*SLIDERS[22];
+  
+  //if (abs(state.co.z) > 0.2) {
+  //  state.f = abs(state.co.z) - 0.2;
+  //}
+  
+  //state = isect(state, cylinder(state));
+  state = isect(state, sphere(state));
+}
+
+void rtrace(inout RenderState state) {
+  float mul = SLIDERS[16];
+   
+  state.co += state.dir * 0.0;
+  
+  for (int i=0; i<STEPS2; i++) {
+    field(state);
+    
+    if (abs(state.f) < SLIDERS[23]) {
+      return;
+    }
+    
+    state.co += state.dir * state.f * mul;
+    state.t += state.f * mul;
+  }
+  
+  state.f = 0.0;
+}
+
+float pattern(float ix, float iy) {
+  float f;
+  
+  vec2 uv = vec2(ix, iy)*iInvRes;
+  uv = uv*2.0 - 1.0;
+  uv.x *= aspect;
+  //uv *= 2.0;
+  
+  uv.x += SLIDERS[5];
+  uv.y += SLIDERS[6];
+  uv *= SLIDERS[4];
+  
+  RenderState state;
+  vec3 rp = vec3(0.0, SLIDERS[15], -2.0); //origin
+  vec3 rt = vec3(0.0, 0.0, 0.0); //target
+  vec3 rd;
+  
+  rp.yz = rot2d(rp.yz, SLIDERS[12]);
+  rp.xy = rot2d(rp.xy, SLIDERS[13]);
+  
+  float pixsize = 0.2; //max(iInvRes.x, iInvRes.y);
+  
+  rd = normalize(rt - rp);
+  
+  vec3 side = normalize(cross(rd, vec3(0.0, 0.0, 1.0)));
+  vec3 up = normalize(cross(side, rd));
+  
+  vec3 planeco = rp;
+  
+  planeco += side * uv.x + up*uv.y + rd*SLIDERS[14];
+  
+  rd = normalize(planeco - rp);
+  
+  state.co = rp;
+  state.dir = rd;
+  state.t = 0.0;
+  state.f = 0.0;
+  
+  rtrace(state);
+  
+  float l = dot(state.no, normalize(vec3(0.1, 0.2, 0.3)))*0.5 + 0.5;
+  //l = state.t*0.03; //fract(state.t);
+  
+  l = state.f;
+  l = abs(state.co.z);
+  l *= float(fract(state.co.z*5.0) > 0.5)*0.5 + 0.5;
+  
+  l = isnan(l) ? 0.001 : l;
+  l = l != (1.0 / (1.0 / l)) ? 0.001 : l;
+  
+  vec3 co = state.co;
+  vec3 no;
+  const float df = 0.0001;
+  
+  float f1 = state.f;
+  
+  state.co = co + vec3(df, 0.0, 0.0);
+  field(state);
+  no.x = state.f - f1; 
+
+  state.co = co + vec3(0.0, df, 0.0);
+  field(state);
+  no.y = state.f - f1; 
+
+  state.co = co + vec3(0.0, 0.0, df);
+  field(state);
+  no.z = state.f - f1; 
+  
+  no = normalize(no);
+  no = no*0.5 + 0.5;
+  
+  state.co = co + no*0.01;
+  field(state);
+  
+  l = no[0];
+  l = abs(state.f * 100.0);
+  l = min(max(l, 0.0), 1.0);
+  
+  //l = pow(l, 0.4);
+  
+  l = sqrt(l*no[0]);
+  
+  return l*0.3;
+}
 `
 
 
-export class NewtonPattern extends Pattern {
+export class NewtonTracePattern extends Pattern {
   constructor() {
     super();
+
+    this.renderTiles = true;
+    this.samplesPerTile = 5;
 
     this.sharpness = 0.33; //use different default sharpness
   }
 
   static patternDef() {
     return {
-      typeName     : "newton",
-      uiName       : "Newton",
+      typeName     : "newton_trace",
+      uiName       : "Newton Trace",
       flag         : 0,
       description  : "modified newton fractal",
       icon         : -1,
@@ -292,7 +472,7 @@ export class NewtonPattern extends Pattern {
         x    : 5,
         y    : 6,
       },
-      presets      : NewtonPresets,
+      presets      : NewtonTracePresets,
       sliderDef    : [
         {
           name : "steps", integer: true,
@@ -304,7 +484,7 @@ export class NewtonPattern extends Pattern {
         {name: "offset", value: 0.54, range: [-5.0, 5.0], speed: 0.1}, //1
         {name: "gain", value: 0.19, range: [0.001, 1000], speed: 4.0, exp: 2.0, noReset : true},  //2
         {name: "color", value: 0.75, range: [-50, 50], speed: 0.25, exp: 1.0, noReset : true}, //3
-        {name: "scale", value: 4.75, range: [0.001, 1000000.0]}, //4
+        {name: "scale", value: 1.0, range: [0.001, 1000000.0]}, //4
         "x",  //5
         "y",  //6
         {name: "colorscale", value: 5.9, noReset : true},//7
@@ -312,22 +492,39 @@ export class NewtonPattern extends Pattern {
         {name: "hoff", value: 0.1, range: [0.0001, 10.0]}, //9
         {name: "poff", value: 0.39, range: [-8.0, 8.0], speed: 0.1, exp: 1.0}, //10
         {name: "simple", value: 0.5, range: [-44.0, 44.0]}, //11
-        {name: "offset2", value: 0.0, range : [-5, 5], speed : 0.2},//12
-        {name: "valueoff", value: 0.0, range : [-15.0, 45.0], speed : 0.15, exp : 1.35, noReset: true}, //13
-        {name: "offset3", value: 0.0, range: [-2.0, 10.0], speed: 0.025}, //14
+        {name: "pitch", value : 0.0}, //12,
+        {name: "roll", value : 0.0}, //13
+        {name: "fov", value : 0.1, speed : 0.1}, //14
+        {name: "dist", value : 5.0, speed: 1.0}, //15
+        {name: "eps", value : 0.25, speed : 0.0025}, //16
+        {name: "steps2", value : 25.0, speed : 2.5}, //17
+        {name: "limit", value : 0.5, speed : 0.1}, //18
+        {name: "depth", value : 0.5, speed : 0.1}, //19
+        {name: "scale2", value : 0.1, speed : 0.1}, //20
+        {name: "scale3", value : 0.5, speed : 0.1}, //21
+        {name: "scale4", value : 0.25, speed : 0.1}, //22
+        {name: "rlimit", value : 0.001, speed : 0.00025, exp : 1.0, range : [0.00001, 0.1]}, //23
       ],
       shader
     }
   }
 
   setup(ctx, gl, uniforms, defines) {
-    defines.VALUE_OFFSET = "SLIDERS[13]";
+    //defines.VALUE_OFFSET = "SLIDERS[13]";
     defines.GAIN = "SLIDERS[2]";
     defines.COLOR_SHIFT = "SLIDERS[3]";
     defines.COLOR_SCALE = "SLIDERS[7]";
     defines.BRIGHTNESS = "SLIDERS[8]";
+    defines.STEPS2 = ~~this.sliders.steps2;
   }
 
+  static buildSidebar(ctx, con) {
+    super.buildSidebar(ctx, con);
+
+    con.prop("samplesPerTile");
+    con.prop("renderTiles");
+  }
+  
   savePresetText(opt={}) {
     opt.sharpness = opt.sharpness ?? this.sharpness;
     opt.filter_width = opt.filter_width ?? this.filter_width;
@@ -352,7 +549,8 @@ add_preset_new(${sliders}, ${opt});
   }
 }
 
-NewtonPattern.STRUCT = nstructjs.inherit(NewtonPattern, Pattern) + `
+NewtonTracePattern.STRUCT = nstructjs.inherit(NewtonTracePattern, Pattern) + `
+  renderTiles : bool;
 }`;
 
-Pattern.register(NewtonPattern);
+Pattern.register(NewtonTracePattern);
