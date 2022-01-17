@@ -174,6 +174,7 @@ export class RenderJob {
 
     //window.open(url);
     //console.log(url, this.size);
+    progbarNote(this.ctx.screen, "render", 1.0);
   }
 
   * renderTileIntern(tile) {
