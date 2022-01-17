@@ -41,6 +41,8 @@ export class RenderJob {
     let gl = ctx.canvas.gl;
     this.fbo = new FBO(gl, this.tilesize, this.tilesize);
 
+    this.pattern = ctx.pattern.copy();
+
     let tx = Math.ceil(this.size[0]/this.tilesize + 0.0001);
     let ty = Math.ceil(this.size[1]/this.tilesize + 0.0001);
     let tilesize = this.tilesize;
@@ -177,7 +179,7 @@ export class RenderJob {
   * renderTileIntern(tile) {
     let ctx = this.ctx;
     let editor = ctx.canvas;
-    let pattern = ctx.pattern;
+    let pattern = this.pattern;
     let gl = editor.gl;
     let size = this.size;
 
@@ -254,7 +256,7 @@ export class RenderJob {
     //console.log("rendering tile", tile);
     let ctx = this.ctx;
     let editor = ctx.canvas;
-    let pattern = ctx.pattern;
+    let pattern = this.pattern;
 
     let old = {
       scale      : pattern.scale,
