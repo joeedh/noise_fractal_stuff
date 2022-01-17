@@ -172,6 +172,10 @@ export class CanvasEditor extends EditorGL {
   on_mousedown(e, x, y) {
     console.log("mouse down!", x, y);
 
+    if (isRendering()) {
+      return;
+    }
+
     if (e.button === 0 || eventWasTouch(e)) {
       this.ctx.api.execTool(this.ctx, `canvas.zoom(startX=${x} startY=${y} hasStartMouse=true)`);
 

@@ -383,6 +383,12 @@ float pattern(float ix, float iy) {
     return this;
   }
 
+  copy() {
+    let ret = new this.constructor();
+    this.copyTo(ret);
+    return ret;
+  }
+  
   copyTo(b) {
     b.mul_with_orig = this.mul_with_orig;
     b.pixel_size = this.pixel_size;
