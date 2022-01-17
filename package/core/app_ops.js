@@ -1,11 +1,12 @@
 import {
   nstructjs, ToolOp, ToolProperty, BoolProperty,
   StringProperty, EnumProperty, FlagProperty, FloatProperty,
-  util, UndoFlags
+  util, UndoFlags, IntProperty
 } from '../path.ux/pathux.js';
 import {Icons} from '../editors/icon_enum.js';
 import * as cconst from './const.js';
 import {loadPreset, Preset, presetManager, savePreset} from '../pattern/preset.js';
+import {render} from './render.js';
 
 export class RootFileOp extends ToolOp {
   static tooldef() {
@@ -241,3 +242,29 @@ export class ResetPatternOp extends ToolOp {
 }
 
 ToolOp.register(ResetPatternOp);
+
+
+export class ExportOp extends ToolOp {
+  static tooldef() {
+    return {
+      toolpath: "app.export",
+      undoflag: UndoFlags.NO_UNDO,
+      uiname  : "Export",
+      icon    : Icons.REDO,
+      inputs  : {
+        name  : new StringProperty().saveLastValue(),
+        width : new IntProperty(512).setRange(2, 40000).noUnits().saveLastValue(),
+        height: new IntProperty(512).setRange(2, 40000).noUnits().saveLastValue(),
+      },
+      outputs : {},
+    }
+  };
+
+  exec(ctx) {
+    render(ctx, this.inputs.width.getValue(), this.inputs.height.getValue()).then((res) => {
+
+    });
+  }
+}
+
+ToolOp.register(ExportOp);

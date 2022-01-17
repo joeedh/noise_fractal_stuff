@@ -1,6 +1,6 @@
 import {
   ContextOverlay, Context, util, vectormath, math,
-  contextWrangler
+  contextWrangler, SavedToolDefaults
 } from '../path.ux/pathux.js';
 import {PatternsEnum} from '../pattern/pattern.js';
 import {CanvasEditor} from '../editors/canvas/canvas.js';
@@ -38,6 +38,30 @@ export class BaseOverlay extends ContextOverlay {
 
   get model() {
     return this.state.model;
+  }
+
+  get toolDefaults() {
+    return SavedToolDefaults.accessors;
+  }
+
+  toolDefaults_save() {
+    return SavedToolDefaults.accessors;
+  }
+
+  toolDefaults_load() {
+    return SavedToolDefaults.accessors;
+  }
+
+  get propCache() { //used by datapath api
+    return SavedToolDefaults;
+  }
+
+  propCache_save() {
+    return SavedToolDefaults;
+  }
+
+  propCache_load(ctx, data) {
+    return SavedToolDefaults;
   }
 
   get pattern() {

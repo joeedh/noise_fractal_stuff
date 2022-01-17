@@ -7,6 +7,7 @@ import {Icons} from '../icon_enum.js';
 import {Editor} from '../editor_base.js';
 import {EditorGL} from '../editor_base_3d.js';
 import {FBO} from '../../webgl/webgl.js';
+import {isRendering} from '../../core/render.js';
 
 export class CanvasEditor extends EditorGL {
   constructor() {
@@ -17,6 +18,7 @@ export class CanvasEditor extends EditorGL {
     this.fbos = [];
 
     this.canvas = undefined;
+    this.gl = undefined;
 
     this._drawReset = false;
     this._digest = new util.HashDigest();
@@ -65,10 +67,9 @@ export class CanvasEditor extends EditorGL {
   }
 
 
-  transform(p) {
+  transform(p, size=this.glSize, dpi=UIBase.getDPI()) {
     const pat = this.ctx.pattern;
-    const dpi = UIBase.getDPI();
-    const size = this.glSize;
+    dpi *= pat.pixel_size;
 
     p[0] *= dpi;
     p[1] *= dpi;
@@ -88,9 +89,9 @@ export class CanvasEditor extends EditorGL {
     p[1] *= pat.scale;
   }
 
-  untransform(p) {
+  untransform(p, size=this.glSize, dpi=UIBase.getDPI()) {
     const pat = this.ctx.pattern;
-    let dpi = UIBase.getDPI() * pat.pixel_size;
+    dpi *= pat.pixel_size;
 
     p[0] /= pat.scale;
     p[1] /= pat.scale;
@@ -98,20 +99,16 @@ export class CanvasEditor extends EditorGL {
     p[0] -= pat.offsetx;
     p[1] -= pat.offsety;
 
-    p[0] *= this.glSize[1]/canvas.glSize[0];
+    p[0] /= size[0]/size[1];
 
     p[0] = p[0]*0.5 + 0.5;
     p[1] = p[1]*0.5 + 0.5;
 
-    p[0] *= this.glSize[0];
-    p[1] *= this.glSize[1];
+    p[0] *= size[0];
+    p[1] = (1.0 - p[1])*size[1];
 
-    p[1] = this.glSize[1] - p[1];
-
-    p[0] /= dpi;
-    p[1] /= dpi;
-
-    //console.log(p);
+    p[0] *= dpi;
+    p[1] *= dpi;
   }
 
   init() {
@@ -194,8 +191,12 @@ export class CanvasEditor extends EditorGL {
   }
 
   viewportDraw(canvas, gl) {
+    if (isRendering()) {
+      return;
+    }
     super.viewportDraw(canvas, gl);
 
+    this.gl = gl;
     this.canvas = canvas;
 
     gl.clearColor(0.5, 0.4, 0.3, 1.0);
@@ -215,6 +216,7 @@ export class CanvasEditor extends EditorGL {
   }
 
   ensureFbos(gl, count, pixel_size = 1.0) {
+    //prune any extra fbos
     for (let i = count; i < this.fbos.length; i++) {
       this.fbos[i].destroy(gl);
     }

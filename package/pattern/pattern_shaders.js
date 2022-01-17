@@ -3,14 +3,19 @@ const fragmentBase = {
       #version 300 es
       precision highp float;
       in vec2 co;
+      in vec2 uv;
+      
       out vec2 vCo;
+      out vec2 vUv;
       
       void main() {
         gl_Position = vec4((co-0.5)*2.0, 0.0, 1.0);
+        
+        vUv = uv;
         vCo = co;
       }`.trim(),
   uniforms  : {},
-  attributes: ["co"],
+  attributes: ["co", "uv"],
   fragmentPre : `
 #version 300 es
 precision highp float;
@@ -26,7 +31,9 @@ uniform float uSample;
 
 uniform sampler2D rgba;
 
-in vec2 vCo;
+in vec2 vCo;//drawing rectangle coordinates
+in vec2 vUv;//possibly mapped coordinates
+
 out vec4 fragColor;
 
 #define M_PI 3.141592654
@@ -124,7 +131,7 @@ float mainImage( vec2 uv, out float w) {
 void main() {
   float w;
   
-  float f = mainImage(vCo*iRes, w);
+  float f = mainImage(vUv*iRes, w);
   
   vec2 uv = vCo;
   vec4 color;

@@ -396,7 +396,7 @@ export class Context {
    *
    * */
   saveProperty(key) {
-    console.warn("Missing saveProperty implementation in Context; passing through values...", key)
+    //console.warn("Missing saveProperty implementation in Context; passing through values...", key)
     return this[key];
   }
 
@@ -406,7 +406,7 @@ export class Context {
    *
    * */
   loadProperty(ctx, key, data) {
-    console.warn("Missing loadProperty implementation in Context; passing through values...", key)
+    //console.warn("Missing loadProperty implementation in Context; passing through values...", key)
     return data;
   }
 
