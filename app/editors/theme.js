@@ -273,6 +273,8 @@ export var theme = {
 
   notification: {
     width: 150,
+    ProgressBar : "rgb(255,140,25)",
+    ProgressBarBG : "rgb(112,112,112)"
   },
 
   numslider: {

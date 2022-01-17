@@ -1,4 +1,4 @@
-import {areaclasses, DataAPI, EnumProperty} from '../path.ux/pathux.js';
+import {areaclasses, DataAPI, ToolPropertyCache, EnumProperty, buildToolSysAPI} from '../path.ux/pathux.js';
 import {PatternClasses, makePatternsEnum, PatternsEnum, Pattern} from '../pattern/pattern.js';
 import '../patterns/all.js';
 import {FileState} from './file.js';
@@ -7,6 +7,7 @@ import {CanvasEditor} from '../editors/canvas/canvas.js';
 import '../editors/canvas/canvas_ops.js';
 import {CategoryList, Preset, PresetList, PresetManager, presetManager} from '../pattern/preset.js';
 import {autoDiffGLSL} from '../glsl_autodiff/autodiff.js';
+import './app_ops.js';
 
 function api_define_preset(api) {
   let st = api.mapStruct(Preset, true);
@@ -170,8 +171,11 @@ export function api_define() {
   cst.struct("canvas", "canvas", "Canvas", api.mapStruct(CanvasEditor));
   cst.struct("presets", "presets", "Presets", api.mapStruct(PresetManager));
 
+  cst.struct("propCache", "toolDefaults", "Tool Defaults", api.mapStruct(ToolPropertyCache));
+
   api.rootContextStruct = cst;
 
+  buildToolSysAPI(api, false);
 
   return api;
 }

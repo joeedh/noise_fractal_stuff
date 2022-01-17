@@ -1061,7 +1061,7 @@ vec normalize(vec a) {
     }
   }
 
-  console.log(s);
+  //console.warn(s);
   return s;
 }
 
