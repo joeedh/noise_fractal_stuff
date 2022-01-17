@@ -5,12 +5,13 @@ import {Shaders} from './pattern_shaders.js';
 import {loadPreset, presetManager, savePreset} from './preset.js';
 
 import {PatternClasses} from './pattern_base.js';
+
 export {PatternClasses} from './pattern_base.js';
 
 let CachedPatternTok = Symbol("cached-pattern");
 
 export const PatternFlags = {
-  CUSTOM_SHADER : 1
+  CUSTOM_SHADER: 1
 };
 
 export class Sliders extends Array {
@@ -62,7 +63,7 @@ export class Sliders extends Array {
 
       if (typeof item === "string") {
         k = item;
-        item = {name : item};
+        item = {name: item};
       } else {
         k = item.name;
       }
@@ -238,7 +239,7 @@ float pattern(float ix, float iy) {
 
     st.bool("renderTiles", "renderTiles", "Use Tiles")
       .on('change', onchange);
-      
+
     st.float("samplesPerTile", "samplesPerTile", "Samples Per Tile")
       .noUnits()
       .range(1, 20)
@@ -437,7 +438,7 @@ float pattern(float ix, float iy) {
     fragment = Shaders.fragmentBase.fragmentPre + fragment + main;
 
     let sdef = {
-      fragment, vertex, attributes: ["co"], uniforms: {}
+      fragment, vertex, attributes: Shaders.fragmentBase.attributes, uniforms: {}
     };
 
     this.shader = new ShaderProgram(gl, sdef.vertex, sdef.fragment, sdef.attributes);
@@ -454,7 +455,10 @@ float pattern(float ix, float iy) {
     return this.pixel_size;
   }
 
-  _doViewportDraw(ctx, canvas, gl, enableAccum) {
+  _doViewportDraw(ctx, canvas, gl, enableAccum,
+                  finalOnly = false, finalFbo = undefined,
+                  customUVs                   = undefined,
+                  customSize                  = undefined) {
     enableAccum = enableAccum && this.enableAccum;
 
     if (!this.shader) {
@@ -476,16 +480,26 @@ float pattern(float ix, float iy) {
     let w = fbos[0].size[0];
     let h = fbos[1].size[1];
 
-    let tilesize = 128;
-    let tilew = Math.ceil(w / tilesize);
-    let tileh = Math.ceil(h / tilesize);
-    let tottile = tilew*tileh;
+    if (customSize) {
+      w = customSize[0];
+      h = customSize[1];
+    }
 
-    let rand = new util.MersenneRandom(~~(this.drawSample / this.samplesPerTile))
-    let ri = ~~(Math.random()*tottile*0.99999);
+    let tilesize, tilew, tileh, tottile, ri;
+
+    /* gl.scissor based tiling, not used by ../core/render.js */
+    if (this.renderTiles) {
+      tilesize = 128;
+      tilew = Math.ceil(w/tilesize);
+      tileh = Math.ceil(h/tilesize);
+      tottile = tilew*tileh;
+
+      let rand = new util.MersenneRandom(~~(this.drawSample/this.samplesPerTile))
+      ri = ~~(Math.random()*tottile*0.99999);
+    }
 
     //let ri = ~~(this.drawSample / this.samplesPerTile);
-    ri = ri % tottile;
+    ri = ri%tottile;
     ri = tottile - 1 - ri;
 
     let lastDrawGen;
@@ -494,11 +508,16 @@ float pattern(float ix, float iy) {
     } else {
       lastDrawGen = this._lastDrawGen;
     }
-    
+
     if (fbosUpdated || this.drawGen !== lastDrawGen) {
       this.drawSample = 0;
       this.T = 0.0;
-      
+
+      fbos[0].bind(gl);
+      gl.clearColor(0.0, 0.0, 0.0, 0.0);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+      gl.disable(gl.SCISSOR_TEST);
+
       if (this.renderTiles) {
         enableAccum = false;
         this._lastDrawGens.set(ri, this.drawGen);
@@ -548,7 +567,7 @@ float pattern(float ix, float iy) {
     for (let i = 0; i < this.sliders.length; i++) {
       uniforms[`SLIDERS[${i}]`] = this.sliders[i];
     }
-    
+
     let setViewport = () => {
       if (this.renderTiles) {
         let ix = ri%tilew;
@@ -576,7 +595,7 @@ float pattern(float ix, float iy) {
 
     this.updateInfo(ctx);
 
-    const do_main_draw = this.drawSample <= this.max_samples;
+    const do_main_draw = this.drawSample <= this.max_samples && !finalOnly;
 
     defines.VALUE_OFFSET = "0.0";
 
@@ -586,7 +605,17 @@ float pattern(float ix, float iy) {
       this.regenMesh(gl);
     }
 
-    this.vbuf.bind(gl, 0);
+    let vbuf;
+
+    if (customUVs) {
+      vbuf = this.genMesh(gl, "customCo", customUVs);
+    } else {
+      vbuf = this.vbuf;
+    }
+
+    vbuf.co.bind(gl, 0);
+    vbuf.uvs.bind(gl, 1);
+
     setViewport();
 
     if (do_main_draw) {
@@ -599,25 +628,38 @@ float pattern(float ix, float iy) {
       fbo.unbind(gl);
     }
 
-    if (!this.use_sharpness || this.use_monty_sharpness) {
-      delete defines.USE_SHARPNESS;
-    } else if (this.use_sharpness) {
-      defines.USE_SHARPNESS = null;
+    gl.disableVertexAttribArray(1);
+
+    if (finalFbo !== null) {
+      if (!this.use_sharpness || this.use_monty_sharpness) {
+        delete defines.USE_SHARPNESS;
+      } else if (this.use_sharpness) {
+        defines.USE_SHARPNESS = null;
+      }
+
+      uniforms.rgba = fbos[0].texColor;
+      this.finalShader.bind(gl, uniforms, defines);
+
+      gl.enable(gl.SCISSOR_TEST);
+      gl.viewport(editor.glPos[0], editor.glPos[1], editor.glSize[0], editor.glSize[1]);
+
+      gl.clearColor(0.0, 0.5, 1.0, 1.0);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+      gl.disable(gl.SCISSOR_TEST);
+
+      vbuf.co.bind(gl, 0);
+      vbuf.uvs.bind(gl, 1);
+
+      if (finalFbo) {
+        finalFbo.bind(gl);
+      }
+
+      gl.drawArrays(gl.TRIANGLES, 0, 6);
+
+      if (finalFbo) {
+        finalFbo.unbind(gl);
+      }
     }
-
-    uniforms.rgba = fbos[0].texColor;
-    this.finalShader.bind(gl, uniforms, defines);
-
-    gl.enable(gl.SCISSOR_TEST);
-    gl.viewport(editor.glPos[0], editor.glPos[1], editor.glSize[0], editor.glSize[1]);
-
-    gl.clearColor(0.0, 0.5, 1.0, 1.0);
-    gl.clear(gl.COLOR_BUFFER_BIT);
-    gl.disable(gl.SCISSOR_TEST);
-
-    this.vbuf.bind(gl, 0);
-
-    gl.drawArrays(gl.TRIANGLES, 0, 6);
 
     if (do_main_draw) {
       let t = fbos[0];
@@ -672,14 +714,27 @@ float pattern(float ix, float iy) {
   }
 
   regenMesh(gl) {
-    this.vbo = new RenderBuffer();
-
-    let vbuf = this.vbuf = this.vbo.get(gl, "co");
-
+    this.vbuf = this.genMesh(gl, "co", [[0, 0], [1, 1]]);
     this.regen = 0;
-    var mesh = new Float32Array([
+  }
+
+  genMesh(gl, key, customUvs) {
+    if (!this.vbo) {
+      this.vbo = new RenderBuffer();
+    }
+
+    let vbuf = this.vbo.get(gl, key);
+
+    let [min, max] = customUvs;
+
+    let mesh = new Float32Array([
       0, 0, 0, 1, 1, 1,
       0, 0, 1, 1, 1, 0
+    ]);
+
+    let uvs = new Float32Array([
+      min[0], min[1], min[0], max[1], max[0], max[1],
+      min[0], min[1], max[0], max[1], max[0], min[1]
     ]);
 
     vbuf.upload(gl, {
@@ -688,6 +743,19 @@ float pattern(float ix, float iy) {
       target  : gl.ARRAY_BUFFER,
       perfHint: gl.STATIC_DRAW,
     }, mesh);
+
+    let uvbuf = this.vbo.get(gl, key + "_uvs");
+    uvbuf.upload(gl, {
+      elemSize: 2,
+      type    : gl.FLOAT,
+      target  : gl.ARRAY_BUFFER,
+      perfHint: gl.STATIC_DRAW,
+    }, uvs);
+
+    return {
+      co : vbuf,
+      uvs: uvbuf
+    };
   }
 
   viewportDraw(ctx, gl, uniforms = {}, defines = {}) {

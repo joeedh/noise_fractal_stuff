@@ -273,6 +273,8 @@ vec2 calcdv(vec2 p, vec2 uv) {
   );
 }
 
+
+
 vec2 solve(float fsteps, vec2 uv2, out vec2 dv) {
   vec2 p = uv2;
   
@@ -308,6 +310,7 @@ vec2 solve(float fsteps, vec2 uv2, out vec2 dv) {
     //p2.y = 2.0*p.x*p.y + uv2.y;
     
     p2 = cmul(p, p) + uv2;
+
     //dv = calcdv(p, uv2) * lastdv;
     dv = cmul(lastdv, calcdv(p, uv2));
     
@@ -319,7 +322,7 @@ vec2 solve(float fsteps, vec2 uv2, out vec2 dv) {
   vec2 p2 = p;
   
   for (int i=0;i<OFFSET2; i++) {
-    p2 = cmul(p2, p2) + uv2;
+    p2 = cmul(p2, p2) + uv2;    
     dv = cmul(calcdv(p2, uv2), lastdv);
     lastdv2 = lastdv;
     lastdv = dv;
@@ -537,6 +540,7 @@ float pattern(float ix, float iy) {
       vec2 dp = p;
       
       p = cmul(p, p) + uv;
+            
       dv = cmul(p, vec2(2.0, 0.0)) * dv;
 
       dp = p - dp;
@@ -583,6 +587,36 @@ float pattern(float ix, float iy) {
 }
 #endif
 
+vec2 cexpn(vec2 z) {
+  if (z.y == 0.0) {
+    return vec2(exp(z.x), 0.0);
+  }
+  
+  float f = exp(z.x);
+  return f * vec2(cos(z.y), sin(z.y));
+}
+
+vec2 cexp(vec2 x, vec2 b) {
+  //log
+  vec2 ln = vec2(
+    log(length(x)),
+    atan(x.y, x.x)
+  );
+  
+  //ln = ln.x * vec2(cos(ln.y), sin(ln.y));
+  
+  return cexpn(cmul(b, ln));
+  
+  vec2 exp = cmul(b, ln);
+  exp = vec2(
+    length(exp),
+    atan(exp.y, exp.x)
+  );
+  
+  return vec2(exp.x*cos(exp.y), exp.x*sin(exp.y));
+}
+ 
+
 
 #ifdef SHOW_DV
 float pattern(float ix, float iy, out vec2 dv) {
@@ -626,7 +660,10 @@ float pattern(float ix, float iy) {
       
       //p *= SLIDERS[9] + 1.0;
       
-      p = cmul(p, p) + uv;
+      //p = cmul(p, p) + uv;
+      
+      p = cexp(p, vec2(SLIDERS[21], 0.0)) + uv;
+
       //p += -dv*SLIDERS[10]*0.05;
       
       //uv = mix(uv, uv*uv*uv*(3.0 - 2.0*uv), SLIDERS[9]);
@@ -825,6 +862,7 @@ export class MandelbrotPattern extends Pattern {
         {name: "orbdecay", value: 0.0, speed: 0.01, range: [0.0, 1.0]}, //18
         {name: "orbspeed", value: 0.1, speed: 0.01, range: [0.0001, 2.0]}, //19
         {name: "orbthresh", value: 4, speed: 1, range: [-1, 500]}, //20
+        {name: "exp", value : 2.0, range : [-1.0, 10000.0], speed : 0.25}, //21
       ],
       shader
     }

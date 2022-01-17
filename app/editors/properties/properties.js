@@ -4,8 +4,11 @@ import {
   saveUIData, loadUIData
 } from '../../path.ux/pathux.js';
 
+import '../../core/app_ops.js';
+
 import {Editor} from '../editor_base.js';
 import {presetManager} from '../../pattern/preset.js';
+import {abortRendering} from '../../core/render.js';
 
 export class PropsEditor extends Editor {
   constructor() {
@@ -135,6 +138,12 @@ export class PropsEditor extends Editor {
         makeSlider(i, sdef);
       }
     }
+
+    tab = tabs.tab("Export");
+    panel = tab.toolPanel("app.export");
+    panel.button("Stop", () => {
+      abortRendering();
+    });
 
     this.setCSS();
 
