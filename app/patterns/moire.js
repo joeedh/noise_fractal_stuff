@@ -187,6 +187,7 @@ export class MoirePattern extends Pattern {
 
     function onchange() {
       this.dataref.drawGen++;
+      window.redraw_viewport();
     }
 
     st.enum("moire_func", "moire_func", MoireFuncs, "Func")

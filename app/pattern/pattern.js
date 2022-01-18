@@ -237,6 +237,8 @@ float pattern(float ix, float iy) {
       window._appstate.autoSave();
     };
 
+    let redraw = window.redraw_viewport;
+
     st.bool("renderTiles", "renderTiles", "Use Tiles")
       .on('change', onchange);
 
@@ -255,21 +257,28 @@ float pattern(float ix, float iy) {
       .rollerSlider();
 
     st.bool("fast_mode", "fast_mode", "Fast Mode",
-      "Render at lower resolution\n Multiplies pixel_size by 0.5");
+      "Render at lower resolution\n Multiplies pixel_size by 0.5")
+      .on('change', onchange);
 
-    st.bool("no_gradient", "no_gradient", "B/W mode");
-    st.bool("old_gradient", "old_gradient", "Old Gradient");
+    st.bool("no_gradient", "no_gradient", "B/W mode")
+      .on('change', redraw);
+    st.bool("old_gradient", "old_gradient", "Old Gradient")
+      .on('change', redraw);
     st.bool("use_monty_sharpness", "use_monty_sharpness", "Monty Sharpness")
       .on('change', onchange);
 
-    st.bool("print_test", "print_test", "Printer Test");
-    st.bool("use_sharpness", "use_sharpness", "Use Sharpness");
+    st.bool("print_test", "print_test", "Printer Test")
+      .on('change', redraw);
+    st.bool("use_sharpness", "use_sharpness", "Use Sharpness")
+      .on('change', redraw);
     st.bool("per_pixel_random", "per_pixel_random", "Pixel Random")
       .on('change', onchange);
 
     st.float("sharpness", "sharpness", "Sharpness")
       .range(0.0, 1.0)
-      .noUnits();
+      .noUnits()
+      .on('change', redraw);
+
     st.float("filter_width", "filter_width", "Filter Width")
       .noUnits()
       .range(0.0, 10.0)
@@ -306,6 +315,7 @@ float pattern(float ix, float iy) {
             },
             set(v) {
               sliders[i] = v;
+              window.redraw_viewport();
             }
           });
         }
@@ -388,7 +398,11 @@ float pattern(float ix, float iy) {
     this.copyTo(ret);
     return ret;
   }
-  
+
+  get isDrawing() {
+    return this.drawSample <= this.max_samples || this.drawGen !== this._lastDrawGen;
+  }
+
   copyTo(b) {
     b.mul_with_orig = this.mul_with_orig;
     b.pixel_size = this.pixel_size;

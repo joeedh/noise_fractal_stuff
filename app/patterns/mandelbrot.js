@@ -587,13 +587,17 @@ float pattern(float ix, float iy) {
 }
 #endif
 
+#ifndef M_PI
+#define M_PI 3.14159265453
+#endif
+
 vec2 cexpn(vec2 z) {
   if (z.y == 0.0) {
     return vec2(exp(z.x), 0.0);
   }
   
   float f = exp(z.x);
-  return f * vec2(cos(z.y), sin(z.y));
+  return f * vec2(cos(z.y+SLIDERS[22]), sin(z.y+SLIDERS[22]));
 }
 
 vec2 cexp(vec2 x, vec2 b) {
@@ -862,7 +866,8 @@ export class MandelbrotPattern extends Pattern {
         {name: "orbdecay", value: 0.0, speed: 0.01, range: [0.0, 1.0]}, //18
         {name: "orbspeed", value: 0.1, speed: 0.01, range: [0.0001, 2.0]}, //19
         {name: "orbthresh", value: 4, speed: 1, range: [-1, 500]}, //20
-        {name: "exp", value : 2.0, range : [-1.0, 10000.0], speed : 0.25}, //21
+        {name: "exp", value : 2.0, range : [-5.0, 10000.0], speed : 0.25}, //21
+        {name: "th", value : 0.0, range : [-6.0, 6.0], speed : 0.0875}, //22
       ],
       shader
     }
@@ -897,7 +902,8 @@ export class MandelbrotPattern extends Pattern {
     st.bool("orbit_mode", "orbit_mode", "Orbit Mode")
       .on('change', onchange);
 
-    st.bool("cubicInterp", "cubicInterp", "Curved Paths").on('change', onchange);
+    st.bool("cubicInterp", "cubicInterp", "Curved Paths")
+      .on('change', onchange);
   }
 
   static buildSidebar(ctx, con) {
