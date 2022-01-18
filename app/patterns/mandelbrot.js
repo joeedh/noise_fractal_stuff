@@ -7,7 +7,7 @@ import {Pattern, PatternFlags} from '../pattern/pattern.js';
 import {savePreset} from '../pattern/preset.js';
 import {ShaderProgram} from '../webgl/webgl.js';
 import {taskManager} from '../core/task.js';
-import {Shaders} from '../pattern/pattern_shaders.js';
+import {buildShader, Shaders} from '../pattern/pattern_shaders.js';
 
 let nameBase = 1;
 
@@ -156,9 +156,7 @@ ff := part(ff, 1, 6);
 
 */
 export const OrbitFinalShader = {
-  vertex    : `#version 300 es
-precision highp float;
-
+  vertex    : `
 uniform vec2 iRes;
 uniform vec2 iInvRes;
 uniform float T;
@@ -167,16 +165,15 @@ uniform float aspect;
 uniform float ORBIT_T;
 uniform float filterWidth;
 
-in vec2 co;
-out vec2 vCo;
+attribute vec2 co;
+varying vec2 vCo;
 
 void main() {
   vCo = co;
   gl_Position = vec4((co-0.5)*2.0, 0.0, 1.0);
 }
 `,
-  fragment  : `#version 300 es
-precision highp float;
+  fragment  : `#
 
 uniform vec2 iRes;
 uniform vec2 iInvRes;
@@ -190,8 +187,7 @@ uniform sampler2D inRgba;
 uniform float enableAccum;
 uniform float noDecay;
 
-in vec2 vCo;
-out vec4 fragColor;
+varying vec2 vCo;
 
 void main() {
   vec4 c1 = texture(rgba, vCo);
@@ -210,9 +206,9 @@ void main() {
     c1.rgb += c2.rgb;
     c1.a += 1.0;
     
-    fragColor = c1;
+    gl_FragColor = c1;
   } else {
-    fragColor = vec4(c2.rgb, 1.0);
+    gl_FragColor = vec4(c2.rgb, 1.0);
   } 
 }
 `,
@@ -221,9 +217,7 @@ void main() {
 };
 
 export const OrbitShader = {
-  vertex    : `#version 300 es
-precision highp float;
-
+  vertex    : `
 uniform vec2 iRes;
 uniform vec2 iInvRes;
 uniform float T;
@@ -233,11 +227,11 @@ uniform float ORBIT_T;
 uniform float filterWidth;
 uniform float expandFrame;
 
-in vec3 co;
+attribute vec3 co;
 
-out vec2 vCo;
-out vec2 vUv;
-out float vTime;
+varying vec2 vCo;
+varying vec2 vUv;
+varying float vTime;
 
 float hash(float f) {
   //f = fract(f*43.342342 + (fract(T)-0.5)*5.0) + abs(f);
@@ -449,8 +443,7 @@ void main() {
   vCo = p.xy;
 }
 `,
-  fragment  : `#version 300 es
-precision highp float;
+  fragment  : `
 
 uniform vec2 iRes;
 uniform vec2 iInvRes;
@@ -458,11 +451,9 @@ uniform float T;
 uniform float SLIDERS[MAX_SLIDERS];
 uniform float alpha;
 
-in vec2 vCo;
-in vec2 vUv;
-in float vTime;
-
-out vec4 fragColor;
+varying vec2 vCo;
+varying vec2 vUv;
+varying float vTime;
 
 float tent(float f) {
   return 1.0 - abs(fract(f)-0.5)*2.0;
@@ -487,7 +478,7 @@ void main() {
   f = tent(f + vTime*10.0*decay);
 #endif
 
-  fragColor = vec4(f, f, f, alpha);
+  gl_FragColor = vec4(f, f, f, alpha);
 }
 `,
   attributes: ['co'],
@@ -748,11 +739,11 @@ void main() {
   //dv = dv*0.5 + 0.5;
   
   dv = normalize(dv1)*0.5 + 0.5;
-  fragColor = vec4(dv.x, dv.y, 0.0, 1.0);
+  gl_FragColor = vec4(dv.x, dv.y, 0.0, 1.0);
   
-  fragColor.r += (uhash2(vCo)-0.5)/255.0;
-  fragColor.g += (uhash2(vCo+0.1)-0.5)/255.0;
-  fragColor.b += (uhash2(vCo+0.2)-0.5)/255.0;
+  gl_FragColor.r += (uhash2(vCo)-0.5)/255.0;
+  gl_FragColor.g += (uhash2(vCo+0.1)-0.5)/255.0;
+  gl_FragColor.b += (uhash2(vCo+0.2)-0.5)/255.0;
 }
 #endif
 
@@ -1091,11 +1082,11 @@ add_preset(${this.orbit_mode}, ${this.orbit_seed}, ${sliders}, ${opts}${name});
     uniforms.ORBIT_T = this.orbit_t;
 
     if (!this.orbit_accum_shader) {
-      this.orbit_accum_shader = ShaderProgram.fromDef(gl, OrbitFinalShader);
+      this.orbit_accum_shader = ShaderProgram.fromDef(gl, buildShader(OrbitFinalShader, gl.haveWebGL2));
     }
 
     if (!this.pointbuf_shader || this.pointbuf_shader.gl !== gl) {
-      this.pointbuf_shader = ShaderProgram.fromDef(gl, OrbitShader);
+      this.pointbuf_shader = ShaderProgram.fromDef(gl, buildShader(OrbitShader, gl.haveWebGL2));
     }
 
     let totpoint = this.totpoint;
@@ -1144,9 +1135,9 @@ add_preset(${this.orbit_mode}, ${this.orbit_seed}, ${sliders}, ${opts}${name});
 
     fragment = Shaders.fragmentBase.fragmentPre + "\n" + fragment;
 
-    let sdef = {
+    let sdef = buildShader({
       fragment, vertex, attributes: ["co"], uniforms: {}
-    };
+    }, gl.haveWebGL2);
 
     this.shader = new ShaderProgram(gl, sdef.vertex, sdef.fragment, sdef.attributes);
 
@@ -1200,7 +1191,7 @@ add_preset(${this.orbit_mode}, ${this.orbit_seed}, ${sliders}, ${opts}${name});
       });
 
       this.orbit_accum_shader.bind(gl, uniforms2, defines);
-      this.vbuf.bind(gl, 0);
+      this.vbuf.co.bind(gl, 0);
       gl.drawArrays(gl.TRIANGLES, 0, 6);
       //super.viewportDraw(ctx, gl, uniforms, defines);
     } else {
