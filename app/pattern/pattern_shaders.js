@@ -1,12 +1,76 @@
+export var shaderHeaders = {
+  webgl1 : `precision highp float;
+#define texture texture2D
+
+bool isnan(float f) {
+  return (f == f) == (f != f);
+}
+
+bool isinf(float f) {
+  return abs(f) > 10000000.0;
+}
+
+float determinant(mat2 m) {
+  return m[0][0]*m[1][1] - m[0][1] * m[1][0];
+}
+
+mat2 inverse(mat2 m) {
+  float det = m[0][0]*m[1][1] - m[0][1] * m[1][0];
+  
+  return mat2(vec2(m[1][1], -m[0][1]), vec2(-m[1][0], m[0][0])) / det;
+}
+
+mat2 transpose(mat2 m) {
+  return mat2(vec2(m[0][0], m[1][0]), vec2(m[0][1], m[1][1]));
+}
+
+`.trim() + "\n",
+  webgl2 : `#version 300 es
+precision highp float;
+
+#define varying VARYING
+#define attribute ATTRIBUTE
+
+out vec4 fragColor;
+#define gl_FragColor fragColor
+`
+}
+
+export function buildShader(shader, webgl2) {
+  shader = Object.assign({}, shader);
+
+  let header = webgl2 ? shaderHeaders.webgl2 : shaderHeaders.webgl1;
+
+  if (webgl2) {
+    shader.vertex = `
+${header}
+#define HAVE_WEBGL2
+#define ATTRIBUTE in
+#define VARYING out
+${shader.vertex}
+`.trim();
+
+    shader.fragment = `
+${header}
+#define HAVE_WEBGL2
+#define VARYING in
+${shader.fragment}
+`.trim();
+  } else {
+    shader.vertex = (header + "\n" + shader.vertex).trim();
+    shader.fragment = (header + "\n" + shader.fragment).trim();
+  }
+
+  return shader;
+}
+
 const fragmentBase = {
   vertex    : `
-      #version 300 es
-      precision highp float;
-      in vec2 co;
-      in vec2 uv;
+      attribute vec2 co;
+      attribute vec2 uv;
       
-      out vec2 vCo;
-      out vec2 vUv;
+      varying vec2 vCo;
+      varying vec2 vUv;
       
       void main() {
         gl_Position = vec4((co-0.5)*2.0, 0.0, 1.0);
@@ -17,8 +81,6 @@ const fragmentBase = {
   uniforms  : {},
   attributes: ["co", "uv"],
   fragmentPre : `
-#version 300 es
-precision highp float;
 uniform vec2 iRes;
 uniform vec2 iInvRes;
 uniform float aspect;
@@ -31,10 +93,8 @@ uniform float uSample;
 
 uniform sampler2D rgba;
 
-in vec2 vCo;//drawing rectangle coordinates
-in vec2 vUv;//possibly mapped coordinates
-
-out vec4 fragColor;
+varying vec2 vCo;//drawing rectangle coordinates
+varying vec2 vUv;//possibly mapped coordinates
 
 #define M_PI 3.141592654
 
@@ -139,17 +199,15 @@ void main() {
   color = vec4(f, f, f, 1.0) * w;
   
   vec4 old = texture(rgba, uv);
-  fragColor = color + old*enableAccum;
+  gl_FragColor = color + old*enableAccum;
 }
 
 `.trim()
 };
 const finalShader = {
   vertex    : `
-      #version 300 es
-      precision highp float;
-      in vec2 co;
-      out vec2 vCo;
+      attribute vec2 co;
+      varying vec2 vCo;
       
       void main() {
         gl_Position = vec4((co-0.5)*2.0, 0.0, 1.0);
@@ -157,18 +215,14 @@ const finalShader = {
       }`.trim(),
   uniforms  : {},
   attributes: ["co"],
-  fragment  :
-    `#version 300 es
-        precision highp float;
-        
+  fragment  :`
         uniform sampler2D rgba;
         uniform vec2 iRes;
         uniform float sharpness;
         uniform float SLIDERS[MAX_SLIDERS];
         uniform float T;
         
-        in vec2 vCo;
-        out vec4 fragColor;
+        varying vec2 vCo;
 
         #ifndef OLD_GRADIENT
         uniform float rgrad[GRAD_STEPS];
@@ -383,19 +437,19 @@ const finalShader = {
           
           w2 = w3 = w4 = w5 = -sharpness*0.5;
           
-          fragColor = fsample(vCo)*w1
+          gl_FragColor = fsample(vCo)*w1
                     + fsample(vCo + vec2(-du, -dv))*w2
                     + fsample(vCo + vec2(-du, dv))*w3
                     + fsample(vCo + vec2(du, dv))*w3
                     + fsample(vCo + vec2(du, -dv))*w5;
                     
-          fragColor /= w1+w2+w3+w4+w5;
+          gl_FragColor /= w1+w2+w3+w4+w5;
 #else
-          fragColor = fsample(vCo);
+          gl_FragColor = fsample(vCo);
 #endif        
   
   #ifdef PRINT_TEST
-          vec3 hsv = rgb_to_hsv(fragColor.r, fragColor.g, fragColor.b);
+          vec3 hsv = rgb_to_hsv(gl_FragColor.r, gl_FragColor.g, gl_FragColor.b);
           
           float cutoff = hsv[1]*0.5 + 0.5;
           cutoff = pow(cutoff, 0.5);
@@ -407,13 +461,13 @@ const finalShader = {
           hsv[2] = value;
           hsv[1] = max(hsv[1] - delta*0.5, 0.0);
           
-          fragColor.rgb = hsv_to_rgb(hsv.r, hsv.g, hsv.b);
+          gl_FragColor.rgb = hsv_to_rgb(hsv.r, hsv.g, hsv.b);
           
           //float f = abs(1.5-hsv[1]);
-          //fragColor.rgb = vec3(f, f, f);
+          //gl_FragColor.rgb = vec3(f, f, f);
   #endif
            vec3 dither = (vec3(hash2(vCo), hash2(vCo+0.23423), hash2(vCo+0.432))-0.5) / 255.0;
-           fragColor.rgb += dither;
+           gl_FragColor.rgb += dither;
            
         }`.trim()
 }

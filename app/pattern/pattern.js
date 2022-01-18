@@ -1,7 +1,7 @@
 import {EnumProperty, util, nstructjs} from '../path.ux/pathux.js';
 import {renderPattern} from './pattern_draw.js';
 import {ShaderProgram, RenderBuffer} from '../webgl/webgl.js';
-import {Shaders} from './pattern_shaders.js';
+import {buildShader, Shaders} from './pattern_shaders.js';
 import {loadPreset, presetManager, savePreset} from './preset.js';
 
 import {PatternClasses} from './pattern_base.js';
@@ -452,18 +452,21 @@ float pattern(float ix, float iy) {
 
   compileShader(gl) {
     let fragment = this.constructor.patternDef().shader;
-    let vertex = Shaders.fragmentBase.vertex;
+    let fragmentBase = Shaders.fragmentBase;
 
-    let main = Shaders.fragmentBase.fragment;
-    fragment = Shaders.fragmentBase.fragmentPre + fragment + main;
+    let vertex = fragmentBase.vertex;
 
-    let sdef = {
-      fragment, vertex, attributes: Shaders.fragmentBase.attributes, uniforms: {}
-    };
+    let main = fragmentBase.fragment;
+    fragment = fragmentBase.fragmentPre + fragment + main;
+
+    let sdef = buildShader({
+      fragment, vertex, attributes: fragmentBase.attributes, uniforms: {}
+    }, gl.haveWebGL2);
+
 
     this.shader = new ShaderProgram(gl, sdef.vertex, sdef.fragment, sdef.attributes);
 
-    sdef = Shaders.finalShader;
+    sdef = buildShader(Shaders.finalShader, gl.haveWebGL2);
     this.finalShader = new ShaderProgram(gl, sdef.vertex, sdef.fragment, sdef.attributes);
   }
 

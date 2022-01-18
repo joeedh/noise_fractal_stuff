@@ -223,8 +223,8 @@ export class FBO {
 
       //console.warn(this.target, this.gl.TEXTURE_2D);
       //if (this.target === this.gl.TEXTURE_2D) {
-        this.gl.deleteTexture(this.texDepth.texture);
-        this.gl.deleteTexture(this.texColor.texture);
+      this.gl.deleteTexture(this.texDepth.texture);
+      this.gl.deleteTexture(this.texColor.texture);
       //}
 
       this.texDepth.texture = this.texColor.texture = undefined;
@@ -269,7 +269,15 @@ export class FBO {
 
 //params are passed to canvas.getContext as-is
 export function init_webgl(canvas, params, webgl2) {
+//  webgl2 = false;
+
   var gl = canvas.getContext(webgl2 ? "webgl2" : "webgl", params);
+  
+  if (!gl) {
+    gl = canvas.getContext("webgl");
+    webgl2 = false;
+  }
+
   gl.haveWebGL2 = !!webgl2;
 
   if (webgl2) {
@@ -280,6 +288,7 @@ export function init_webgl(canvas, params, webgl2) {
     gl.color_buffer_float = gl.getExtension("WEBGL_color_buffer_float");
   }
 
+
   gl.texture_float = gl.getExtension("OES_texture_float");
   gl.texture_float = gl.getExtension("OES_texture_float_linear");
   gl.float_blend = gl.getExtension("EXT_float_blend");
@@ -287,6 +296,41 @@ export function init_webgl(canvas, params, webgl2) {
   gl.getExtension("ANGLE_instanced_arrays");
   gl.debugContextLoss = gl.getExtension("WEBGL_lose_context");
   gl.draw_buffers = gl.getExtension("WEBGL_draw_buffers");
+
+  function makeExtForward(k, v) {
+    let k2 = k;
+
+    if (k2.endsWith("WEBGL")) {
+      k2 = k2.slice(0, k2.length - 5);
+      if (k2.endsWith("_")) {
+        k2 = k2.slice(0, k2.length - 1);
+      }
+
+      try {
+        if (typeof v === "function") {
+          gl[k2] = function () {
+            v(...arguments);
+          }
+        } else {
+          gl[k2] = v;
+        }
+      } catch (error) {
+        if (gl[k2] !== v) {
+          console.warn("failed to bind property", k2);
+        }
+      }
+    }
+  }
+
+  if (gl.draw_buffers) {
+    for (let k in gl.draw_buffers.__proto__) {
+      if (typeof k === "symbol") {
+        continue;
+      }
+
+      makeExtForward(k, gl.draw_buffers.__proto__[k])
+    }
+  }
 
   gl.depth_texture = gl.getExtension("WEBGL_depth_texture");
 
@@ -729,7 +773,7 @@ export class GPUVertexAttr {
       this.buf = undefined;
     }
 
-    this.size = ~~(data.length / elemSize);
+    this.size = ~~(data.length/elemSize);
 
     if (!this.buf) {
       this.buf = gl.createBuffer();
