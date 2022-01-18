@@ -507,6 +507,7 @@ export class MoireNewtonPattern extends Pattern {
     
     let onchange = function() {
       this.ctx.pattern.drawGen++;
+      window.redraw_viewport();
     }
     
     st.bool("square_f", "square_f", "Square F")

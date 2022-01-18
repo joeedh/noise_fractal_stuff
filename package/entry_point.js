@@ -99,12 +99,29 @@ export function setupDrawGlobals() {
   }
 
   window.redraw_viewport = function () {
-    //fixed fps for now
+    if (!window._appstate || !_appstate.ctx || !_appstate.ctx.pattern) {
+      return;
+    }
+
+    let pat = _appstate.ctx.pattern;
+
+    //fixed fps not running? then draw
+    if (!pat.isDrawing) {
+      window.force_redraw_viewport();
+    }
   }
 
   /* start main rendering loop */
   window.setInterval(() => {
-    window.force_redraw_viewport();
+    if (!window._appstate || !_appstate.ctx || !_appstate.ctx.pattern) {
+      return;
+    }
+
+    let pat = _appstate.ctx.pattern;
+
+    if (pat.isDrawing) {
+      window.force_redraw_viewport();
+    }
   }, 33);
 }
 

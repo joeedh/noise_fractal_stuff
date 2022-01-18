@@ -654,7 +654,7 @@ export class Vector3 extends F64BaseVector {
     }
 
     if (this.constructor === Vector3) {
-      Object.seal(this);
+      Object.preventExtensions(this);
     }
   }
 
