@@ -1,5 +1,193 @@
+import {Curve1D, nstructjs} from '../path.ux/scripts/pathux.js';
+import {Curve} from '../path.ux/scripts/widgets/ui_curvewidget_old.js';
+
+export class CurveSet {
+  constructor() {
+    this.v = new Curve1D();
+    this.r = new Curve1D();
+    this.g = new Curve1D();
+    this.b = new Curve1D();
+
+    this._regen = true;
+    this.size = this.constructor.getDefaultSize();
+    this.tables = new Array(4);
+  }
+
+  toJSON() {
+    let {r, g, b, v} = this;
+
+    return {
+      r, g, b, v
+    }
+  }
+
+  copyTo(b) {
+    b.v.load(this.v);
+    b.r.load(this.r);
+    b.g.load(this.g);
+    b.b.load(this.b);
+
+    b._regen = true;
+  }
+
+  loadJSON(json) {
+    this.v.loadJSON(json.v);
+    this.r.loadJSON(json.r);
+    this.g.loadJSON(json.g);
+    this.b.loadJSON(json.b);
+
+    this._regen = true;
+
+    return this;
+  }
+
+  static getDefaultSize() {
+    return 256;
+  }
+
+  static getShaderCode(name, size = this.getDefaultSize()) {
+    let ch = (ch, nvar) => {
+      return `
+      {
+        float fi = (cinput.${nvar})*${size}.0*0.9999;
+        int i1 = int(fi);
+        int i2 = min(i1+1, ${size}-1);
+        float t = fract(fi);
+         
+        float fa = ${this.getName(name, ch)}[i1];
+        float fb = ${this.getName(name, ch)}[i2];
+        
+        ret.${nvar} = fa + (fb - fa)*t;
+      }
+`;
+    }
+
+    return `
+vec3 ${name}_evaluate(vec3 cinput) {
+  cinput.r = clamp(cinput.r, 0.0, 1.0);
+  cinput.g = clamp(cinput.g, 0.0, 1.0);
+  cinput.b = clamp(cinput.b, 0.0, 1.0);
+  
+  vec3 ret;
+  
+  ${ch(1, "r")};
+  ${ch(2, "g")};
+  ${ch(3, "b")};
+  
+  return ret;
+}
+    `;
+  }
+
+  static makeUniforms(name, size = this.getDefaultSize()) {
+    return `
+      uniform float ${this.getName(name, 1)}[${size}];
+      uniform float ${this.getName(name, 2)}[${size}];
+      uniform float ${this.getName(name, 3)}[${size}];
+    `;
+  }
+
+  static getName(name, ch) {
+    let names = {
+      'c': 'c', 'r': 'r', 'g': 'g', 'b': 'b',
+      0  : 'c', 1: 'r', 2: 'g', 3: 'b'
+    };
+
+    return name + "_" + names[ch];
+  }
+
+  static getEvalCode(name, arg) {
+    return `${name}_evaluate(${arg})`;
+  }
+
+  static apiDefine(api) {
+    let st = api.mapStruct(this, true);
+
+    function onchange() {
+      this.dataref._regen = true;
+      window.redraw_viewport();
+    }
+
+    st.curve1d("v", "v", "Combined")
+      .on('change', onchange);
+    st.curve1d("r", "r", "r")
+      .on('change', onchange);
+    st.curve1d("g", "g", "g")
+      .on('change', onchange);
+    st.curve1d("b", "b", "b")
+      .on('change', onchange);
+  }
+
+  checkTable() {
+    if (!this._regen) {
+      return;
+    }
+
+    this._regen = false;
+
+    const curves = [this.v, this.r, this.g, this.b];
+    const tables = this.tables;
+
+    for (let i = 0; i < tables.length; i++) {
+      if (tables[i] === undefined || tables[i].length !== this.size) {
+        tables[i] = new Float32Array(this.size);
+      }
+
+      let steps = this.size;
+      let s = 0, ds = 1.0/(steps - 1);
+      let curve = curves[i];
+      let table = tables[i];
+
+      curve.update();
+
+      for (let j = 0; j < steps; j++, s += ds) {
+        let t = s;
+
+        /*fold combined curve into rgb curves*/
+
+        if (i > 0) {
+          t = curves[0].evaluate(t);
+        }
+
+        t = curve.evaluate(t);
+
+        table[j] = t;
+      }
+    }
+  }
+
+  setUniforms(name, uniforms) {
+    this.checkTable();
+
+    let tables = this.tables, size = this.size;
+
+    for (let i = 0; i < tables.length; i++) {
+      let table = tables[i];
+      let name2 = this.constructor.getName(name, i);
+
+      for (let j = 0; j < table.length; j++) {
+        let k = `${name2}[${j}]`;
+
+        uniforms[k] = table[j];
+      }
+    }
+  }
+}
+
+CurveSet.STRUCT = `
+CurveSet {
+  v : Curve1D;
+  r : Curve1D;
+  g : Curve1D;
+  b : Curve1D;
+}
+`;
+nstructjs.register(CurveSet);
+
+window.CurveSet = CurveSet;
+
 export var shaderHeaders = {
-  webgl1 : `precision highp float;
+  webgl1: `precision highp float;
 #define texture texture2D
 
 bool isnan(float f) {
@@ -25,7 +213,7 @@ mat2 transpose(mat2 m) {
 }
 
 `.trim() + "\n",
-  webgl2 : `#version 300 es
+  webgl2: `#version 300 es
 precision highp float;
 
 #define varying VARYING
@@ -65,7 +253,7 @@ ${shader.fragment}
 }
 
 const fragmentBase = {
-  vertex    : `
+  vertex     : `
       attribute vec2 co;
       attribute vec2 uv;
       
@@ -78,9 +266,9 @@ const fragmentBase = {
         vUv = uv;
         vCo = co;
       }`.trim(),
-  uniforms  : {},
-  attributes: ["co", "uv"],
-  fragmentPre : `
+  uniforms   : {},
+  attributes : ["co", "uv"],
+  fragmentPre: `
 uniform vec2 iRes;
 uniform vec2 iInvRes;
 uniform float aspect;
@@ -143,7 +331,7 @@ float uhash2(vec2 p) {
 }
 
   `.trim(),
-  fragment  : `
+  fragment   : `
 float mainImage( vec2 uv, out float w) {    
 #ifdef PER_PIXEL_RANDOM
     float dx = uhash2(uv);
@@ -215,12 +403,15 @@ const finalShader = {
       }`.trim(),
   uniforms  : {},
   attributes: ["co"],
-  fragment  :`
+  fragment  : `
         uniform sampler2D rgba;
         uniform vec2 iRes;
         uniform float sharpness;
         uniform float SLIDERS[MAX_SLIDERS];
         uniform float T;
+        
+        ${CurveSet.makeUniforms("CURVE")}
+        ${CurveSet.getShaderCode("CURVE")}
         
         varying vec2 vCo;
 
@@ -414,7 +605,11 @@ const finalShader = {
 
 #ifdef MULTIPLY_ORIG
           color.rgb *= pow(1.0-min(value, 1.0), MULTIPLY_ORIG_EXP);
-#endif          
+#endif
+          
+#ifdef USE_CURVES
+          color.rgb = ${CurveSet.getEvalCode("CURVE", "color.rgb")};
+#endif
           color.rgb += (vec3(hash2(uv), hash2(uv+0.23423), hash2(uv+0.432))-0.5) / 255.0;
           return color;
         }
@@ -422,10 +617,19 @@ const finalShader = {
         vec4 fsample(vec2 uv) {
           vec4 color = texture(rgba, uv).rgba;
           float f = color.r / color.a;
-          f *= 3.0;
+
+#ifndef USE_CURVES          
           f += (hash2(uv)-0.5)/255.0;
+#endif
+
+          color = vec4(f, f, f, 1.0);
           
-          return vec4(f, f, f, 1.0);
+#ifdef USE_CURVES
+          color.rgb = ${CurveSet.getEvalCode("CURVE", "color.rgb")};
+          color.rgb += (vec3(hash2(uv), hash2(uv+0.23423), hash2(uv+0.432))-0.5) / 255.0;
+#endif
+          
+          return color;
         }
 #endif        
         void main() {

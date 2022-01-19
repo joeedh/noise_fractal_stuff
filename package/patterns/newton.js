@@ -19,11 +19,20 @@ export function add_preset(sliders, options, fixScale = true, hide = false) {
   let preset = new NewtonPattern();
 
   for (let k in options) {
+    if (k === "curveset") {
+      continue;
+    }
+
     k = k.toLowerCase();
 
     if (preset[k] !== undefined) {
       preset[k] = options[k];
     }
+  }
+
+  if (options && "curveset" in options) {
+    preset.use_curves = true;
+    preset.curveset.loadJSON(options.curveset);
   }
 
   /* we don't want to use normal defaults, stick with zero--
@@ -332,6 +341,11 @@ export class NewtonPattern extends Pattern {
     opt.sharpness = opt.sharpness ?? this.sharpness;
     opt.filter_width = opt.filter_width ?? this.filter_width;
     //opt.max_samples = opt.max_samples ?? this.max_samples;
+
+    if (this.use_curves) {
+      opt.use_curves = true;
+      opt.curveset = JSON.parse(JSON.stringify(this.curveset));
+    }
 
     opt = JSON.stringify(opt);
 

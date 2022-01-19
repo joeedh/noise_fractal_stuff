@@ -1428,8 +1428,12 @@ class BSplineCurve extends CurveTypeData {
       //this.updateKnots();
       //this.regen_basis();
     } else {
-      this.recalc = 0;
+      this.updateKnots();
+      this.recalc = RecalcFlags.ALL;
     }
+
+    this.updateKnots();
+    this.recalc = RecalcFlags.ALL;
   }
 }
 
