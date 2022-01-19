@@ -1,4 +1,4 @@
-import {nstructjs, Vector2, math, util, UIBase} from '../path.ux/pathux.js';
+import {nstructjs, Vector2, math, util, UIBase, Curve1D, CurveConstructors} from '../path.ux/pathux.js';
 import * as cconst from '../core/const.js';
 import {getPatternClass, PatternClasses} from './pattern_base.js';
 
@@ -90,12 +90,17 @@ export function savePreset(pat,
       istruct.add_class(mstruct.struct_cls[name]);
       let st = mstruct.structs[name];
 
-      console.log("add class", name);
+      //console.log("add class", name);
 
       for (let field of st.fields) {
         rec(field);
       }
     }
+  }
+
+  //add_class("Curve1d");
+  for (let cls of CurveConstructors) {
+    add_class(cls.structName);
   }
 
   //find all used structs for schema
@@ -141,6 +146,8 @@ export function loadPreset(preset) {
   if (typeof preset === "string") {
     preset = JSON.parse(preset);
   }
+
+  console.warn("loadPreset", preset);
 
   let schema = preset.schema;
   let data = preset.preset;
