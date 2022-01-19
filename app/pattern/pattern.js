@@ -73,7 +73,13 @@ export class Sliders extends Array {
         continue;
       }
 
-      defineProp(k, i, item);
+      try {
+        defineProp(k, i, item);
+      } catch (error) {
+        console.log(error.stack);
+        console.log(error.message);
+        console.warn("Failed to bind a slider property:", k);
+      }
     }
   }
 }
