@@ -1,5 +1,5 @@
 import {areaclasses, DataAPI, ToolPropertyCache, EnumProperty, buildToolSysAPI} from '../path.ux/pathux.js';
-import {PatternClasses, makePatternsEnum, PatternsEnum, Pattern} from '../pattern/pattern.js';
+import {PatternClasses, makePatternsEnum, PatternsEnum, Pattern, CurveSet} from '../pattern/pattern.js';
 import '../patterns/all.js';
 import {FileState} from './file.js';
 import {ToolContext} from './context.js';
@@ -135,6 +135,8 @@ function api_define_model(api) {
 
 export function api_define() {
   let api = new DataAPI();
+
+  CurveSet.apiDefine(api);
 
   //make base class struct
   Pattern.apiDefine(api);

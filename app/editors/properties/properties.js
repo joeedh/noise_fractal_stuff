@@ -61,7 +61,29 @@ export class PropsEditor extends Editor {
       pat.constructor.buildSidebar(this.ctx, con);
     }
 
-    let panel = tab.panel("Builtin Presets");
+    let panel;
+
+    panel = tab.panel("Curves");
+
+    let ckeys = {
+      Combined : 'v',
+      Red : 'r',
+      Green : 'g',
+      Blue : 'b'
+    };
+
+    panel.prop("pattern.use_curves");
+
+    let htabs = panel.tabs("top");
+    for (let k in ckeys) {
+      let tab2 = htabs.tab(k);
+
+      tab2.curve1d("pattern.curveset." + ckeys[k]);
+    }
+
+    panel.closed = true;
+    
+    panel = tab.panel("Builtin Presets");
     let list = UIBase.createElement("preset-category-x");
     list.setAttribute("no-delete-button", true);
     list.dataPath = `presets.types.active.categories['Builtin']`;

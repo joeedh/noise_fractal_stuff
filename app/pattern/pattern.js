@@ -1,11 +1,12 @@
-import {EnumProperty, util, nstructjs} from '../path.ux/pathux.js';
+import {EnumProperty, util, nstructjs, Curve1D} from '../path.ux/pathux.js';
 import {renderPattern} from './pattern_draw.js';
 import {ShaderProgram, RenderBuffer} from '../webgl/webgl.js';
-import {buildShader, Shaders} from './pattern_shaders.js';
+import {buildShader, Shaders, CurveSet} from './pattern_shaders.js';
 import {loadPreset, presetManager, savePreset} from './preset.js';
 
-import {PatternClasses} from './pattern_base.js';
+export {CurveSet} from './pattern_shaders.js';
 
+import {PatternClasses} from './pattern_base.js';
 export {PatternClasses} from './pattern_base.js';
 
 let CachedPatternTok = Symbol("cached-pattern");
@@ -72,7 +73,13 @@ export class Sliders extends Array {
         continue;
       }
 
-      defineProp(k, i, item);
+      try {
+        defineProp(k, i, item);
+      } catch (error) {
+        console.log(error.stack);
+        console.log(error.message);
+        console.warn("Failed to bind a slider property:", k);
+      }
     }
   }
 }
@@ -85,6 +92,12 @@ export class Pattern {
       throw new Error("patternDef is missing typeName!");
     }
 
+    this.use_curves = false;
+    this.curveset = new CurveSet();
+
+    for (let i = 0; i < 4; i++) {
+
+    }
     this.mul_with_orig = false;
     this.mul_with_orig_exp = 0.333;
 
@@ -168,6 +181,10 @@ export class Pattern {
     window.redraw_viewport();
   }
 
+  get isDrawing() {
+    return this.drawSample <= this.max_samples || this.drawGen !== this._lastDrawGen;
+  }
+
   static getPatternDef() {
     if (!Object.hasOwnProperty(this, CachedPatternTok)) {
       let def = this.patternDef();
@@ -237,7 +254,12 @@ float pattern(float ix, float iy) {
       window._appstate.autoSave();
     };
 
+    st.struct("curveset", "curveset", "CurveSet", api.mapStruct(CurveSet));
+
     let redraw = window.redraw_viewport;
+
+    st.bool("use_curves", "use_curves", "Use Curves")
+      .on('change', redraw);
 
     st.bool("renderTiles", "renderTiles", "Use Tiles")
       .on('change', onchange);
@@ -399,11 +421,10 @@ float pattern(float ix, float iy) {
     return ret;
   }
 
-  get isDrawing() {
-    return this.drawSample <= this.max_samples || this.drawGen !== this._lastDrawGen;
-  }
-
   copyTo(b) {
+    this.curveset.copyTo(b.curveset);
+
+    b.use_curves = this.use_curves;
     b.mul_with_orig = this.mul_with_orig;
     b.pixel_size = this.pixel_size;
     b.activePreset = this.activePreset;
@@ -550,6 +571,12 @@ float pattern(float ix, float iy) {
     }
 
     let defines = {};
+    let uniforms = {};
+
+    if (this.use_curves) {
+      defines.USE_CURVES = true;
+      this.curveset.setUniforms("CURVE", uniforms);
+    }
 
     if (this.no_gradient) {
       defines.NO_GRADIENT = true;
@@ -582,8 +609,6 @@ float pattern(float ix, float iy) {
       defines.MULTIPLY_ORIG = null;
       defines.MULTIPLY_ORIG_EXP = this.mul_with_orig_exp;
     }
-
-    let uniforms = {};
 
     defines.MAX_SLIDERS = this.sliders.length;
 
@@ -813,6 +838,8 @@ Pattern {
   
   max_samples         : int;
   mul_with_orig       : bool;
+  use_curves          : bool;
+  curveset            : CurveSet;
 }
 `;
 nstructjs.register(Pattern);
