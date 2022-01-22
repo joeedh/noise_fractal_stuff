@@ -3,15 +3,38 @@ import {
   Vector3, Vector4, Matrix4, Quat
 } from '../path.ux/pathux.js';
 
-import {Pattern} from '../pattern/pattern.js';
+import {Pattern, PatternFlags} from '../pattern/pattern.js';
 import {savePreset} from '../pattern/preset.js';
 
 export const FractalTracePresets = [];
 
 let presetCountBase = 1;
 
-export function add_preset_new(sliders, options, hide = false) {
-  return add_preset(sliders, options, false, hide);
+export const LightingModes = {
+  SHADOW : 1,
+  AO     : 2,
+  GI     : 4
+};
+
+export function add_preset(sliders, opts={}, hide = false) {
+  let pat = new TraceFractalPattern();
+  
+  opts.filter_width = opts.filter_width ?? pat.filter_width;
+  opts.pixel_size = opts.pixel_size ?? pat.pixel_size;
+  opts.sharpness = opts.sharpness ?? pat.sharpness;
+  
+  for (let k in opts) {
+    pat[k] = opts[k];
+  }
+  
+  for (let i=0; i<Math.min(sliders.length, pat.sliders.length); i++) {
+    pat.sliders[i] = sliders[i];
+  }
+  
+  let name = "Builtin " + (presetCountBase++);
+  let preset = savePreset(pat, name, "Builtin");
+  
+  FractalTracePresets.push(preset);
 }
 
 const shader = `
@@ -20,6 +43,8 @@ const shader = `
 //uniform float T;
 //uniform float SLIDERS[MAX_SLIDERS];
 
+uniform vec3 lightCo;
+uniform vec3 lightNo;
 
 #define M_PI 3.141592654
 
@@ -53,171 +78,6 @@ float length2(vec2 p) {
  
   return f;
 }
-
-float pattern2(float ix, float iy, float offset) {
-    vec2 uv = vec2(ix, iy);
-    vec2 seed;
-    
-    vec2 dr, di;
-    float f = 0.0;
-    float dist = 0.0;
-    vec2 z;
-    
-    vec2 startuv = uv;
-    
-    float tm = 0.0;
-    float tm2 = 0.0;
-    
-#ifndef SIMPLE_MODE
-  seed = uv;
-#else
-    seed = vec2(SLIDERS[11], 0.0); //0.4132432);
-    //seed = vec2(pow(SLIDERS[11], uv[0]*0.5+0.5), pow(SLIDERS[11], uv[1]*0.5+0.5));
-#endif
-
-    tm = offset;
-    //tm = pow(tm, 1.0/1.0);
-    float toff = pow(tm, 0.25);
-    
-    for (int i=0; i<STEPS; i++) {
-        //float toff = sin(T*0.1);
-        //toff = 0.75;
-        z = cmul(uv, vec2(0.333333 + tm*0.5, 0.0 + tm)); //0.85*toff));
-        
-        vec2 a = fsample(z, seed);
-
-#if 0 //finite differences
-        float df = 0.0002;
-
-        vec2 b = fsample(z+vec2(df, 0.0), seed);
-        vec2 c = fsample(z+vec2(0.0, df), seed);
-        
-        dr = (b - a) / df;
-        di = (c - a) / df;
-#else //anayltical derivatives
-        vec2 p = seed;
-        float zx = z[0], zy = z[1];
-        float px = p[0], py = p[1];
-        
-        /* heissan matrices
-        on factor;
-        off period;
-        
-        drx := -(2.0*((px-zx)*zx-(py-zy)*zy)+zy*zy+1.0-zx*zx);
-        dry := -2.0*((py-zy-zy)*zx+(px-zx)*zy);
-      
-        dix := 2.0*((py-zy-zy)*zx+(px-zx)*zy);
-        diy := -(2.0*((px-zx)*zx-(py-zy)*zy)+zy*zy+1.0-zx*zx);
-        
-        rxzx := df(drx, zx);
-        rxzy := df(drx, zy);
-        ryzx := df(dry, zx);
-        ryzy := df(dry, zy);
-
-        ixzx := df(dix, zx);
-        ixzy := df(dix, zy);
-        iyzx := df(diy, zx);
-        iyzy := df(diy, zy);
-        
-        rxm := mat((rxzx*rxzx, rxzy*rxzx),
-            (rxzy*rxzx, rxzy*rxzy));
-        rym := mat((ryzx*ryzx, ryzy*ryzx),
-            (ryzy*ryzx, ryzy*ryzy));
-        ixm := mat((ixzx*ixzx, ixzy*ixzx),
-            (ixzy*ixzx, ixzy*ixzy));
-        iym := mat((iyzx*iyzx, iyzy*iyzx),
-            (iyzy*iyzx, iyzy*iyzy));
-        
-        on fort;
-        rxm;
-        rym;
-        ixm;
-        iym;
-        off fort;
-        
-        */
-        dr.x = -(2.0*((px-zx)*zx-(py-zy)*zy)+zy*zy+1.0-zx*zx);
-        dr.y = -2.0*((py-zy-zy)*zx+(px-zx)*zy);
-      
-        di.x = 2.0*((py-zy-zy)*zx+(px-zx)*zy);
-        di.y = -(2.0*((px-zx)*zx-(py-zy)*zy)+zy*zy+1.0-zx*zx);
-#endif
-
-#if 1
-
- mat2 rxm = mat2( vec2(4.0*(px-3.0*zx)*(px-3.0*zx),-4.0*(px-3.0*zx)*(py-3.0*zy)),
-                 vec2(-4.0*(px-3.0*zx)*(py-3.0*zy), 4.0*(py-3.0*zy)*(py-3.0*zy)));
-
- mat2 rym = mat2(vec2(4.0*(py-3.0*zy)*(py-3.0*zy), 4.0*(px-3.0*zx)*(py-3.0*zy)),
-                  vec2(4.0*(px-3.0*zx)*(py-3.0*zy), 4.0*(px-3.0*zx)*(px-3.0*zx)));
-
-  mat2 ixm = mat2(vec2(4.0*(py-3.0*zy)*(py-3.0*zy), 4.0*(px-3.0*zx)*(py-3.0*zy)),
-                  vec2(4.0*(px-3.0*zx)*(py-3.0*zy), 4.0*(px-3.0*zx)*(px-3.0*zx)));
-
-  mat2 iym = mat2(vec2(4.0*(px-3.0*zx)*(px-3.0*zx), -4.0*(px-3.0*zx)*(py-3.0*zy)),
-                  vec2(-4.0*(px-3.0*zx)*(py-3.0*zy), 4.0*(py-3.0*zy)*(py-3.0*zy))); 
-#endif
-        mat2 m = mat2(dr, di);
-        
-        m = inverse(m);
-        
-        vec2 off = -m * a;
-        
-#if 0
-        if (i % 2 == 1) {
-          off.x *= -1.0;
-        } else {
-          off.y *= -1.0;
-        }
-#endif
-        
-        off.xy += vec2(-off.y, off.x)*SLIDERS[10];
-        
-        dist += 2.0*length(off) / (SLIDERS[9] + length(iym*rxm * off));
-        //dist += 0.12 / (0.1 + length(rym*off));
-        
-        //dist += (determinant(rxm) + determinant(rym) + determinant(ixm) + determinant(iym))*1000.0;
-        //dist += determinant(rxm*rym*ixm*iym)*100000.0;
-        //dist += (abs(off[0]) + abs(off[1]))*0.5;
-        //dist += max(abs(off[0]), abs(off[1]));
-        
-        if (i > int(SLIDERS[0])) {
-            break;
-        }
-          
-        uv += off;
-    }
-    
-    float d1 = length(uv - vec2(-1.0, 0.0));
-    float d2 = length(uv - vec2(1.0, 0.0));
-    float d3 = length(uv - seed);
-    
-    //find closest root shade
-    f = d1 < d2 ? 1.0 : 0.75;
-    f = d3 < d2 && d3 < d1 ? 0.5 : f;
-    
-    float tfac = pow(1.0 - toff, 0.25);
-    float dfract;
-    //dfract = min(dist*0.0025, 1.0);
-    dfract = tent(dist*0.004);
-    f = sqrt(dfract)*0.5;
-    //f = (dfract + f)*0.5;
-    //f = sqrt(dfract*f)*0.5;
-    
-    //f = dfract;
-    //f *= f;
-    
-    //f = pow(f * (1.0-dfract), 0.4);
-    //f = mix(pow(dfract, 0.25), dfract, 0.5);
-    //f = dfract*dfract*(3.0-2.0*dfract);
-    
-    //f = f*f*(3.0-2.0*f);
-    //f = fract(length(fsample(z, uv)));    
-    //f = fract(length(uv - startuv));
-    
-    return f;
-}
-
 
 vec2 rot2d(vec2 a, float th) {
   return vec2(cos(th)*a.x + sin(th)*a.y, cos(th)*a.y - sin(th)*a.x);
@@ -365,7 +225,8 @@ void field(inout RenderState state) {
 
     RenderState state3 = state2;
 
-    state3.co = fract(co * level_scale)*2.0 - 1.0;
+    //state3.co += OFFSET/level_scale;
+    state3.co = fract((co+OFFSET) * level_scale)*2.0 - 1.0;
     state3.co /= level_scale*2.0;
     state3.color = 1.0 - float(i) / float(LEVELS);
     
@@ -429,14 +290,15 @@ void field(inout RenderState state) {
   state = state2;
 }
 
-void rtrace(inout RenderState state) {
+bool rtrace(inout RenderState state) {
   state.scale = 1.0;
+  state.t = 0.0;
   
   for (int i=0; i<STEPS; i++) {
     field(state);
     
     if (abs(state.f) < RLIMIT) {
-      return;
+      return true;
     }
     
     float fac = state.scale;//2.0 - abs(dot(state.dir, state.no));
@@ -444,7 +306,56 @@ void rtrace(inout RenderState state) {
     state.co += state.dir * state.f * EPS*fac;
     state.t += state.f * EPS*fac;
   }
+  
+  return false;
 }
+
+uniform sampler2D blueMask;
+uniform float blueMaskDimen;
+
+vec3 hash3d(float seed) {
+  vec2 uv = fract(vUv * iRes / blueMaskDimen);
+  uv.x += hash(T); 
+  uv.y += hash(T + 0.23432); 
+  
+  //float fx = vUv.x*iRes.x*sqrt(2.0); //10814 114207
+  //float fy = vUv.y*iRes.x*0.114207; //*.104166;
+  //float f = fract(fx + fy + T);
+  
+  float f = texture(blueMask, uv)[0];
+  
+  const float steps = 9.0;
+  seed += floor(f*steps)/steps;
+  
+  return vec3(hash(seed), hash(seed*1.1424+3.23423), hash(seed*1.32342-0.23432))*2.0 - 1.0;
+}
+
+vec3 calcNormal(RenderState state) {
+  float f1 = state.f;
+  vec3 co = state.co;
+  const float df = 0.0001;
+  vec3 no;
+
+  state.co = co + vec3(df, 0.0, 0.0);
+  field(state);
+  no.x = state.f - f1; 
+
+  state.co = co + vec3(0.0, df, 0.0);
+  field(state);
+  no.y = state.f - f1; 
+
+  state.co = co + vec3(0.0, 0.0, df);
+  field(state);
+  no.z = state.f - f1; 
+  
+  no = normalize(no);
+  
+  return no;
+}
+
+#define LIGHTING_SHADOW 1
+#define LIGHTING_AO 2
+#define LIGHTING_GI 4
 
 float pattern(float ix, float iy) {
   float f;
@@ -459,7 +370,7 @@ float pattern(float ix, float iy) {
   uv *= SLIDERS[5];
   
   RenderState state;
-  vec3 rp = vec3(0.0, DIST, -2.0); //origin
+  vec3 rp = vec3(0.0, DIST, -0.2); //origin
   vec3 rt = vec3(0.0, 0.0, 0.0); //target
   vec3 rd;
   
@@ -495,39 +406,82 @@ float pattern(float ix, float iy) {
   
   l = isnan(l) ? 0.001 : l;
   l = l != (1.0 / (1.0 / l)) ? 0.001 : l;
+  l = sqrt(l)*1.5;
   
   vec3 co = state.co;
   vec3 no;
-  const float df = 0.0001;
   
   float f1 = state.f;
   
-  state.co = co + vec3(df, 0.0, 0.0);
-  field(state);
-  no.x = state.f - f1; 
-
-  state.co = co + vec3(0.0, df, 0.0);
-  field(state);
-  no.y = state.f - f1; 
-
-  state.co = co + vec3(0.0, 0.0, df);
-  field(state);
-  no.z = state.f - f1; 
+  no = calcNormal(state);
+  l = max(dot(no, lightNo), 0.0)*l;
   
-  no = normalize(no);
-  no = no*0.5 + 0.5;
+#if LIGHTING & LIGHTING_SHADOW
+{
+  RenderState state2 = state;
+
+  state2.co -= state2.dir*0.003;
+  state2.dir = normalize(lightNo + hash3d(0.12423+T)*0.5);
+  if (rtrace(state2)) {
+    l = 0.0;
+  }
+}
+#endif
+
+#if LIGHTING & (LIGHTING_AO|LIGHTING_GI)
+{
+  float sum = 0.0;
+  const int steps = 3;
+
+  for (int i=0; i<3; i++) {
+    RenderState state2 = state;
+
+    state2.co -= state2.dir*0.003;
+    state2.dir = normalize(hash3d(0.532423+float(i)*0.3+T));
+    
+    if (dot(state2.dir, no) < 0.0) {
+      no = -no;
+    }
+
+    bool hit = rtrace(state2);
+    
+#if LIGHTING & LIGHTING_AO
+    if (!hit) {
+      sum += 1.0;
+    } else {
+      sum += min(state2.t*0.5, 1.0);
+    }
+#endif
+    
+#if LIGHTING & LIGHTING_GI
+    RenderState state3 = state;
+
+    state3.co -= state3.dir*0.003;
+    state3.dir = normalize(lightNo + hash3d(0.42423+T)*0.5);
+    
+    if (!rtrace(state3)) {
+      vec3 no2 = calcNormal(state);
+      
+      float f = dot(lightNo, no2);
+      sum += f;
+    }
+#endif
+  }
   
+  sum /= float(steps);
+  
+  l = sum;
+}
+
+#endif
+
   state.co = co + no*0.01;
   field(state);
   
-  l = pow(abs(state.f*10.0), 0.3);
-  l *= state.color*0.5 + 0.5;
-  //l += no[0];
-  
   l = clamp(l, 0.0, 1.0);
-  l = sqrt(l*no[0]);
   
-  return l*l*(3.0 - 2.0*l);
+  return l;
+  //return l*l*(3.0 - 2.0*l);
 }
 `
 
@@ -538,6 +492,8 @@ export class TraceFractalPattern extends Pattern {
   constructor() {
     super();
 
+    this.lighting_mode = 0;
+    
     this.renderTiles = false;
     this.samplesPerTile = 5;
     this.pixel_size = 0.7;
@@ -569,9 +525,9 @@ export class TraceFractalPattern extends Pattern {
         {name: "roll", value : 0.0}, //9
         {name: "fov", value : 0.1, speed : 0.1}, //10
         {name: "dist", value : 5.0, speed: 1.0}, //11
-        {name: "eps", value : 0.25, speed : 0.0025}, //12
+        {name: "eps", value : 0.675, speed : 0.0025}, //12
         {name: "rlimit", value : 0.001, speed : 0.00025, exp : 1.0, range : [0.00001, 0.1]},//13
-        {name: "levels", value : 1, range : [1, 10]},//14
+        {name: "levels", value : 1, range : [1, 20]},//14
         {name : "lvlScale", value : 1.5, range : [0.1, 5.0]},//15
         {name : "lvlLimit", value : 0.5, range : [0.01, 2.0]},//16
         {name : "lvlRot1", value : 0.0, range : [-15, 15.0]},//17
@@ -600,7 +556,7 @@ export class TraceFractalPattern extends Pattern {
     return {
       typeName     : "fractal_trace",
       uiName       : "Fractal Trace",
-      flag         : 0,
+      flag         : PatternFlags.NEED_BLUEMASK,
       description  : "",
       icon         : -1,
       offsetSliders: {
@@ -614,6 +570,22 @@ export class TraceFractalPattern extends Pattern {
     }
   }
 
+  static apiDefine(api) {
+    let st = super.apiDefine(api);
+    
+    let onchange = function() {
+      this.dataref.drawGen++;
+      window.redraw_viewport();
+    }
+    
+    let redraw = window.redraw_viewport;
+    
+    st.flags("lighting_mode", "lighting_mode", LightingModes, "Lighting")
+    .on('change', onchange);
+    
+    return st;
+  }
+  
   setup(ctx, gl, uniforms, defines) {
     let skey = (name) => {
       let i = 0;
@@ -627,6 +599,15 @@ export class TraceFractalPattern extends Pattern {
       
       throw new Error("bad key " + name);
     }
+
+    let lvec = new Vector3([5, 6, 7]);
+    let ln = new Vector3(lvec);
+    ln.negate().normalize();
+    
+    uniforms.lightCo = util.list(lvec);
+    uniforms.lightNo = util.list(ln);
+    
+    defines.LIGHTING = this.lighting_mode;
     
     defines.OFFSET = skey("offset");
     defines.SMOOTH_FAC = skey("smoothFac");
@@ -657,21 +638,25 @@ export class TraceFractalPattern extends Pattern {
   static buildSidebar(ctx, con) {
     super.buildSidebar(ctx, con);
 
+    con.useIcons(false);
+    
     con.prop("samplesPerTile");
     con.prop("renderTiles");
+    con.prop("lighting_mode");
   }
   
   savePresetText(opt={}) {
     opt.sharpness = opt.sharpness ?? this.sharpness;
     opt.filter_width = opt.filter_width ?? this.filter_width;
-    //opt.max_samples = opt.max_samples ?? this.max_samples;
+    opt.max_samples = opt.max_samples ?? this.max_samples;
+    opt.lighting_mode = opt.lighting_mode ?? this.lighting_mode;
 
     opt = JSON.stringify(opt);
 
     let sliders = JSON.stringify(util.list(this.sliders));
 
     return `
-add_preset_new(${sliders}, ${opt});
+add_preset(${sliders}, ${opt});
     `.trim();
   }
   viewportDraw(ctx, gl, uniforms, defines) {
@@ -682,11 +667,14 @@ add_preset_new(${sliders}, ${opt});
 
   copyTo(b) {
     super.copyTo(b);
+    
+    b.lighting_mode = this.lighting_mode;
   }
 }
 
 TraceFractalPattern.STRUCT = nstructjs.inherit(TraceFractalPattern, Pattern) + `
-  renderTiles : bool;
+  renderTiles   : bool;
+  lighting_mode : int;
 }`;
 
 Pattern.register(TraceFractalPattern);

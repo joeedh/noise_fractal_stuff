@@ -19,4 +19,7 @@ import './newton_trace.js';
 import './newton2_presets.js';
 import './newton2.js';
 
+import './fractal_trace_presets.js';
 import './fractal_trace.js';
+
+import './graph.js';

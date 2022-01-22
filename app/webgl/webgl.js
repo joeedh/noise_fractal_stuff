@@ -271,6 +271,11 @@ export class FBO {
 export function init_webgl(canvas, params, webgl2) {
 //  webgl2 = false;
 
+  params.powerPreference = params.powerPreference ?? "high-performance";
+  params.premultipliedAlpha = params.premultipliedAlpha ?? false;
+  params.antialias = params.antialias ?? false;
+  params.desynchronized = params.desynchronized ?? true;
+
   var gl = canvas.getContext(webgl2 ? "webgl2" : "webgl", params);
   
   if (!gl) {

@@ -1,5 +1,6 @@
 import {Curve1D, nstructjs} from '../path.ux/scripts/pathux.js';
 import {Curve} from '../path.ux/scripts/widgets/ui_curvewidget_old.js';
+import {genBlueMask} from './bluemask.js';
 
 export class CurveSet {
   constructor() {
@@ -314,31 +315,103 @@ float hash2(vec2 p) {
     return fract(f);
 }
 
+float bluenoise(vec2 p) {
+  float f;
+  vec2 op = p;
+
+  p.x += tent(hash(fract(T*12.53423)*10.32432))*1500.0;
+  p.y += tent(hash(fract(T*12.3234)*20.9234+10.4234))*1500.0;
+  
+  float a = 0.24976; //0.55947; //1.42083; //1.2569;
+  float b;
+  
+  //a = 4.73493;
+  
+  //a = SLIDERS[1]*0.1;
+  //b = SLIDERS[2]*0.1;
+  
+  b = a*sqrt(5.0);
+  
+  float c = 0.5918;
+  float d;
+  
+  //p = floor(p*0.25);
+  
+  //c = SLIDERS[4]*0.1;
+  //d = SLIDERS[5]*0.1;
+  
+  d = 0.5*c;
+  
+  vec2 p2 = floor(p);
+  p2.x *= 0.7;
+  p2.x += mod(floor(p2.y*0.5), 2.0) >= 1.0 ? 0.5 : 0.0;
+  f = fract(-p2.x*c + p2.y*d);
+  
+  float dx = fract(p.x*a + p.y*b);
+  float dy = fract(p.y*a - p.x*b);
+  
+  f = (f+dx+dy)*0.33333333;
+  
+#if 0
+    if (f > sqrt((op.x*iInvRes.x)*(op.y*iInvRes.y))*SLIDERS[3]) {
+      f = 0.0;
+    } else {
+      f = 1.0;
+    }
+    
+    f = 1.0 - f;
+#else
+    //f = f*f*(3.0 - 2.0*f);
+#endif
+    
+    
+  return f;
+}
+
 float uhash2(vec2 p) {
     float f;
+
+#if 1 //blue noise-ish distribution
+    f = bluenoise(p);
     
+    //return f*2.0 - 1.0;
+    const float steps = 17.0;
+    
+    f = floor(f*steps)/steps;
+    
+    f = hash(f+T);
+    f += hash(f+T+0.32432);
+    f += hash(f+T+1.23423);
+    f *= 0.333333;
+    
+    return f*2.0 - 1.0;
+#else
     f = hash2(p);
-    //return f;
+    
     f += hash2(p + vec2(2.234, 0.63));
     f += hash2(p + vec2(-10.8, 0.95));
     
-    //f = pow(f, 1.0/3.0);
     f /= 3.0;
     
-    //f *= f*f*f*f;
-    
     return f*2.0 - 1.0;
+#endif
 }
 
   `.trim(),
   fragment   : `
-float mainImage( vec2 uv, out float w) {    
+float mainImage( vec2 uv, out float w) {
+#if 0
+    w = 1.0;
+    //return uhash2(uv)*0.5 + 0.5;
+    return bluenoise(uv);
+#endif
+
 #ifdef PER_PIXEL_RANDOM
     float dx = uhash2(uv);
-    float dy = uhash2(-uv + 2.43223);
+    float dy = uhash2(-uv + 2.53223);
 #else
     float dx = uhash2(vec2(0.,0.));
-    float dy = uhash2(-vec2(0.,0.) + 2.432);
+    float dy = uhash2(-vec2(0.,0.) + 2.53223);
     
     //dx = fract(uSample)*2.0 - 1.0;
     //dy = fract(uSample+0.45)*2.0 - 1.0;
@@ -365,7 +438,8 @@ float mainImage( vec2 uv, out float w) {
     uv += filterw*vec2(dx, dy);
 
     float f = pattern(uv[0], uv[1]);
-
+    f = clamp(f, 0.0, 1.0);
+    
     // Output to screen
     vec4 color = vec4(f, f, f, 1.0);
     

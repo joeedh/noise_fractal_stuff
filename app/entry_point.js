@@ -10,8 +10,9 @@ import {initPresets} from './pattern/preset.js';
 import {resolveURL} from './util/urlutil.js';
 
 let pathux_config = {
-  simpleNumSliders     : true,
-  useNumSliderTextboxes: true
+  simpleNumSliders       : true,
+  useNumSliderTextboxes  : true,
+  autoLoadSplineTemplates: false
 };
 
 function setupToolOpBase() {

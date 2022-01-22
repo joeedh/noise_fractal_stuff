@@ -7,82 +7,17 @@ import {loadPreset, presetManager, savePreset} from './preset.js';
 export {CurveSet} from './pattern_shaders.js';
 
 import {PatternClasses} from './pattern_base.js';
+import {getBlueMaskTex} from './bluemask.js';
+import {SliderParam, Sliders, SliderTypeMap, SliderTypes} from './pattern_types.js';
 export {PatternClasses} from './pattern_base.js';
 
 let CachedPatternTok = Symbol("cached-pattern");
+let SliderDefTok = Symbol("slider-def");
 
 export const PatternFlags = {
-  CUSTOM_SHADER: 1
+  CUSTOM_SHADER: 1,
+  NEED_BLUEMASK: 2
 };
-
-export class Sliders extends Array {
-  constructor(n = 0, pat) {
-    super(n);
-    this._pattern = pat;
-
-    this.renderTiles = false;
-    this.samplesPerTile = 2;
-  }
-
-  static from(b, pattern) {
-    let ret = new Sliders(0, pattern);
-
-    for (let item of b) {
-      ret.push(item);
-    }
-
-    return ret;
-  }
-
-  toJSON() {
-    return util.list(this);
-  }
-
-  loadSliderDef(def) {
-    let defineProp = (k, i, sdef) => {
-      Object.defineProperty(this, k, {
-        get: function () {
-          return this[i];
-        },
-        set: function (v) {
-          if (!sdef.noReset) {
-            this._pattern.drawGen++;
-          }
-          this[i] = v;
-        }
-      })
-    }
-
-    const badkeys = new Set([
-      "length", "push", "pop", "remove", "indexOf", "toString",
-
-    ]);
-
-    for (let i = 0; i < def.length; i++) {
-      let item = def[i];
-      let k;
-
-      if (typeof item === "string") {
-        k = item;
-        item = {name: item};
-      } else {
-        k = item.name;
-      }
-
-      if (badkeys.has(k)) {
-        continue;
-      }
-
-      try {
-        defineProp(k, i, item);
-      } catch (error) {
-        console.log(error.stack);
-        console.log(error.message);
-        console.warn("Failed to bind a slider property:", k);
-      }
-    }
-  }
-}
 
 export class Pattern {
   constructor() {
@@ -94,6 +29,9 @@ export class Pattern {
 
     this.use_curves = false;
     this.curveset = new CurveSet();
+
+    //id if pattern is inside an MLGraph
+    this.id = -1;
 
     for (let i = 0; i < 4; i++) {
 
@@ -133,13 +71,79 @@ export class Pattern {
     this.uiName = def.uiName;
     this.flag = def.flag !== undefined ? def.flag : 0;
 
-    this.sliders = new Sliders(0, this);
+    this.sliders = new Sliders();
     this.pixel_size = 1.0;
 
     this.shader = undefined;
     this.finalShader = undefined;
 
-    this.loadSlidersFromDef(this.constructor.patternDef().sliderDef);
+    this.sliders.merge(this.constructor.getSliderDef());
+  }
+
+  get haveInputs() {
+    for (let param of this.sliders.params) {
+      for (let link of param.links) {
+        if (link.dst === this) {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  }
+
+  get haveOutputs() {
+    for (let param of this.sliders.params) {
+      for (let link of param.links) {
+        if (link.src === this) {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  }
+
+  static getSliderDef() {
+    if (Object.hasOwnProperty(this, SliderDefTok)) {
+      return this[SliderDefTok];
+    }
+
+    let sdefs = util.list(this.patternDef().sliderDef);
+    let visit = new Set();
+
+    for (let i=0; i<sdefs.length; i++) {
+      let sdef = sdefs[i];
+
+      if (typeof sdef === "string") {
+        sdef = {name : sdef, type : "float"};
+      }
+
+      sdef.type = sdef.type ?? "float";
+
+      if (!sdef.name) {
+        sdef.name = "unnamed" + i;
+        console.error("Expected a name", sdef);
+      }
+
+      if (visit.has(sdef.name)) {
+        console.error("name collision in sliders");
+        let base = sdef.name;
+        let j = 2;
+
+        while (visit.has(sdef.name)) {
+          sdef.name = base + (j++);
+        }
+      }
+
+      visit.add(sdef.name);
+      sdefs[i] = sdef;
+    }
+
+    Object.seal(sdefs);
+    this[SliderDefTok] = sdefs;
+
+    return sdefs;
   }
 
   get scale() {
@@ -311,6 +315,30 @@ float pattern(float ix, float iy) {
       .on('change', onchange)
       .noUnits();
 
+    st.list("sliders.params", "paramDef", [
+      function getStruct(api, list, key) {
+        let obj = key !== undefined ? list[key] : undefined;
+
+        return !obj ? api.mapStruct(SliderParam, false) : obj.getStruct(api);
+      },
+
+      function get(api, list, key) {
+        return list[key];
+      },
+
+      function getKey(api, list, obj) {
+        return list.indexOf(obj);
+      },
+
+      function getIter(api, list) {
+        return list[Symbol.iterator]();
+      },
+
+      function getLength(api, list) {
+        return list.length;
+      }
+    ]);
+
     class dummy {
     }
 
@@ -360,7 +388,7 @@ float pattern(float ix, float iy) {
 
     st.string("typeName", "type", "").readOnly();
     st.list("sliders", "sliders", [
-      function getStruct(api, list, obj) {
+      function getStruct(api, list, key) {
         return floatst;
       },
 
@@ -380,6 +408,63 @@ float pattern(float ix, float iy) {
         return list.length;
       }
     ]);
+
+    //can't access this.patternDef inside of base class
+    if (this === Pattern) {
+      return;
+    }
+
+
+    let makeParamGetSet = (def, key, i) => {
+      def.customGetSet(function get() {
+        return this.dataref.sliders.params[i].value;
+      }, function set(v) {
+        this.dataref.sliders.params[i].setValue(v);
+      });
+    }
+
+    let pst = st.struct("", "params", "Params");
+    let i = 0;
+
+    for (let pdef of this.getSliderDef()) {
+      let type = SliderTypeMap[pdef.type];
+      let def;
+
+      let path = pdef.name;
+
+      switch (type) {
+        case SliderTypes.FLOAT:
+          def = pst.float(path, pdef.name, ToolProperty.makeUIName(pdef.name));
+          break;
+        case SliderTypes.INT:
+          def = pst.int(path, pdef.name, ToolProperty.makeUIName(pdef.name));
+          break;
+        case SliderTypes.VECTOR2:
+          def = pst.vec2(path, pdef.name, ToolProperty.makeUIName(pdef.name));
+          break;
+        case SliderTypes.VECTOR3:
+          def = pst.vec3(path, pdef.name, ToolProperty.makeUIName(pdef.name));
+          break;
+        case SliderTypes.VECTOR4:
+          def = pst.vec4(path, pdef.name, ToolProperty.makeUIName(pdef.name));
+          break;
+        case SliderTypes.ENUM:
+          def = pst.enum(path, pdef.name, pdef.enumDef, ToolProperty.makeUIName(pdef.name));
+          break;
+        case SliderTypes.FLAGS:
+          def = pst.flags(path, pdef.name, pdef.enumDef, ToolProperty.makeUIName(pdef.name));
+          break;
+      }
+
+      if (!pdef.noReset) {
+        def.on('change', onchange);
+      } else {
+        def.on('change', window.redraw_viewport);
+      }
+
+      makeParamGetSet(def, pdef.name, i);
+      i++;
+    }
 
     return st;
   }
@@ -446,33 +531,17 @@ float pattern(float ix, float iy) {
     b.drawGen++;
   }
 
-  loadSlidersFromDef(sliderDef) {
-    this.sliders.length = 0;
-
-    for (let item of sliderDef) {
-      if (typeof item === "string") {
-        item = {name: item};
-      }
-
-      if ("value" in item) {
-        this.sliders.push(item.value);
-      } else {
-        this.sliders.push(0.0);
-      }
-    }
-
-    this.sliders.loadSliderDef(sliderDef);
-
-    return this;
-  }
-
   genShader() {
     let vertex = `
     `;
   }
 
+  getFragmentCode() {
+    return this.constructor.patternDef().shader;
+  }
+
   compileShader(gl) {
-    let fragment = this.constructor.patternDef().shader;
+    let fragment = this.getFragmentCode();
     let fragmentBase = Shaders.fragmentBase;
 
     let vertex = fragmentBase.vertex;
@@ -572,6 +641,11 @@ float pattern(float ix, float iy) {
 
     let defines = {};
     let uniforms = {};
+
+    if (this.constructor.getPatternDef().flag & PatternFlags.NEED_BLUEMASK) {
+      uniforms.blueMaskDimen = 128;
+      uniforms.blueMask = getBlueMaskTex(gl,uniforms.blueMaskDimen);
+    }
 
     if (this.use_curves) {
       defines.USE_CURVES = true;
@@ -742,23 +816,21 @@ float pattern(float ix, float iy) {
   loadSTRUCT(reader) {
     reader(this);
 
-    let sliderdef = this.constructor.patternDef().sliderDef;
+    if (!(this.sliders instanceof Sliders)) {
+      let sliders = new Sliders();
+      sliders.merge(this.constructor.getSliderDef());
 
-    while (this.sliders.length < sliderdef.length) {
-      let item = sliderdef[this.sliders.length];
-      let value;
-
-      if (typeof item === "object") {
-        value = item.value ?? 0.0;
-      } else {
-        value = 0.0;
+      for (let i=0; i<sliders.length; i++) {
+        sliders[i] = this.sliders[i];
       }
 
-      this.sliders.push(value);
+      sliders.bindProperties();
+      this.sliders = sliders;
+    } else {
+      this.sliders.merge(this.constructor.getSliderDef());
+      this.sliders.unbindProperties();
+      this.sliders.bindProperties();
     }
-
-    this.sliders = Sliders.from(this.sliders, this);
-    this.sliders.loadSliderDef(sliderdef);
   }
 
   regenMesh(gl) {
@@ -823,7 +895,7 @@ Pattern.STRUCT = `
 Pattern {
   typeName            : string;
   activePreset        : string;
-  sliders             : array(double);
+  sliders             : Sliders;
 
   fast_mode           : bool;
   pixel_size          : double;
@@ -840,6 +912,8 @@ Pattern {
   mul_with_orig       : bool;
   use_curves          : bool;
   curveset            : CurveSet;
+  id                  : int;
+  graph_flag          : int;
 }
 `;
 nstructjs.register(Pattern);
