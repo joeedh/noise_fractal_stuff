@@ -285,7 +285,60 @@ uniform sampler2D rgba;
 varying vec2 vCo;//drawing rectangle coordinates
 varying vec2 vUv;//possibly mapped coordinates
 
-#define M_PI 3.141592654
+#define M_PI 3.14159265358
+
+vec2 cmul(vec2 a, vec2 b) {
+    return vec2(
+        a[0]*b[0] - a[1]*b[1],
+        a[0]*b[1] + b[0]*a[1]
+    );
+}
+
+float ctent(float f) {
+    return cos(f*M_PI*2.0)*0.5 + 0.5;
+}
+
+#if 0
+float smin(float a, float b, float t) {
+    if (t == 0.0)
+        return a < b ? a : b;
+        
+    if (a < b-t*0.5) {
+        return a;
+    } else if (a < b+t*0.5) {
+        float f = (a-b+t*0.5) / t;
+    
+        f = f*f*(3.0 - 2.0*f);
+        
+        return a + (b - a)*f;
+    }
+
+    return b;
+}
+#else
+float smin(float a, float b, float t) {
+  float a1 = min(a, b), a2 = min(a, b);
+  
+  if (a >= b - t && a <= b + t) {
+    float s = (a - b) / (2.0 * t);
+    
+    s = s*s*(3.0 - 2.0*s);
+    
+    a1 = a + (b - a) * s;
+  }
+  
+  if (b >= a - t && b <= a + t) {
+    float s = (b - a) / (2.0 * t);
+    
+    s = s*s*(3.0 - 2.0*s);
+    
+    a2 = b + (a - b) * s;
+  }
+  
+  //return a1;
+  return (a1 + a2)*0.5;
+}
+#endif
 
 float tent(float f) {
     return 1.0 - abs(fract(f)-0.5)*2.0;

@@ -491,13 +491,6 @@ const shader = `
 //uniform float T;
 //uniform float SLIDERS[MAX_SLIDERS];
 
-vec2 cmul(vec2 a, vec2 b) {
-    return vec2(
-        a[0]*b[0] - a[1]*b[1],
-        a[0]*b[1] + b[0]*a[1]
-    );
-}
-
 #if 0
 #ifdef SHOW_DV
 float pattern(float ix, float iy, out vec2 dv) {
@@ -860,7 +853,8 @@ export class MandelbrotPattern extends Pattern {
         {name: "exp", value : 2.0, range : [-5.0, 10000.0], speed : 0.25}, //21
         {name: "th", value : 0.0, range : [-6.0, 6.0], speed : 0.0875}, //22
       ],
-      shader
+      shader,
+      shaderPre : ''
     }
   }
 

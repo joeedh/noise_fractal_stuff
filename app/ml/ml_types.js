@@ -12,6 +12,7 @@ export class MLGraph {
     this.idMap = new Map();
     this.sortlist = [];
     this.flag = MLGraphFlags.RESORT;
+    this._update_digest = new util.HashDigest();
   }
 
   get length() {
@@ -48,6 +49,7 @@ export class MLGraph {
     return st;
   }
 
+
   copy() {
     let ml = new MLGraph();
     ml.idgen = this.idgen;
@@ -68,8 +70,11 @@ export class MLGraph {
         ml.idMap.set(param2.id, param2);
 
         for (let link1 of param1.links) {
-          let link2 = new SliderLink(link1.src.id, link2.src.id);
+          let link2 = new SliderLink();
           link1.copyTo(link2);
+
+          link2.src = link1.src.id;
+          link2.dst = link1.dst.id;
 
           param2.links.push(link2);
         }
@@ -141,6 +146,8 @@ export class MLGraph {
     this.ensureDependParam(gen);
     this.ensureFactorParam(gen);
 
+    this.flag |= MLGraphFlags.RESORT;
+
     gen.id = this.idgen++;
     this.idMap.set(gen.id, gen);
 
@@ -154,6 +161,35 @@ export class MLGraph {
     return this;
   }
 
+  remove(gen) {
+    if (gen.id === -1) {
+      console.warn("Generator is not in graph!", gen);
+      return;
+    }
+
+    this.flag |= MLGraphFlags.RESORT;
+    this.generators.remove(gen);
+    this.idMap.delete(gen.id);
+
+    gen.id = -1;
+
+    //to prevent reference leaks, forcbly clear sortlist
+    this.sortlist.length = 0;
+
+    for (let param of gen.slider.params) {
+      this.idMap.delete(param.id);
+      param.id = -1;
+
+      for (let link of param.links) {
+        if (link.src === param) {
+          link.dst.links.remove(link);
+        } else {
+          link.src.links.remove(link);
+        }
+      }
+    }
+  }
+
   sort() {
     this.flag &= ~MLGraphFlags.RESORT;
 
@@ -165,8 +201,8 @@ export class MLGraph {
 
       for (let param of gen.sliders.params) {
         for (let link of param.links) {
-          if (link.dst === gen && !(link.src.flag & MLFlags.VISIT)) {
-            rec(link.src);
+          if (link.dst.owner === gen && !(link.src.owner.flag & MLFlags.VISIT)) {
+            rec(link.src.owner);
           }
         }
       }
@@ -175,8 +211,8 @@ export class MLGraph {
 
       for (let param of gen.sliders.params) {
         for (let link of param.links) {
-          if (link.src === gen && !(link.dst.flag & MLFlags.VISIT)) {
-            rec(link.dst);
+          if (link.src.owner === gen && !(link.dst.owner.flag & MLFlags.VISIT)) {
+            rec(link.dst.owner);
           }
         }
       }
@@ -203,11 +239,80 @@ export class MLGraph {
     }
   }
 
-  generate() {
+  getDefineKey(gen, k) {
+    return `${k}__${gen.id}`;
+  }
+
+  /** generate fragment shader code, node this
+   *  fits into the pattern shader system
+   */
+  generate(ctx) {
     if (this.flag & MLGraphFlags.RESORT) {
       this.sort();
     }
 
+    let s = '';
+    let getName = gen => `layer${gen.id}`;
+
+    for (let gen of this.sortlist) {
+      s += `uniform float SLIDERS${gen.id}[${gen.sliders.length}];\n`;
+    }
+
+    for (let gen of this.sortlist) {
+      let code = gen.getFragmentCode();
+      let name = getName(gen);
+
+      let defines = {};
+      let uniforms = {};
+      let ctx = {pattern : gen};
+
+      let defines2 = {};
+
+      gen.setup(ctx, undefined, uniforms, defines);
+
+      for (let k in defines) {
+        let k2 = this.getDefineKey(gen, k);
+
+        k = new RegExp(k, "g");
+        code = code.replace(k, k2);
+      }
+
+      code = code.replace(/\$/g, "g"+gen.id);
+
+      code = code.replace(/\bpattern\b/g, name).trim();
+      code = code.replace(/\bSLIDERS\b/g, "SLIDERS" + gen.id);
+
+      s += "\n" + `
+/*---------------${name}--------------*/
+${code}
+      `.trim() + "\n";
+    }
+
+    s += `
+float pattern(float ix, float iy) {
+    return 0.5;
+}
+    `;
+
+    console.log(s);
+
+    return s;
+  }
+
+  genUpdateKey(digest=this._update_digest.reset()) {
+    for (let gen of this.generators) {
+      digest.add(gen.typeName);
+
+      for (let param of gen.sliders.params) {
+        digest.add(param.links.length);
+      }
+
+      if (gen.shader) {
+        digest.add(gen.shader.fragmentSource.length);
+      }
+    }
+
+    return digest.get();
   }
 
   pruneDuplicateLinks() {
@@ -217,7 +322,9 @@ export class MLGraph {
       for (let param of gen.sliders.params) {
         for (let i = 0; i < param.links.length; i++) {
           let link = param.links[i];
-          let key = "" + link.src.id + ":" + link.dst.id;
+
+          let key = "" + link.src.name + ":" + link.src.owner.id + ":";
+          key += link.dst.name + ":" + link.dst.owner.id;
 
           let link2 = linkMap.get(key);
 
@@ -240,6 +347,7 @@ export class MLGraph {
       this.idMap.set(gen.id, gen);
 
       for (let param of gen.sliders.params) {
+        param.owner = gen;
         this.idMap.set(param.id, param);
       }
     }

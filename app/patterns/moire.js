@@ -47,8 +47,7 @@ export const SmoothFuncs = {
   GUASSIAN  : 3
 };
 
-const shader = `
-
+const shaderPre = `
 float cosfunc(float f) {
   //return tent(f/2.0/M_PI)*2.0-1.0;
   return cos(f);
@@ -59,21 +58,42 @@ float sinfunc(float f) {
   //return sin(f);
 }
 
+
 float band(vec2 p, float th) {
   float f = cosfunc(th)*p.x + sinfunc(th)*p.y;
   
   f = tent(f); 
 
-#if SMOOTHFUNC == 1
-  f *= f;
-#elif SMOOTHFUNC == 2
-  f = f*f*(3.0 - 2.0*f);
-#elif SMOOTHFUNC == 3
-  f = 1.0 - exp(-f*f*3.0);
-#endif
-
   return f;
 }
+
+float band_sqr(vec2 p, float th) {
+  float f = cosfunc(th)*p.x + sinfunc(th)*p.y;
+  
+  f = tent(f); 
+
+  return f*f;
+}
+
+float band_smooth(vec2 p, float th) {
+  float f = cosfunc(th)*p.x + sinfunc(th)*p.y;
+  
+  f = tent(f); 
+
+  return f*f*(3.0 - 2.0*f);
+}
+
+float band_exp(vec2 p, float th) {
+  float f = cosfunc(th)*p.x + sinfunc(th)*p.y;
+  
+  f = tent(f); 
+
+  return 1.0 - exp(-f*f*3.0);
+}
+
+`;
+
+const shader = `
 
 float pattern(float ix, float iy) {
   vec2 p = vec2(ix, iy)*iInvRes*2.0 - 1.0;
@@ -96,7 +116,15 @@ float pattern(float ix, float iy) {
   th = 0.0;
   
   for (int i=0; i<=STEPS; i++) {
+#if SMOOTHFUNC == 1
+    float f2 = band_sqr(p, th);
+#elif SMOOTHFUNC == 2
+    float f2 = band_smooth(p, th);
+#elif SMOOTHFUNC == 3
+    float f2 = band_exp(p, th);
+#else
     float f2 = band(p, th);
+#endif
     th += thscale;
     
     p = p*SLIDERS[10];
@@ -179,6 +207,7 @@ export class MoirePattern extends Pattern {
         {name: "exp", value: 1.0, desription: "exponent for SUM mode", range: [-2.0, 100.0], speed: 0.5}, //12
       ],
       shader,
+      shaderPre,
     }
   }
 

@@ -108,6 +108,8 @@ export class GraphEditor extends Container {
   constructor() {
     super();
 
+    this._update_digest = new util.HashDigest();
+
     this._rebuild = true;
   }
 
@@ -199,8 +201,6 @@ export class GraphEditor extends Container {
       i++;
     }
 
-    console.error("I", i, pat.graph.generators.length);
-
     if (i !== pat.graph.generators.length) {
       this.tool("graph.add(before=-1)");
     }
@@ -212,6 +212,7 @@ export class GraphEditor extends Container {
       this.flushUpdate();
     }
   }
+
 
   update() {
     super.update();
@@ -246,6 +247,7 @@ export class GraphPattern extends Pattern {
   constructor() {
     super();
 
+    this._last_shader_key = undefined;
     this.graph = new MLGraph();
   }
 
@@ -291,10 +293,31 @@ float pattern(float ix, float iy) {
   }
 
   getFragmentCode() {
+    return this.graph.generate();
+    //this.graph.getShaderCode();
     return super.getFragmentCode();
   }
 
+
+  viewportDraw(ctx, gl, uniforms = {}, defines = {}) {
+    let key = this.graph.genUpdateKey();
+
+    if (key !== this._last_shader_key) {
+      this._last_shader_key = key;
+      console.warn("shader update", key);
+
+      if (this.shader) {
+        this.shader.destroy(gl);
+        this.shader = undefined;
+        this.compileShader(gl);
+      }
+    }
+
+    super.viewportDraw(ctx, gl, uniforms, defines);
+  }
+
   setup(ctx, gl, uniforms, defines) {
+    defines.STEPS = 5;
     defines.GAIN = "SLIDERS[0]";
     defines.COLOR_SHIFT = "SLIDERS[1]";
     defines.COLOR_SCALE = "SLIDERS[2]";

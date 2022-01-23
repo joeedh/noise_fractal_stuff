@@ -9,6 +9,7 @@ export {CurveSet} from './pattern_shaders.js';
 import {PatternClasses} from './pattern_base.js';
 import {getBlueMaskTex} from './bluemask.js';
 import {SliderParam, Sliders, SliderTypeMap, SliderTypes} from './pattern_types.js';
+
 export {PatternClasses} from './pattern_base.js';
 
 let CachedPatternTok = Symbol("cached-pattern");
@@ -78,6 +79,10 @@ export class Pattern {
     this.finalShader = undefined;
 
     this.sliders.merge(this.constructor.getSliderDef());
+
+    for (let param of this.sliders.params) {
+      param.owner = this;
+    }
   }
 
   get haveInputs() {
@@ -102,48 +107,6 @@ export class Pattern {
     }
 
     return false;
-  }
-
-  static getSliderDef() {
-    if (Object.hasOwnProperty(this, SliderDefTok)) {
-      return this[SliderDefTok];
-    }
-
-    let sdefs = util.list(this.patternDef().sliderDef);
-    let visit = new Set();
-
-    for (let i=0; i<sdefs.length; i++) {
-      let sdef = sdefs[i];
-
-      if (typeof sdef === "string") {
-        sdef = {name : sdef, type : "float"};
-      }
-
-      sdef.type = sdef.type ?? "float";
-
-      if (!sdef.name) {
-        sdef.name = "unnamed" + i;
-        console.error("Expected a name", sdef);
-      }
-
-      if (visit.has(sdef.name)) {
-        console.error("name collision in sliders");
-        let base = sdef.name;
-        let j = 2;
-
-        while (visit.has(sdef.name)) {
-          sdef.name = base + (j++);
-        }
-      }
-
-      visit.add(sdef.name);
-      sdefs[i] = sdef;
-    }
-
-    Object.seal(sdefs);
-    this[SliderDefTok] = sdefs;
-
-    return sdefs;
   }
 
   get scale() {
@@ -189,6 +152,48 @@ export class Pattern {
     return this.drawSample <= this.max_samples || this.drawGen !== this._lastDrawGen;
   }
 
+  static getSliderDef() {
+    if (Object.hasOwnProperty(this, SliderDefTok)) {
+      return this[SliderDefTok];
+    }
+
+    let sdefs = util.list(this.patternDef().sliderDef);
+    let visit = new Set();
+
+    for (let i = 0; i < sdefs.length; i++) {
+      let sdef = sdefs[i];
+
+      if (typeof sdef === "string") {
+        sdef = {name: sdef, type: "float"};
+      }
+
+      sdef.type = sdef.type ?? "float";
+
+      if (!sdef.name) {
+        sdef.name = "unnamed" + i;
+        console.error("Expected a name", sdef);
+      }
+
+      if (visit.has(sdef.name)) {
+        console.error("name collision in sliders");
+        let base = sdef.name;
+        let j = 2;
+
+        while (visit.has(sdef.name)) {
+          sdef.name = base + (j++);
+        }
+      }
+
+      visit.add(sdef.name);
+      sdefs[i] = sdef;
+    }
+
+    Object.seal(sdefs);
+    this[SliderDefTok] = sdefs;
+
+    return sdefs;
+  }
+
   static getPatternDef() {
     if (!Object.hasOwnProperty(this, CachedPatternTok)) {
       let def = this.patternDef();
@@ -222,6 +227,7 @@ export class Pattern {
         },
         "x", "y", "scale"
       ],
+      shaderPre    : ``,
       shader       : `
 //uniform vec2 iRes;
 //uniform vec2 iInvRes;
@@ -536,8 +542,22 @@ float pattern(float ix, float iy) {
     `;
   }
 
-  getFragmentCode() {
-    return this.constructor.patternDef().shader;
+  getFragmentCode(addShaderPre = true) {
+    let def = this.constructor.getPatternDef();
+
+    let code;
+
+    if (addShaderPre) {
+      code = "\n" + def.shaderPre.trim() + "\n" + def.shader.trim() + "\n";
+    } else {
+      code =  "\n" + def.shader.trim() + "\n";
+    }
+
+    let idsubst = this.id >= 0 ? "g" + this.id : "";
+
+    code = code.replace(/\$/g, idsubst);
+
+    return code;
   }
 
   compileShader(gl) {
@@ -644,7 +664,7 @@ float pattern(float ix, float iy) {
 
     if (this.constructor.getPatternDef().flag & PatternFlags.NEED_BLUEMASK) {
       uniforms.blueMaskDimen = 128;
-      uniforms.blueMask = getBlueMaskTex(gl,uniforms.blueMaskDimen);
+      uniforms.blueMask = getBlueMaskTex(gl, uniforms.blueMaskDimen);
     }
 
     if (this.use_curves) {
@@ -820,7 +840,7 @@ float pattern(float ix, float iy) {
       let sliders = new Sliders();
       sliders.merge(this.constructor.getSliderDef());
 
-      for (let i=0; i<sliders.length; i++) {
+      for (let i = 0; i < sliders.length; i++) {
         sliders[i] = this.sliders[i];
       }
 
@@ -830,6 +850,10 @@ float pattern(float ix, float iy) {
       this.sliders.merge(this.constructor.getSliderDef());
       this.sliders.unbindProperties();
       this.sliders.bindProperties();
+    }
+
+    for (let param of this.sliders.params) {
+      param.owner = this;
     }
   }
 

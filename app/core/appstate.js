@@ -83,7 +83,7 @@ export class AppState {
       this.screen.remove();
     }
 
-    console.error("reset");
+    console.warn("application reset");
 
     if (resetModel) {
       this.model = new FileState();

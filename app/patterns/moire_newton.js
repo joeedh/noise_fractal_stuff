@@ -100,16 +100,8 @@ fdist_dy;
 off fort;
 
 */
-const shader = `
-//uniform vec2 iRes;
-//uniform vec2 iInvRes;
-//uniform float T;
-//uniform float SLIDERS[MAX_SLIDERS];
-
-
-#define M_PI 3.141592654
-
-float ctent(float f) {
+const shaderPre = `
+float mn_ctent(float f) {
   //return fract(f+0.5);
   return cos(f*M_PI*2.0)*0.5 + 0.5;
   //f = tent(f);
@@ -121,24 +113,32 @@ float ctent(float f) {
   //return 1.0 - abs(fract(f)-0.5)*2.0;
   //return fract(f);
 }
+`;
+const shader = `
+//uniform vec2 iRes;
+//uniform vec2 iInvRes;
+//uniform float T;
+//uniform float SLIDERS[MAX_SLIDERS];
 
-float fsample(vec2 p) {
+
+/* $ gets substituted with pattern.id by MLGraph */
+float fsample$(vec2 p) {
   float th = SLIDERS[10];
   
-  float dx1 = ctent(p.x);
-  float dy1 = ctent(p.y);
+  float dx1 = mn_ctent(p.x);
+  float dy1 = mn_ctent(p.y);
   
   p *= SLIDERS[11];
   
-  float dx2 = ctent(cos(th)*p.x + sin(th)*p.y);
-  float dy2 = ctent(cos(th)*p.y - sin(th)*p.x);
+  float dx2 = mn_ctent(cos(th)*p.x + sin(th)*p.y);
+  float dy2 = mn_ctent(cos(th)*p.y - sin(th)*p.x);
   
   th *= 2.0;
   
   p *= SLIDERS[11];
   
-  float dx3 = ctent(cos(th)*p.x + sin(th)*p.y);
-  float dy3 = ctent(cos(th)*p.y - sin(th)*p.x);
+  float dx3 = mn_ctent(cos(th)*p.x + sin(th)*p.y);
+  float dy3 = mn_ctent(cos(th)*p.y - sin(th)*p.x);
   
   
 #if PATTERN == 0
@@ -160,10 +160,10 @@ float fsample(vec2 p) {
 #endif
 }
 
-const float df = 0.00001;
-const float df_inv = 1.0 / df;
+const float df$ = 0.00001;
+const float df_inv$ = 1.0 / df$;
 
-vec2 dv_sample(vec2 p) {
+vec2 dv_sample$(vec2 p) {
   float scale1 = SLIDERS[11];
   float scale2 = SLIDERS[11];
   float th = SLIDERS[10];
@@ -347,20 +347,20 @@ vec2 dv_sample(vec2 p) {
     return vec2(dx, dy)*0.5; //hack, why do I have to scale by 0.5?
 #else
       
-      float f = fsample(p);
-      float dx = fsample(p + vec2(df, 0.0));
-      float dy = fsample(p + vec2(0.0, df));
+      float f = fsample$(p);
+      float dx = fsample$(p + vec2(df$, 0.0));
+      float dy = fsample$(p + vec2(0.0, df$));
       
-      vec2 dp = vec2(f - dx, f - dy) * df_inv;
+      vec2 dp = vec2(f - dx, f - dy) * df_inv$;
       
       return dp;
 #endif
 #else
-      float f = fsample(p);
-      float dx = fsample(p + vec2(df, 0.0));
-      float dy = fsample(p + vec2(0.0, df));
+      float f = fsample$(p);
+      float dx = fsample$(p + vec2(df$, 0.0));
+      float dy = fsample$(p + vec2(0.0, df$));
       
-      vec2 dp = vec2(f - dx, f - dy) * df_inv;
+      vec2 dp = vec2(f - dx, f - dy) * df_inv$;
       
       return dp;
 #endif
@@ -376,15 +376,15 @@ float pattern(float ix, float iy) {
 
     uv *= SLIDERS[3];
 
-    //return fsample(uv);
+    //return fsample$(uv);
     
     vec2 p = uv;
     float sum = 0.0;
     vec2 lastdp;
     
     for (int i=0; i<STEPS; i++) {
-      float f = fsample(p);
-      vec2 dp = dv_sample(p);
+      float f = fsample$(p);
+      vec2 dp = dv_sample$(p);
       
 #if MODE == 7
       //dp = normalize(dp);
@@ -557,7 +557,8 @@ export class MoireNewtonPattern extends Pattern {
         {name: "offset3", value: 0.62189, range: [-5.0, 25.0], speed: 0.5}, //12
         {name: "offset4", value : 0.0, range : [-15.0, 15.0], speed : 0.1}, //13
         ],
-      shader
+      shader,
+      shaderPre
     }
   }
 

@@ -105,6 +105,8 @@ export class SliderParam {
     this.name = name;
     this.type = type;
 
+    this.owner = undefined;
+
     this.id = -1;
 
     this._propBound = false;
@@ -348,8 +350,8 @@ export class SliderParam {
     link.src = this;
     link.dst = dst;
 
-    dst.links.push(this);
-    this.links.push(dst);
+    dst.links.push(link);
+    this.links.push(link);
 
     return this;
   }
@@ -399,7 +401,8 @@ SliderParam {
   type    : int;
   id      : int;
   links   : array(SliderLink);
-  _value   : abstract(SavedValue) | this._wrapValue();
+  _value  : abstract(SavedValue) | this._wrapValue();
+  owner   : int | this.owner ? this.owner.id : -1;
 }`;
 nstructjs.register(SliderParam);
 
@@ -415,7 +418,7 @@ export class SliderLink {
   constructor(src, dst) {
     this.src = src;
     this.dst = dst;
-    this.factor = 0.5;
+    this.factor = 1.0;
     this.blendMode = SliderBlendModes.MIX;
   }
 

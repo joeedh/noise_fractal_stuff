@@ -60,44 +60,22 @@ export function add_preset_new(sliders, options, hide = false) {
   return add_preset(sliders, options, false, hide);
 }
 
+const shaderPre = ``;
+
 const shader = `
 //uniform vec2 iRes;
 //uniform vec2 iInvRes;
 //uniform float T;
 //uniform float SLIDERS[MAX_SLIDERS];
 
-
-#define M_PI 3.141592654
-
-vec2 cmul(vec2 a, vec2 b) {
-    return vec2(
-        a[0]*b[0] - a[1]*b[1],
-        a[0]*b[1] + b[0]*a[1]
-    );
-}
-
-vec2 fsample(vec2 z, vec2 p) {
+//$ is replaced with pattern.id
+vec2 fsample$(vec2 z, vec2 p) {
     const float d = 1.0;
     //(z-1)(z+1)(z-p)
     vec2 a = z - vec2(d, 0.0+SLIDERS[12]);
     vec2 b = z + vec2(d, 0.0-SLIDERS[12]);
     vec2 c = z - p;
     return cmul(cmul(a, b), c);
-}
-
-
-float length2(vec2 p) {
-  float sf = dot(p, p), f = sf < 1.0 ? sf*10.5 : sf*0.25;
-  
-  if (isnan(sf)) {
-    return 0.01;
-  }
-  
-  f = (f*f + 3.0*sf) / (3.0*f + sf/f);
-  f = (f*f + 3.0*sf) / (3.0*f + sf/f);
-  //f = (f + sf/f)*0.5;
- 
-  return f;
 }
 
 float pattern(float ix, float iy) {
@@ -139,13 +117,13 @@ float pattern(float ix, float iy) {
         //toff = 0.75;
         z = cmul(uv, vec2(0.333333 + tm*0.5, 0.0 + tm)); //0.85*toff));
         
-        vec2 a = fsample(z, seed);
+        vec2 a = fsample$(z, seed);
 
 #if 0 //finite differences
         float df = 0.0002;
 
-        vec2 b = fsample(z+vec2(df, 0.0), seed);
-        vec2 c = fsample(z+vec2(0.0, df), seed);
+        vec2 b = fsample$(z+vec2(df, 0.0), seed);
+        vec2 c = fsample$(z+vec2(0.0, df), seed);
         
         dr = (b - a) / df;
         di = (c - a) / df;
@@ -273,7 +251,7 @@ float pattern(float ix, float iy) {
     //f = dfract*dfract*(3.0-2.0*dfract);
     
     //f = f*f*(3.0-2.0*f);
-    //f = fract(length(fsample(z, uv)));    
+    //f = fract(length(fsample$(z, uv)));    
     //f = fract(length(uv - startuv));
     
     return f;
@@ -325,7 +303,8 @@ export class NewtonPattern extends Pattern {
         {name: "valueoff", value: 0.0, range : [-15.0, 45.0], speed : 0.15, exp : 1.35, noReset: true}, //13
         {name: "offset3", value: 0.0, range: [-2.0, 10.0], speed: 0.025}, //14
       ],
-      shader
+      shader,
+      shaderPre
     }
   }
 

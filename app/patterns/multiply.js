@@ -11,15 +11,6 @@ const shader = `
 //uniform float T;
 //uniform float SLIDERS[MAX_SLIDERS];
 
-#define M_PI 3.141592654
-
-vec2 cmul(vec2 a, vec2 b) {
-    return vec2(
-        a[0]*b[0] - a[1]*b[1],
-        a[0]*b[1] + b[0]*a[1]
-    );
-}
-
 float pattern(float ix, float iy) {
     vec2 uv = vec2(ix, iy)/iRes;
     
@@ -87,7 +78,8 @@ export class MultNoise extends Pattern {
         {name: "offset3", value : 0.85}, //10
         {name: "offset4"}, //11
       ],
-      shader
+      shader,
+      shaderPre : ''
     }
   }
 

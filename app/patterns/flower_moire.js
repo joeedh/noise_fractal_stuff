@@ -5,8 +5,7 @@ import {
 
 import {Pattern} from '../pattern/pattern.js';
 
-const shader = `
-#define PI 3.141592654
+const shaderPre = `
 float cos1(float f) {
   return cos(f*3.141592654)*0.5 + 0.5;
 }
@@ -18,30 +17,10 @@ float tent2(float f) {
   return tent(f+0.5);
 }
 
-//#define cos(x) (tent((x)/(2.0*PI))*2.0-1.0)
-//#define sin(x) (tent(0.5+(x)/(2.0*PI))*2.0-1.0)
+//#define cos(x) (tent((x)/(2.0*M_PI))*2.0-1.0)
+//#define sin(x) (tent(0.5+(x)/(2.0*M_PI))*2.0-1.0)
 
-float ctent(float f) {
-    return cos(f*PI*2.0)*0.5 + 0.5;
-}
-float smin(float a, float b, float t) {
-    if (t == 0.0)
-        return a < b ? a : b;
-        
-    if (a < b-t*0.5) {
-        return a;
-    } else if (a < b+t*0.5) {
-        float f = (a-b+t*0.5) / t;
-    
-        f = f*f*(3.0 - 2.0*f);
-        
-        return a + (b - a)*f;
-    }
-
-    return b;
-}
-
-float pattern2(float x, float y) {
+float flower_pattern(float x, float y) {
     float f;
     
     f = length(vec2(x, y));
@@ -49,26 +28,27 @@ float pattern2(float x, float y) {
         return 0.0;
         
     f *= f;
-    f += atan(y, x)/PI/8.0;
+    f += atan(y, x)/M_PI/8.0;
     
     return fract(f*12.0);
 }
 
-float samplef(float x, float y, float k) {
-    float seed2 = SLIDERS[1]*2.0;
+
+float flower_samplef(float x, float y, float k, float seed1) {
+    float seed2 = seed1*2.0;
 
     float a1 = ctent(x);
     float a2 = ctent(y);
-    float a3 = ctent(cos(SLIDERS[1])*x + sin(SLIDERS[1])*y);
-    float a4 = ctent(cos(SLIDERS[1])*y - sin(SLIDERS[1])*x);
+    float a3 = ctent(cos(seed1)*x + sin(seed1)*y);
+    float a4 = ctent(cos(seed1)*y - sin(seed1)*x);
     float a5 = ctent(cos(seed2)*x + sin(seed2)*y);
     float a6 = ctent(cos(seed2)*y - sin(seed2)*x);
     
     
     return (a1+a2+a3+a4+a5+a6)/6.0;
     
-    float dx = ctent(x*cos(SLIDERS[1]) + y*sin(SLIDERS[1]));
-    float dy = ctent(y*cos(SLIDERS[1]) - x*sin(SLIDERS[1]));
+    float dx = ctent(x*cos(seed1) + y*sin(seed1));
+    float dy = ctent(y*cos(seed1) - x*sin(seed1));
     float gx = ctent(x), gy = ctent(y);
     
     //return smin(dx*gx, dy*gy, 10.0);
@@ -82,6 +62,9 @@ float samplef(float x, float y, float k) {
     float b = cos((x2*x2 + y2*y2)*k);
     return (a+b)*0.25+0.5;
 }
+
+`
+const shader = `
 
 float pattern(float ix, float iy) {
   int i;
@@ -103,15 +86,15 @@ float pattern(float ix, float iy) {
   uv = startuv*scale*6.0;
   
   float k = SLIDERS[9], df = 0.0005;
-  float ff = samplef(uv.x, uv.y, k);
-  float dx = (samplef(uv.x+df, uv.y, k) - ff) / df;
-  float dy = (samplef(uv.x, uv.y+df, k) - ff) / df;
+  float ff = flower_samplef(uv.x, uv.y, k, SLIDERS[1]);
+  float dx = (flower_samplef(uv.x+df, uv.y, k, SLIDERS[1]) - ff) / df;
+  float dy = (flower_samplef(uv.x, uv.y+df, k, SLIDERS[1]) - ff) / df;
   
   //return fract(ff*k);
   float x2 = fract(ff*k);
-  float y2 = fract(k*atan(dy, dx)/PI);
+  float y2 = fract(k*atan(dy, dx)/M_PI);
   
-  return pattern2((x2-0.5)*0.5, (y2-0.5)*0.5);
+  return flower_pattern((x2-0.5)*0.5, (y2-0.5)*0.5);
   //return startuv[1] < -0.1 ? x2 : y2;
 }
 
@@ -159,7 +142,8 @@ export class FlowerMoire extends Pattern {
         {name: "offset3", value : 0.85}, //10
         {name: "offset4"}, //11
       ],
-      shader
+      shader,
+      shaderPre,
     }
   }
 

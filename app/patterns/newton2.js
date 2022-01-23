@@ -51,23 +51,15 @@ export function add_preset_new(sliders, options, hide = false) {
   return add_preset(sliders, options, false, hide);
 }
 
+const shaderPre = ``;
+
 const shader = `
 //uniform vec2 iRes;
 //uniform vec2 iInvRes;
 //uniform float T;
 //uniform float SLIDERS[MAX_SLIDERS];
 
-
-#define M_PI 3.141592654
-
-vec2 cmul(vec2 a, vec2 b) {
-    return vec2(
-        a[0]*b[0] - a[1]*b[1],
-        a[0]*b[1] + b[0]*a[1]
-    );
-}
-
-const float D = 1.0;
+#define D$ 1.0
 
 /*
 
@@ -104,7 +96,7 @@ ff := avec(ff[0]*e1[0] - (ff[1]*e1[1]), ff[0]*e1[1] + e1[0]*ff[1], 0.0);
 
 */
 
-vec2 fsample(vec2 z, vec2 p) {
+vec2 fsample$(vec2 z, vec2 p) {
     //(z-1)(z+1)(z-p)
     vec2 a = z + vec2(SLIDERS[15], -SLIDERS[12]);
     vec2 b = z - vec2(SLIDERS[15], SLIDERS[12]);
@@ -114,14 +106,14 @@ vec2 fsample(vec2 z, vec2 p) {
     return cmul(cmul(cmul(cmul(a, b), c), d), e);
 }
 
-vec2 dfsample_x(vec2 z, vec2 p) {
+vec2 dfsample_x$(vec2 z, vec2 p) {
     //const float df = 0.0001;
     //vec2 a = fsample(z + vec2(df, 0.0), p);
     //return (a - fsample(z, p)) / df;
 
     float d1 = SLIDERS[15];
     float d2 = SLIDERS[16];
-    const float d = D;
+    const float d = D$;
     float zx = z[0], zy = z[1];
     float px = p[0], py = p[1];
     float s12 = SLIDERS[12];
@@ -142,14 +134,14 @@ vec2 dfsample_x(vec2 z, vec2 p) {
     return vec2(dx, dy);
 }
 
-vec2 dfsample_y(vec2 z, vec2 p) {
+vec2 dfsample_y$(vec2 z, vec2 p) {
     //const float df = 0.0001;
     //vec2 a = fsample(z + vec2(0.0, df), p);    
     //return (a - fsample(z, p)) / df;
      
     float d1 = SLIDERS[15];
     float d2 = SLIDERS[16];
-    const float d = D;
+    const float d = D$;
     float zx = z[0], zy = z[1];
     float px = p[0], py = p[1];
     float s12 = SLIDERS[12];
@@ -199,11 +191,11 @@ float pattern(float ix, float iy) {
     for (int i=0; i<STEPS; i++) {
       vec2 z = cmul(p, vec2(0.33333 + SLIDERS[1], SLIDERS[1]));
       
-      const float d = D;
+      const float d = D$;
       
-      vec2 a = fsample(z, seed);
-      vec2 dx = dfsample_x(z, seed);
-      vec2 dy = dfsample_y(z, seed);
+      vec2 a = fsample$(z, seed);
+      vec2 dx = dfsample_x$(z, seed);
+      vec2 dy = dfsample_y$(z, seed);
       
       if (dot(a, a) < 0.001) {
         break;
@@ -301,7 +293,8 @@ export class Newton2Pattern extends Pattern {
         {name: "z2", value : -1.0, speed : 1.0}, //16
         {name: "z3", value : 0.5, speed : 1.0}, //17
       ],
-      shader
+      shader,
+      shaderPre
     }
   }
 

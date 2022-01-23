@@ -46,15 +46,6 @@ const shader = `
 uniform vec3 lightCo;
 uniform vec3 lightNo;
 
-#define M_PI 3.141592654
-
-vec2 cmul(vec2 a, vec2 b) {
-    return vec2(
-        a[0]*b[0] - a[1]*b[1],
-        a[0]*b[1] + b[0]*a[1]
-    );
-}
-
 vec2 fsample(vec2 z, vec2 p) {
     const float d = 1.0;
     //(z-1)(z+1)(z-p)
@@ -63,7 +54,6 @@ vec2 fsample(vec2 z, vec2 p) {
     vec2 c = z - p;
     return cmul(cmul(a, b), c);
 }
-
 
 float length2(vec2 p) {
   float sf = dot(p, p), f = sf < 1.0 ? sf*10.5 : sf*0.25;
@@ -92,29 +82,6 @@ struct RenderState {
   float color;
   vec3 no;
 };
-
-float smin(float a, float b, float t) {
-  float a1 = min(a, b), a2 = min(a, b);
-  
-  if (a >= b - t && a <= b + t) {
-    float s = (a - b) / (2.0 * t);
-    
-    s = s*s*(3.0 - 2.0*s);
-    
-    a1 = a + (b - a) * s;
-  }
-  
-  if (b >= a - t && b <= a + t) {
-    float s = (b - a) / (2.0 * t);
-    
-    s = s*s*(3.0 - 2.0*s);
-    
-    a2 = b + (a - b) * s;
-  }
-  
-  //return a1;
-  return (a1 + a2)*0.5;
-}
 
 RenderState cube(RenderState state, float limit) {
   vec3 co = state.co;
@@ -566,7 +533,8 @@ export class TraceFractalPattern extends Pattern {
       },
       presets      : FractalTracePresets,
       sliderDef    : sliderdef,
-      shader
+      shader,
+      shaderPre : ''
     }
   }
 

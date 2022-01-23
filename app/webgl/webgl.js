@@ -624,6 +624,36 @@ export class ShaderProgram {
     this.uniformlocs = {};
   }
 
+  destroy(gl=this.gl) {
+    if (!gl) {
+      if (this.vertexShader || this.fragmentShader || this.program) {
+        console.error("Could not destroy a shader: no valid gl reference");
+      }
+
+      return;
+    }
+
+    for (let k in this._def_shaders) {
+      let shader = this._def_shaders[k];
+      shader.destroy(gl);
+    }
+
+    if (this.vertexShader) {
+      gl.deleteShader(this.vertexShader);
+    }
+
+    if (this.fragmentShader) {
+      gl.deleteShader(this.fragmentShader);
+    }
+
+    if (this.program) {
+      gl.deleteProgram(this.program);
+    }
+
+    this.program = this.vertexShader = this.fragmentShader = undefined;
+    this.rebuild = 1;
+  }
+
   uniformloc(name) {
     if (this._use_def_shaders) {
       return this._get_def_shader(this.gl).uniformloc(name);
