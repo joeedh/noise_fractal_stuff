@@ -1,12 +1,13 @@
 import {
   nstructjs, ToolOp, ToolProperty, BoolProperty,
   StringProperty, EnumProperty, FlagProperty, FloatProperty,
-  util, UndoFlags, IntProperty
+  util, UndoFlags, IntProperty, platform
 } from '../path.ux/pathux.js';
 import {Icons} from '../editors/icon_enum.js';
 import * as cconst from './const.js';
 import {loadPreset, Preset, presetManager, savePreset} from '../pattern/preset.js';
 import {render} from './render.js';
+import {FILE_EXT} from './const.js';
 
 export class RootFileOp extends ToolOp {
   static tooldef() {
@@ -80,6 +81,136 @@ export class SaveStartup extends ToolOp {
 }
 
 ToolOp.register(SaveStartup);
+
+export class SaveFileOp extends ToolOp {
+  static tooldef() {
+    return {
+      toolpath: "app.save",
+      uiname  : "Save Project",
+      undoflag: UndoFlags.NO_UNDO,
+      inputs  : {
+        saveAsMode: new BoolProperty(false),
+        useJSON   : new BoolProperty(true)
+      }
+    }
+  }
+
+  exec(ctx) {
+    let json = this.inputs.useJSON.getValue();
+
+    let buf = _appstate.saveFile({json});
+    let showDialog = _appstate.fileKey === undefined || this.inputs.saveAsMode.getValue();
+
+    console.warn("FILEKEY", _appstate.fileKey);
+
+    if (showDialog) {
+      this._dialogSave(ctx, buf);
+    } else {
+      this._keySave(ctx, buf);
+    }
+  }
+
+  _dialogSave(ctx, buf) {
+    console.error("PLATFORM", platform.platform);
+
+    platform.platform.showSaveDialog("Save", () => buf, {
+      multi          : false,
+      addToRecentList: true,
+      filters        : [
+        {
+          name : "Fractals",
+          mime : "text/json",
+          extensions : [FILE_EXT]
+        }
+      ]
+    }).catch(error => {
+      console.error("ERROR", error);
+
+      error = typeof error === "object" && error.message ? error.message : error;
+      ctx.error("Failed to save file: " + error);
+    }).then(key => {
+      console.warn("KEY", key);
+
+      ctx.message("Saved project");
+        _appstate.fileKey = key;
+      _appstate.toolstack.onFileSaved();
+    });
+  }
+
+  _keySave(ctx, buf) {
+    let key = _appstate.fileKey;
+
+    platform.platform.writeFile(buf, key, "text/json").then((newkey) => {
+      //platform requested we use a new file key
+      ctx.message("Saved Project");
+
+      if (newkey !== undefined) {
+        _appstate.fileKey = newkey;
+      }
+
+      _appstate.toolstack.onFileSaved();
+    }).catch(error => {
+      console.error("ERROR", error);
+
+      error = typeof error === "object" && error.message ? error.message : error;
+
+      ctx.error("Failed to save file: " + error);
+      this._dialogSave(ctx, buf);
+    });
+  }
+}
+
+ToolOp.register(SaveFileOp);
+
+export class OpenFileOp extends ToolOp {
+  static tooldef() {
+    return {
+      toolpath: "app.open",
+      uiname  : "Open Project",
+      undoflag: UndoFlags.NO_UNDO
+    }
+  }
+
+  exec(ctx) {
+    if (ctx.toolstack.fileModified) {
+      if (!confirm("Project is modified, you will lose your work;\n still open new project?")) {
+        return;
+      }
+    }
+
+    platform.platform.showOpenDialog("Open", {
+      multi          : false,
+      addToRecentList: true,
+      filters        : [
+        {
+          name : "Fractals",
+          mime : "text/json",
+          extensions : [FILE_EXT]
+        }
+      ]
+    }).then(handles => {
+      if (handles.length === 0) {
+        return;
+      }
+
+      let handle = handles[0];
+
+      console.log("Open!", handle);
+      platform.platform.readFile(handle, "text/json").then(buf => {
+        _appstate.loadFile(buf, {json: true});
+        _appstate.fileKey = handle;
+      }).catch(error => {
+        if (typeof error === "object" && error.message) {
+          error = error.message;
+        }
+
+        ctx.error("error opening file: " + error);
+      });
+    });
+  }
+}
+
+ToolOp.register(OpenFileOp);
 
 
 export class ClearStartup extends ToolOp {

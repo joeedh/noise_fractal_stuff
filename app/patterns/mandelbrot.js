@@ -919,6 +919,7 @@ add_preset(${this.orbit_mode}, ${this.orbit_seed}, ${sliders}, ${opts}${name});
 
   setup(ctx, gl, uniforms, defines) {
     defines.OFFSET2 = ~~this.sliders.offset2;
+    defines.STEPS = ~~this.sliders[0];
 
     if (this.showDv) {
       defines.SHOW_DV = null;

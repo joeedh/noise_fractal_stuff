@@ -120,6 +120,7 @@ export class SliderParam {
     this.unit = "none";
     this.expRate = 1.5;
     this.step = 0.01;
+    this.noReset = false;
 
     /*graph stuff*/
     this.links = [];
@@ -679,12 +680,14 @@ export class Sliders extends Array {
 
     //add any missing parameters
     for (let i = 0; i < paramDef.length; i++) {
-      let param = paramDef[i];
+      let pdef = paramDef[i];
 
       if (newlist[i] === undefined) {
-        let param2 = new SliderParam(param.name, SliderTypeMap[param.type], param.value);
-        newlist[i] = param2;
+        let param = new SliderParam(pdef.name, SliderTypeMap[pdef.type], pdef.value);
+        newlist[i] = param;
       }
+
+      newlist[i].noReset = !!pdef.noReset;
     }
 
     this.length = 0;

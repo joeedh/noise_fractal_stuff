@@ -12,8 +12,6 @@ import './moire.js'; //prevent warning when ToolOp.register reads GraphAddOp.inp
 export class GraphAddOp extends ToolOp {
   constructor() {
     super();
-
-    this._last_update_key = undefined;
   }
 
   static tooldef() {
@@ -109,7 +107,7 @@ export class GraphEditor extends Container {
     super();
 
     this._update_digest = new util.HashDigest();
-
+    this._last_update_key = undefined;
     this._rebuild = true;
   }
 
@@ -154,7 +152,7 @@ export class GraphEditor extends Container {
       let pj = 0, pcount = 0;
       let param = gen.sliders.params[0];
 
-      for (let j=0; j<gen.sliders.length; j++) {
+      for (let j = 0; j < gen.sliders.length; j++) {
         while (param.type === "string") {
           pj++;
           param = gen.sliders.params[pj];
@@ -197,7 +195,7 @@ export class GraphEditor extends Container {
 
       panel2.closed = true;
 
-      this.tool(`graph.add(before=${i+1})`);
+      this.tool(`graph.add(before=${i + 1})`);
       i++;
     }
 
@@ -207,7 +205,7 @@ export class GraphEditor extends Container {
 
     loadUIData(this, uidata);
 
-    for (let i=0; i<3; i++) {
+    for (let i = 0; i < 3; i++) {
       this.flushSetCSS();
       this.flushUpdate();
     }
@@ -249,6 +247,7 @@ export class GraphPattern extends Pattern {
 
     this._last_shader_key = undefined;
     this.graph = new MLGraph();
+    this._last_update_key = undefined;
   }
 
   static apiDefine(api) {
@@ -271,13 +270,14 @@ export class GraphPattern extends Pattern {
       typeName     : "graph",
       uiName       : "Graph",
       sliderDef    : [
-        {name: "gain"},//0
-        {name: "color"},//1
-        {name: "colorscale"},//2
-        {name: "brightness"},//3
-        {name: "valoffset"},//4
-
-        "x", "y", "scale",
+        {name: "gain", value: 1.0},//0
+        {name: "color", value: 0.65},//1
+        {name: "colorscale", value: 1.0},//2
+        {name: "brightness", value: 1.0},//3
+        {name: "valoffset", value: 1.0},//4
+        "x", //5
+        "y", //6
+        {name: "scale", value: 1.0}, //7
       ],
       offsetSliders: {
         x    : 5,
@@ -300,7 +300,7 @@ float pattern(float ix, float iy) {
 
 
   viewportDraw(ctx, gl, uniforms = {}, defines = {}) {
-    let key = this.graph.genUpdateKey();
+    let key = this.graph.genShaderKey();
 
     if (key !== this._last_shader_key) {
       this._last_shader_key = key;
@@ -313,10 +313,20 @@ float pattern(float ix, float iy) {
       }
     }
 
+    key = this.graph.genUpdateKey();
+    if (key !== this._last_update_key) {
+      this._last_update_key = key;
+      this.drawGen++;
+    }
+
     super.viewportDraw(ctx, gl, uniforms, defines);
   }
 
   setup(ctx, gl, uniforms, defines) {
+    let transform = this.constructor.patternDef().offsetSliders;
+
+    this.graph.setupShader(ctx, gl, uniforms, defines, this.sliders, transform);
+
     defines.STEPS = 5;
     defines.GAIN = "SLIDERS[0]";
     defines.COLOR_SHIFT = "SLIDERS[1]";

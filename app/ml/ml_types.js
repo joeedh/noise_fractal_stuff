@@ -22,29 +22,27 @@ export class MLGraph {
   static apiDefine(api) {
     let st = api.mapStruct(this, true);
 
-    st.list("generators", "nodes", [
-      function getStruct(api, list, key) {
-        let obj = key !== undefined ? list[key] : undefined;
+    st.list("generators", "nodes", [function getStruct(api, list, key) {
+      let obj = key !== undefined ? list[key] : undefined;
 
-        return !obj ? api.mapStruct(Pattern) : api.mapStruct(obj.constructor);
-      },
+      return !obj ? api.mapStruct(Pattern) : api.mapStruct(obj.constructor);
+    },
 
-      function get(api, list, key) {
-        return list[key];
-      },
+                                    function get(api, list, key) {
+                                      return list[key];
+                                    },
 
-      function getKey(api, list, obj) {
-        return list.indexOf(obj);
-      },
+                                    function getKey(api, list, obj) {
+                                      return list.indexOf(obj);
+                                    },
 
-      function getIter(api, list) {
-        return list[Symbol.iterator]();
-      },
+                                    function getIter(api, list) {
+                                      return list[Symbol.iterator]();
+                                    },
 
-      function getLength(api, list) {
-        return list.length;
-      }
-    ]);
+                                    function getLength(api, list) {
+                                      return list.length;
+                                    }]);
 
     return st;
   }
@@ -240,7 +238,74 @@ export class MLGraph {
   }
 
   getDefineKey(gen, k) {
-    return `${k}__${gen.id}`;
+    k = k.replace(/\$/g, "" + gen.id);
+
+    return `${k}_${gen.id}`;
+  }
+
+  getUniformKey(gen, param) {
+    return "p" + param.name + "_" + gen.id;
+  }
+
+  setupShader(ctx, gl, uniforms, defines, transformSliders, transformOffsets) {
+    for (let gen of this.sortlist) {
+      let us = {};
+      let ds = {};
+
+      gen.setup(ctx, gl, us, ds);
+
+      let id = "" + gen.id;
+
+      for (let [dst, src] of [[uniforms, us], [defines, ds]]) {
+        for (let k in src) {
+          let k2 = k.replace(/\$/g, "" + id);
+          let v2 = src[k];
+
+          if (dst === defines) {
+            k2 = this.getDefineKey(gen, k2);
+            if (typeof v2 === "string") {
+              v2 = v2.replace(/\bSLIDERS\b/g, "SLIDERS" + gen.id);
+            }
+          }
+
+          dst[k2] = v2;
+        }
+      }
+    }
+
+    for (let gen of this.sortlist) {
+      let k = 'SLIDERS' + gen.id;
+
+      for (let i = 0; i < gen.sliders.length; i++) {
+        uniforms[`${k}[${i}]`] = gen.sliders[i] ?? 0.0;
+      }
+
+      let param = gen.sliders.get("_factor");
+      uniforms[this.getUniformKey(gen, param)] = param.value;
+    }
+
+    const x = transformSliders[transformOffsets.x];
+    const y = transformSliders[transformOffsets.y];
+    const scale = transformSliders[transformOffsets.scale];
+
+    //add transform
+    for (let gen of this.sortlist) {
+      let transform2 = gen.constructor.patternDef().offsetSliders;
+      let k = "SLIDERS" + gen.id;
+
+      let x2 = gen.sliders[transform2.x]/scale + x;
+      let y2 = gen.sliders[transform2.y]/scale + y;
+      let scale2 = gen.sliders[transform2.scale] * scale;
+
+      uniforms[`${k}[${transform2.x}]`] = x2;
+      uniforms[`${k}[${transform2.y}]`] = y2;
+      uniforms[`${k}[${transform2.scale}]`] = scale2;
+    }
+
+    if (Math.random() > 0.9) {
+      //console.error("UNIFORMS", uniforms);
+      //console.error("DEFINES", defines);
+    }
   }
 
   /** generate fragment shader code, node this
@@ -255,7 +320,11 @@ export class MLGraph {
     let getName = gen => `layer${gen.id}`;
 
     for (let gen of this.sortlist) {
-      s += `uniform float SLIDERS${gen.id}[${gen.sliders.length}];\n`;
+      s += `
+uniform float SLIDERS${gen.id}[${gen.sliders.length}];
+uniform float ${this.getUniformKey(gen, gen.sliders.get("_factor"))};
+`;
+
     }
 
     for (let gen of this.sortlist) {
@@ -264,21 +333,25 @@ export class MLGraph {
 
       let defines = {};
       let uniforms = {};
-      let ctx = {pattern : gen};
-
-      let defines2 = {};
+      let ctx = {pattern: gen};
 
       gen.setup(ctx, undefined, uniforms, defines);
+      console.log("VARS", gen.constructor.patternDef().typeName, uniforms, defines);
 
       for (let k in defines) {
         let k2 = this.getDefineKey(gen, k);
+        k = new RegExp("\\b" + k + "\\b");
 
-        k = new RegExp(k, "g");
-        code = code.replace(k, k2);
+        code = code.replaceAll(k, k2);
       }
 
-      code = code.replace(/\$/g, "g"+gen.id);
+      for (let k in uniforms) {
+        let k2 = k.replace(/\$/g, "" + gen.id);
 
+        code = code.replaceAll(k, k2);
+      }
+
+      code = code.replace(/\$/g, "g" + gen.id);
       code = code.replace(/\bpattern\b/g, name).trim();
       code = code.replace(/\bSLIDERS\b/g, "SLIDERS" + gen.id);
 
@@ -288,18 +361,60 @@ ${code}
       `.trim() + "\n";
     }
 
+    let mixes = {
+      [SliderBlendModes.ADD]: (a, b) => `(${a}) + (${b})`,
+      [SliderBlendModes.SUB]: (a, b) => `(${a}) - (${b})`,
+      [SliderBlendModes.MUL]: (a, b) => `(${a}) * (${b})`,
+      [SliderBlendModes.DIV]: (a, b) => `(${a}) / (${b})`,
+      [SliderBlendModes.MIX]: (a, b) => `(${b})`,
+    }
+    let getMix = (a, b, mode) => {
+      return `${mixes[mode](a, b)}`
+    };
+
+    let code = '  float f, f2, totw;\n\n';
+    let first = true;
+
+    for (let gen of this.sortlist) {
+      code += `  /* ${gen.constructor.patternDef().typeName + ":" + gen.id} */\n`;
+      code += `  f2 = ${getName(gen)}(ix, iy);\n`;
+
+      //let w = gen.sliders._factor;
+      let w = this.getUniformKey(gen, gen.sliders.get("_factor"));
+      let mode = ~~gen.sliders._blend_mode;
+
+      if (first) {
+        first = false;
+        code += `  f = f2*${w};\n`;
+      } else {
+        code += `  f += ${getMix(`f/(totw == 0.0 ? 0.00001 : totw)`, 'f2', mode)}*${w};\n`;
+      }
+
+      code += `  totw += ${w};\n\n`;
+    }
+
+    code += `
+  if (totw != 0.0) {
+    f /= totw;
+  }
+  
+  return f;
+`;
+
+    //console.log("CODE", totw, code);
+
     s += `
 float pattern(float ix, float iy) {
-    return 0.5;
+${code}
 }
     `;
 
-    console.log(s);
+    //console.log(s);
 
     return s;
   }
 
-  genUpdateKey(digest=this._update_digest.reset()) {
+  genShaderKey(digest = this._update_digest) {
     for (let gen of this.generators) {
       digest.add(gen.typeName);
 
@@ -309,6 +424,30 @@ float pattern(float ix, float iy) {
 
       if (gen.shader) {
         digest.add(gen.shader.fragmentSource.length);
+      }
+    }
+
+    return digest.get();
+  }
+
+  genUpdateKey(digest = this._update_digest.reset()) {
+    this.genShaderKey(digest);
+
+    for (let gen of this.generators) {
+      for (let param of gen.sliders.params) {
+        if (param.noReset) {
+          continue;
+        }
+
+        let v = param.value;
+
+        if (typeof v === "number") {
+          digest.add(param.value);
+        } else if (typeof v === "object" && Array.isArray(v)) {
+          for (let num of v) {
+            digest.add(num);
+          }
+        }
       }
     }
 
@@ -356,7 +495,7 @@ float pattern(float ix, float iy) {
       for (let param of gen.sliders.params) {
         let links2 = [];
 
-        console.warn(param, gen);
+        //console.warn(param, gen);
 
         for (let link of param.links) {
           link.src = this.idMap.get(link.src);

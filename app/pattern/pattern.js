@@ -550,7 +550,7 @@ float pattern(float ix, float iy) {
     if (addShaderPre) {
       code = "\n" + def.shaderPre.trim() + "\n" + def.shader.trim() + "\n";
     } else {
-      code =  "\n" + def.shader.trim() + "\n";
+      code = "\n" + def.shader.trim() + "\n";
     }
 
     let idsubst = this.id >= 0 ? "g" + this.id : "";
@@ -743,6 +743,19 @@ float pattern(float ix, float iy) {
 
     this.setup(ctx, gl, uniforms, defines);
 
+    let id = this.id >= 0 ? this.id : '';
+
+    for (let map of [uniforms, defines]) {
+      for (let k in map) {
+        let k2 = k.replace(/\$/g, "" + id);
+
+        if (k2 !== k) {
+          map[k2] = map[k];
+          delete map[k];
+        }
+      }
+    }
+
     if (!this.vbuf) {
       this.regenMesh(gl);
     }
@@ -908,6 +921,8 @@ float pattern(float ix, float iy) {
     }
 
     let shader = this.shader;
+    this.setup(ctx, gl, uniforms, defines);
+    
     shader.bind(gl, uniforms, defines);
 
     //this.vbuf.bind(gl, 0);

@@ -1,3 +1,5 @@
+import './polyfill.js';
+
 import {FileState, saveFile, loadFile} from './file.js';
 import {nstructjs, UIBase, DataAPI, util} from '../path.ux/pathux.js';
 import {api_define} from './api_define.js';
@@ -37,6 +39,9 @@ export class AppState {
     this.model = new FileState();
     this.toolstack = new AppToolStack();
 
+    //file saving key to resave files
+    this.fileKey = undefined;
+
     this._last_tool = undefined;
 
     this.ctx = new ToolContext(this);
@@ -47,6 +52,30 @@ export class AppState {
 
     this._autosave_req = undefined;
     this.lastAutoSaveTime = util.time_ms();
+  }
+
+  update() {
+    let title;
+
+    for (let node of document.head.childNodes) {
+      if (node.tagName === "TITLE") {
+        title = node;
+        break;
+      }
+    }
+
+    if (title) {
+      let s = title.innerHTML;
+
+      if (!this.toolstack.fileModified && s.startsWith("*")) {
+        s = s.slice(1, s.length-1);
+        title.innerHTML = s;
+      } else if (this.toolstack.fileModified && !s.startsWith("*")) {
+        s = "*" + s;
+        title.innerHTML = s;
+      }
+    }
+
   }
 
   autoSave() {
@@ -110,12 +139,16 @@ export class AppState {
     return loadFile(this, buf, {screen: false});
   }
 
-  saveFile() {
-    return saveFile(this, {screen: true});
+  saveFile(args={}) {
+    args.screen = args.screen ?? true;
+
+    return saveFile(this, args);
   }
 
-  loadFile(buf) {
-    return loadFile(this, buf, {screen: true});
+  loadFile(buf, args={}) {
+    args.screen = args.screen ?? true;
+
+    return loadFile(this, buf, args);
   }
 }
 

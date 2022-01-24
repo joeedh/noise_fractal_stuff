@@ -659,6 +659,10 @@ export class ShaderProgram {
       return this._get_def_shader(this.gl).uniformloc(name);
     }
 
+    if (!this.program) {
+      return undefined;
+    }
+
     if (this.uniformlocs[name] === undefined || this.uniformlocs[name] === null) {
       this.uniformlocs[name] = this.gl.getUniformLocation(this.program, name);
     }
@@ -688,6 +692,14 @@ export class ShaderProgram {
         console.warn("fbo error");
         return; //failed to initialize
       }
+    }
+
+    if (!this.program) {
+      if (Math.random() > 0.99) {
+        console.error("Shader error!");
+      }
+
+      return
     }
 
     function setv(dst, src, n) {

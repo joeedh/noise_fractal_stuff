@@ -19,6 +19,8 @@ export class AppScreen extends Screen {
     super();
 
     this.keymap = new KeyMap([
+      new HotKey("S", ["CTRL"], "app.save"),
+      new HotKey("O", ["CTRL"], "app.open"),
       new HotKey("Z", ["CTRL"], "app.undo"),
       new HotKey("Z", ["CTRL", "SHIFT"], "app.redo"),
       new HotKey("T", [], (ctx) => {
@@ -60,6 +62,10 @@ export class AppScreen extends Screen {
   }
 
   update() {
+    if (this.ctx && this.ctx.state) {
+      this.ctx.state.update();
+    }
+
     super.update();
     this.checkCanvas();
 
