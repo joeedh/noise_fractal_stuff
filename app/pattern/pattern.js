@@ -241,6 +241,10 @@ float pattern(float ix, float iy) {
   }
 
   static buildSidebar(ctx, con) {
+    if (Pattern._no_base_sidebar) {
+      return;
+    }
+
     con.prop("fast_mode");
     con.prop("filter_width");
     con.prop("pixel_size");
@@ -992,3 +996,5 @@ export function makePatternsEnum() {
   window._PatternsEnum = PatternsEnum;
   return PatternsEnum;
 }
+
+Pattern._no_base_sidebar = false;

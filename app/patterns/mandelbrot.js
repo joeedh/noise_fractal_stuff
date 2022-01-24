@@ -823,7 +823,7 @@ export class MandelbrotPattern extends Pattern {
         {
           name : "steps", integer: true,
           range: [5, 955],
-          value: 800,
+          value: 400,
           speed: 7.0,
           exp  : 1.5,
         },//0

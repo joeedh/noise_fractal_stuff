@@ -97,6 +97,7 @@ export class GraphAddOp extends ToolOp {
     }
 
     pat.graph.insert(pat2, i);
+    pat.drawGen++;
 
     window.redraw_viewport();
   }
@@ -142,6 +143,7 @@ export class GraphRemoveOp extends ToolOp {
     }
 
     pat.graph.remove(gen);
+    pat.drawGen++;
 
     window.redraw_viewport();
   }
@@ -198,6 +200,17 @@ export class GraphEditor extends Container {
       if (parami !== -1) {
         panel.prop(`pattern.graph.nodes[${i}].paramDef[${parami}].value`);
       }
+
+      let panel3 = panel.panel("Settings");
+      panel3.dataPrefix = `pattern.graph.nodes[${i}]`;
+
+      //hackish way to prevent Pattern.buildSidebar from being
+      //called by children!
+      Pattern._no_base_sidebar = true;
+      gen.constructor.buildSidebar(this.ctx, panel3);
+      Pattern._no_base_sidebar = false;
+
+      panel3.closed = true;
 
       let panel2 = panel.panel("Sliders");
       let pj = 0, pcount = 0;
@@ -351,6 +364,19 @@ float pattern(float ix, float iy) {
 
 
   viewportDraw(ctx, gl, uniforms = {}, defines = {}) {
+    this.checkUpdate(gl);
+
+    super.viewportDraw(ctx, gl, uniforms, defines);
+  }
+
+  _doViewportDraw(ctx, canvas, gl, enableAccum, finalOnly = false, finalFbo = undefined, customUVs = undefined,
+                  customSize = undefined) {
+    this.checkUpdate(gl);
+
+    super._doViewportDraw(ctx, canvas, gl, enableAccum, finalOnly, finalFbo, customUVs, customSize);
+  }
+
+  checkUpdate(gl) {
     let key = this.graph.genShaderKey();
 
     if (key !== this._last_shader_key) {
@@ -365,12 +391,11 @@ float pattern(float ix, float iy) {
     }
 
     key = this.graph.genUpdateKey();
+
     if (key !== this._last_update_key) {
       this._last_update_key = key;
       this.drawGen++;
     }
-
-    super.viewportDraw(ctx, gl, uniforms, defines);
   }
 
   setup(ctx, gl, uniforms, defines) {

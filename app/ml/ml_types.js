@@ -106,9 +106,11 @@ export class MLGraph {
       return this;
     }
 
-    let i = before;
-    while (i < generators.length - 1) {
-      generators[i] = generators[i + 1];
+    let i = generators.length - 1;
+
+    while (i > before) {
+      generators[i] = generators[i - 1];
+      i--;
     }
 
     this[before] = gen;
@@ -174,7 +176,7 @@ export class MLGraph {
     //to prevent reference leaks, forcbly clear sortlist
     this.sortlist.length = 0;
 
-    for (let param of gen.slider.params) {
+    for (let param of gen.sliders.params) {
       this.idMap.delete(param.id);
       param.id = -1;
 
@@ -434,6 +436,14 @@ ${code}
     this.genShaderKey(digest);
 
     for (let gen of this.generators) {
+      for (let k in gen) {
+        let v = gen[k];
+
+        if (typeof v === "number" || typeof v === "boolean") {
+          digest.add(v);
+        }
+      }
+
       for (let param of gen.sliders.params) {
         if (param.noReset) {
           continue;
