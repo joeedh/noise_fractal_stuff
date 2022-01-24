@@ -340,7 +340,7 @@ uniform float ${this.getUniformKey(gen, gen.sliders.get("_factor"))};
 
       for (let k in defines) {
         let k2 = this.getDefineKey(gen, k);
-        k = new RegExp("\\b" + k + "\\b");
+        k = new RegExp("\\b" + k + "\\b", "g");
 
         code = code.replaceAll(k, k2);
       }
@@ -356,7 +356,7 @@ uniform float ${this.getUniformKey(gen, gen.sliders.get("_factor"))};
       code = code.replace(/\bSLIDERS\b/g, "SLIDERS" + gen.id);
 
       s += "\n" + `
-/*---------------${name}--------------*/
+/*---------------${gen.constructor.patternDef().typeName + ":" + name}--------------*/
 ${code}
       `.trim() + "\n";
     }

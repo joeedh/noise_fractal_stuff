@@ -541,6 +541,7 @@ export class NewtonTracePattern extends Pattern {
     defines.COLOR_SCALE = "SLIDERS[7]";
     defines.BRIGHTNESS = "SLIDERS[8]";
     defines.STEPS2 = ~~this.sliders.steps2;
+    defines.STEPS = ~~this.sliders[0];
   }
 
   static buildSidebar(ctx, con) {
@@ -564,8 +565,6 @@ add_preset_new(${sliders}, ${opt});
     `.trim();
   }
   viewportDraw(ctx, gl, uniforms, defines) {
-    defines.STEPS = ~~this.sliders[0];
-
     super.viewportDraw(ctx, gl, uniforms, defines);
   }
 

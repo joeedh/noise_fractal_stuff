@@ -48,6 +48,8 @@ export class MainMenu extends Editor {
     //this.container.noMarginsOrPadding();
 
     row.menu("File", [
+      "app.new",
+      Menu.SEP,
       "app.open",
       "app.save",
       "app.save(saveAsMode=true)|Save As",

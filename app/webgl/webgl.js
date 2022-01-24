@@ -24,6 +24,8 @@ export class FBO {
     this.target = gl !== undefined ? gl.TEXTURE_2D : 3553;
     this.layer = undefined; //used if target is not gl.TEXTURE_2D
 
+    this.contextGen = gl ? gl.contextGen : undefined;
+
     this.ctype = undefined; //RGBA32F;
     this.dtype = undefined; //DEPTH24_STENCIL8;
 
@@ -66,12 +68,27 @@ export class FBO {
   }
 
   create(gl) {
+    if (gl.contextBad) {
+      this.fbo = undefined;
+      return;
+    }
+
+    if (this.contextGen !== gl.contextGen) {
+      this.fbo = undefined;
+      this.texColor = undefined;
+      this.texDepth = undefined;
+      this._last_viewport = undefined;
+      this.gl = gl;
+    }
+
+    this.contextGen = gl.contextGen;
+
     this._check(gl);
 
     debuglog("fbo create");
 
     if (this.fbo && this.gl) {
-      this.destroy();
+      this.destroy(this.gl);
     }
 
     this.regen = 0;
@@ -82,6 +99,8 @@ export class FBO {
     this.size[1] = ~~this.size[1];
 
     //console.trace("framebuffer creation");
+
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 
     this.fbo = gl.createFramebuffer();
 
@@ -121,8 +140,10 @@ export class FBO {
     texParams(this.target, this.texColor);
 
     let initTex = (tex, dtype, dtype2, dtype3) => {
-      if (this.target !== gl.TEXTURE_2D)
+      if (this.target !== gl.TEXTURE_2D) {
+        console.error("Invalid texture target " + this.target + "!");
         return;
+      }
 
       if (gl.haveWebGL2) {
         tex.texImage2D(gl, this.target, 0, dtype, this.size[0], this.size[1], 0, dtype2, dtype3, null);
@@ -184,6 +205,21 @@ export class FBO {
   }
 
   bind(gl) {
+    if (gl.contextBad) {
+      return;
+    }
+
+    if (gl.contextGen !== this.contextGen) {
+      console.warn("context loss detected in fbo");
+
+      this.texDepth = undefined;
+      this.texColor = undefined;
+      this.fbo = undefined;
+      this._last_viewport = undefined;
+
+      this.create(gl);
+    }
+
     this._check(gl);
 
     this._last_viewport = gl.getParameter(gl.VIEWPORT);
@@ -198,11 +234,19 @@ export class FBO {
       this.create(gl);
     }
 
+    //if (gl.drawBuffers) {
+      //gl.drawBuffers([gl.COLOR_ATTACHMENT0]);
+    //}
+
     gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo);
     gl.viewport(0, 0, this.size[0], this.size[1]);
   }
 
   unbind(gl) {
+    if (gl.contextBad || gl.contextGen !== this.contextGen) {
+      return;
+    }
+
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 
     let vb = this._last_viewport;
@@ -213,7 +257,17 @@ export class FBO {
     gl.viewport(vb[0], vb[1], vb[2], vb[3]);
   }
 
-  destroy(gl) {
+  destroy(gl = this.gl) {
+    if (gl.contextBad || this.contextGen !== gl.contextGen) {
+      console.warn("context loss detected in fbo.destroy()!");
+
+      this.fbo = undefined;
+      this.texDepth = undefined;
+      this.texColor = undefined;
+
+      return;
+    }
+
     if (!this.gl) {
       this.gl = gl;
     }
@@ -277,7 +331,26 @@ export function init_webgl(canvas, params, webgl2) {
   params.desynchronized = params.desynchronized ?? true;
 
   var gl = canvas.getContext(webgl2 ? "webgl2" : "webgl", params);
-  
+
+  canvas.addEventListener("webglcontextlost", (e) => {
+    gl.contextBad = true;
+    e.preventDefault();
+  });
+
+  canvas.addEventListener("webglcontextrestored", (e) => {
+    gl.contextGen++;
+    gl.contextBad = false;
+
+    gl.disable(gl.BLEND);
+    gl.disable(gl.DEPTH_TEST);
+    gl.disable(gl.SCISSOR_TEST);
+
+    gl.bindTexture(gl.TEXTURE_2D, null);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.drawBuffers([gl.BACK]);
+    //e.preventDefault();
+  });
+
   if (!gl) {
     gl = canvas.getContext("webgl");
     webgl2 = false;
@@ -301,6 +374,10 @@ export function init_webgl(canvas, params, webgl2) {
   gl.getExtension("ANGLE_instanced_arrays");
   gl.debugContextLoss = gl.getExtension("WEBGL_lose_context");
   gl.draw_buffers = gl.getExtension("WEBGL_draw_buffers");
+
+  //used by context recovery code; which context "generation" we are on
+  gl.contextGen = 0;
+  gl.contextBad = false;
 
   function makeExtForward(k, v) {
     let k2 = k;
@@ -555,8 +632,11 @@ export class ShaderProgram {
       return this._get_def_shader(gl).init(gl);
     }
 
+    //clear cached uniforms and attribute locations
+
     this.gl = gl;
     this.rebuild = false;
+    this.contextGen = gl.contextGen;
 
     var vshader = this.vertexSource, fshader = this.fragmentSource;
 
@@ -624,7 +704,7 @@ export class ShaderProgram {
     this.uniformlocs = {};
   }
 
-  destroy(gl=this.gl) {
+  destroy(gl = this.gl) {
     if (!gl) {
       if (this.vertexShader || this.fragmentShader || this.program) {
         console.error("Could not destroy a shader: no valid gl reference");
@@ -655,6 +735,8 @@ export class ShaderProgram {
   }
 
   uniformloc(name) {
+    this._checkContextGen();
+
     if (this._use_def_shaders) {
       return this._get_def_shader(this.gl).uniformloc(name);
     }
@@ -671,6 +753,8 @@ export class ShaderProgram {
   }
 
   attrloc(name) {
+    this._checkContextGen();
+
     if (this._use_def_shaders) {
       return this._get_def_shader(this.gl).attrloc(name);
     }
@@ -678,7 +762,43 @@ export class ShaderProgram {
     return this.attrlocs[name];
   }
 
+  _checkContextGen(gl = this.gl) {
+    if (!gl) {
+      return;
+    }
+
+    if (this.contextGen !== gl.contextGen) {
+      this.rebuild = true;
+
+      this.program = undefined;
+      this.vertexShader = undefined;
+      this.fragmentShader = undefined;
+      this.uniformlocs = {};
+      this.attrlocs = {};
+
+      this._def_shaders = {};
+
+      if (!this._use_def_shaders) {
+        this.init(gl);
+      }
+    }
+  }
+
   bind(gl, uniforms, defines) {
+    if (gl.contextBad) {
+      return;
+    }
+
+    if (this.contextGen !== gl.contextGen) {
+      this.uniformlocs = {};
+      this.attrlocs = {};
+      this.program = undefined;
+      this.vertexShader = undefined;
+      this.fragmentShader = undefined;
+
+      this.rebuild = true;
+    }
+
     if (this._use_def_shaders) {
       return this._get_def_shader(gl, defines).bind(gl, uniforms);
     }
@@ -767,13 +887,22 @@ export class GPUVertexAttr {
     this.type = undefined;
     this.size = undefined;
     this.buf = undefined;
+    this.data = undefined;
     this.perfhint = undefined;
     this.elemSize = undefined;
     this.normalized = false;
+    this.contextGen = undefined;
   }
 
   upload(gl, args, data) {
     let {target, type, perfHint, elemSize, normalized} = args;
+
+    if (this.buf && this.contextGen !== gl.contextGen) {
+      console.warn("Context loss in GPUVertexAttr detected!", this.data);
+      this.buf = undefined;
+    }
+
+    this.contextGen = gl.contextGen;
 
     perfHint = perfHint ?? gl.STATIC_DRAW;
     target = target ?? gl.ARRAY_BUFFER;
@@ -815,6 +944,8 @@ export class GPUVertexAttr {
       data = new cls(data);
     }
 
+    this.data = new cls(data);
+
     if (this.buf && this.size && data.length/elemSize >= this.size) {
       gl.deleteBuffer(this.buf);
       this.buf = undefined;
@@ -833,6 +964,15 @@ export class GPUVertexAttr {
   }
 
   bind(gl, idx) {
+    if (gl.contextBad) {
+      return;
+    }
+
+    if (this.buf && this.contextGen !== gl.contextGen) {
+      this.buf = undefined;
+      this.upload(gl, this, this.data);
+    }
+
     //console.error(idx, this.elemSize, this.type, this.normalized, this.buf);
     gl.bindBuffer(this.target, this.buf);
 
@@ -841,6 +981,10 @@ export class GPUVertexAttr {
   }
 
   destroy(gl) {
+    if (this.contextGen !== gl.contextGen) {
+      return;
+    }
+
     if (this.buf !== undefined) {
       gl.deleteBuffer(this.buf);
       this.buf = undefined;
@@ -909,6 +1053,8 @@ export class Texture {
     this.gl = gl;
 
     this.createParamsList = [TEXTURE_2D];
+    this._storedTex = undefined;
+    this.contextGen = gl ? gl.contextGen : undefined;
 
     this._params = {};
   }
@@ -928,7 +1074,6 @@ export class Texture {
     } else {
       gl.texImage2D(target, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, data);
     }
-    Texture.defaultParams(gl, tex, target);
 
     gl.generateMipmap(target);
     gl.texParameteri(target, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
@@ -938,18 +1083,46 @@ export class Texture {
     ret.createParams.target = target;
     ret.createParams.width = width;
     ret.createParams.height = height;
+    ret.createParams.mipmaps = true;
+
+    ret.defaultParams(gl, tex, target);
+
+    ret.contextGen = gl.contextGen;
+    ret._storedTex = data;
 
     return ret;
   }
 
   static defaultParams(gl, tex, target = gl.TEXTURE_2D) {
+    throw new Error("static defaultParams cannot handle context loss; use method instead");
     gl.bindTexture(target, tex);
 
     gl.texParameteri(target, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
     gl.texParameteri(target, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
     gl.texParameteri(target, gl.TEXTURE_WRAP_S, gl.REPEAT);
     gl.texParameteri(target, gl.TEXTURE_WRAP_T, gl.REPEAT);
+  }
 
+  makeMipMaps(gl) {
+    if (!this.gl) {
+      this.gl = gl;
+    }
+
+    this._checkContextGen(gl);
+    this.createParams.mipmaps = true;
+
+    gl.bindTexture(this.target, this.texture);
+    gl.generateMipmap(this.target);
+    this.texParameteri(gl, this.target, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+  }
+
+  defaultParams(gl, tex, target = gl.TEXTURE_2D) {
+    this._checkContextGen(gl);
+
+    this.texParameteri(gl, target, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    this.texParameteri(gl, target, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    this.texParameteri(gl, target, gl.TEXTURE_WRAP_S, gl.REPEAT);
+    this.texParameteri(gl, target, gl.TEXTURE_WRAP_T, gl.REPEAT);
   }
 
   texParameteri(gl, target, param, value) {
@@ -963,7 +1136,35 @@ export class Texture {
     return this._params[param];
   }
 
+  _checkContextGen(gl = this.gl) {
+    if (!gl) {
+      return;
+    }
+
+    if (gl.contextGen !== this.contextGen) {
+      console.warn("context update in texture detected");
+
+      this.texture = gl.createTexture();
+      gl.bindTexture(this.target, this.texture);
+
+      this.contextGen = gl.contextGen;
+
+      if (this._storedTex) {
+        this.load(gl, this.createParams.width, this.createParams.height, this._storedTex, this.target);
+
+        if (this.createParams.mipmaps) {
+          this.makeMipMaps(gl);
+        }
+      }
+
+      for (let k in this._params) {
+        gl.texParameteri(this.target, parseInt(k), this._params[k]);
+      }
+    }
+  }
+
   _texImage2D1(gl, target, level, internalformat, format, type, source) {
+
     gl.bindTexture(target, this.texture);
     gl.texImage2D(target, level, internalformat, format, type, source);
 
@@ -977,6 +1178,10 @@ export class Texture {
     if (source instanceof Image || source instanceof ImageData) {
       this.createParams.width = source.width;
       this.createParams.height = source.height;
+    }
+
+    if (source) {
+      this._storedTex = source;
     }
 
     return this;
@@ -1053,11 +1258,24 @@ export class Texture {
     return this;
   }
 
-  destroy(gl) {
+  destroy(gl = this.gl) {
+    if (gl.contextBad || this.contextGen !== gl.contextGen) {
+      console.warn("context loss detected in texture.destroy()!");
+
+      this.texture = undefined;
+      return;
+    }
+
     gl.deleteTexture(this.texture);
   }
 
   load(gl, width, height, data, target = gl.TEXTURE_2D) {
+    if (this.contextGen !== gl.contextGen) {
+      console.warn("context loss detected in texture!");
+      this.contextGen = gl.contextGen;
+      this.texture = undefined;
+    }
+
     let tex = this.texture !== undefined ? this.texture : gl.createTexture();
 
     let use_byte_width = data instanceof Uint8Array || data instanceof Uint8ClampedArray || data instanceof ArrayBuffer;
@@ -1065,6 +1283,8 @@ export class Texture {
 
     this.contextGen = gl.contextGen;
     this.texture = tex;
+
+    this.createParams = {width, height, target, border: 0, level: 0, format: gl.RGBA, internalformat: gl.RGBA};
 
     gl.bindTexture(target, tex);
 
@@ -1076,11 +1296,15 @@ export class Texture {
       gl.texImage2D(target, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, data);
     }
 
-    Texture.defaultParams(gl, tex, target);
+    if (data) {
+      this._storedTex = data;
+    }
 
-    gl.generateMipmap(target);
-    gl.texParameteri(target, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-    gl.texParameteri(target, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    this.defaultParams(gl, tex, target);
+    this.makeMipMaps(gl);
+
+    this.texParameteri(gl, target, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    this.texParameteri(gl, target, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
 
     return this;
   }
@@ -1092,10 +1316,13 @@ export class Texture {
     this.texParameteri(gl, target, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
     this.texParameteri(gl, target, gl.TEXTURE_WRAP_S, gl.REPEAT);
     this.texParameteri(gl, target, gl.TEXTURE_WRAP_T, gl.REPEAT);
-
   }
 
   bind(gl, uniformloc, slot = this.texture_slot) {
+    if (gl.contextBad) {
+      return;
+    }
+
     if (this.contextGen !== gl.contextGen) {
       console.warn("Dead gl texture", this.contextGen, gl.ContextGen);
       return;

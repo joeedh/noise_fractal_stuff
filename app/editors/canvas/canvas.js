@@ -195,6 +195,10 @@ export class CanvasEditor extends EditorGL {
   }
 
   viewportDraw(canvas, gl) {
+    if (gl.contextBad) {
+      return;
+    }
+    
     if (isRendering()) {
       return;
     }

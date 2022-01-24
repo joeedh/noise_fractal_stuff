@@ -84,6 +84,7 @@ export class MultNoise extends Pattern {
   }
 
   setup(ctx, gl, uniforms, defines) {
+    defines.STEPS = ~~this.sliders[0];
     defines.GAIN = "SLIDERS[2]";
     defines.COLOR_SHIFT = "SLIDERS[3]";
     defines.COLOR_SCALE = "SLIDERS[4]";
@@ -91,8 +92,6 @@ export class MultNoise extends Pattern {
   }
 
   viewportDraw(ctx, gl, uniforms, defines) {
-    defines.STEPS = ~~this.sliders[0];
-
     super.viewportDraw(ctx, gl, uniforms, defines);
   }
 

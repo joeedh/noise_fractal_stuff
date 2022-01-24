@@ -574,7 +574,9 @@ export class MoireNewtonPattern extends Pattern {
     } else {
       delete defines.SQUARE_F;
     }
-    
+
+    defines.STEPS = ~~this.sliders[0];
+
     defines.MODE = this.newton_mode;
     defines.GAIN = "SLIDERS[1]";
     defines.COLOR_SHIFT = "SLIDERS[2]";
@@ -584,8 +586,6 @@ export class MoireNewtonPattern extends Pattern {
   }
 
   viewportDraw(ctx, gl, uniforms, defines) {
-    defines.STEPS = ~~this.sliders[0];
-
     super.viewportDraw(ctx, gl, uniforms, defines);
   }
 

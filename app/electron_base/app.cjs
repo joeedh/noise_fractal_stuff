@@ -1,17 +1,23 @@
-const { app, BrowserWindow } = require('electron')
+const {app, BrowserWindow} = require('electron')
 let config = require('./config.cjs');
 
-function createWindow () {
+app.commandLine.appendSwitch('--disable-gpu-process-crash-limit')
+app.disableDomainBlockingFor3DAPIs()
+
+function createWindow() {
+  app.commandLine.appendSwitch('--disable-gpu-process-crash-limit')
+
   // Create the browser window.
   let win = new BrowserWindow({
-    width: 1700,
-    height: 768,
+    width         : 1700,
+    height        : 768,
     webPreferences: {
-      nodeIntegration: true,
-      sandbox : false,
-      enableRemoteModule : true,
-      experimentalFeatures: true,
-      allowRunningInsecureContent : true
+      nodeIntegration            : true,
+      sandbox                    : false,
+      enableRemoteModule         : true,
+      experimentalFeatures       : true,
+      allowRunningInsecureContent: true,
+      devTools                   : true,
     }
   })
 

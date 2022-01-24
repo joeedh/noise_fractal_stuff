@@ -97,10 +97,56 @@ export class GraphAddOp extends ToolOp {
     }
 
     pat.graph.insert(pat2, i);
+
+    window.redraw_viewport();
   }
 }
 
 ToolOp.register(GraphAddOp);
+
+export class GraphRemoveOp extends ToolOp {
+  constructor() {
+    super();
+  }
+
+  static tooldef() {
+    let EnumProp = PatternsEnum ? PatternsEnum : new EnumProperty(0, {0: null});
+
+    return {
+      uiname     : "-",
+      description: "Remove Pattern",
+      toolpath   : "graph.remove",
+      inputs     : {
+        index: new IntProperty()
+      }
+    }
+  }
+
+  static canRun(ctx) {
+    return ctx.pattern && ctx.pattern.typeName === "graph";
+
+  }
+
+  exec(ctx) {
+    let pat = ctx.pattern;
+    let index = this.inputs.index.getValue();
+
+    let gen = pat.graph.generators[index];
+
+    console.warn(index, pat, pat.graph);
+
+    if (!gen) {
+      console.error("Invalid generator at index", index);
+      ctx.error("Error removing pattern");
+      return;
+    }
+
+    pat.graph.remove(gen);
+
+    window.redraw_viewport();
+  }
+}
+ToolOp.register(GraphRemoveOp);
 
 export class GraphEditor extends Container {
   constructor() {
@@ -135,8 +181,13 @@ export class GraphEditor extends Container {
 
     let badparams = new Set(["_factor", "_blend_mode", "depend"]);
 
+    let gen_i = 0;
+
     for (let gen of pat.graph.generators) {
       let panel = this.panel(gen.typeName + ":" + gen.id);
+
+      panel.titleframe.tool(`graph.remove(index=${gen_i})`);
+      gen_i++;
 
       let parami = gen.sliders.getParamIndex("_factor");
       if (parami !== -1) {
@@ -327,7 +378,6 @@ float pattern(float ix, float iy) {
 
     this.graph.setupShader(ctx, gl, uniforms, defines, this.sliders, transform);
 
-    defines.STEPS = 5;
     defines.GAIN = "SLIDERS[0]";
     defines.COLOR_SHIFT = "SLIDERS[1]";
     defines.COLOR_SCALE = "SLIDERS[2]";

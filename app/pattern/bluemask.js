@@ -6,8 +6,18 @@ let _bluemasks = {};
 let _bluetexs = {};
 
 export function getBlueMaskTex(gl, dimen) {
+  if (gl.contextBad) {
+    return undefined;
+  }
+
   if (dimen in _bluetexs) {
-    return _bluetexs[dimen];
+    let tex = _bluetexs[dimen];
+
+    if (tex.contextGen === gl.contextGen) {
+      return tex;
+    } else {
+      console.warn("Context loss detected");
+    }
   }
 
   let tex = new Texture(gl.createTexture(), gl);

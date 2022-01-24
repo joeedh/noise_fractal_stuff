@@ -4,9 +4,24 @@ import {init_webgl} from './webgl/webgl.js';
 export var canvas;
 export var gl;
 
+let contextGenBase = 0;
+
 export function initGL() {
   canvas = document.createElement("canvas");
-  gl = init_webgl(canvas, {}, true);
+  gl = window._gl = init_webgl(canvas, {}, true);
+  gl.contextGen = contextGenBase++;
+
+  canvas.addEventListener("webglcontextrestored", (e) => {
+    if (window._appstate && _appstate.ctx && _appstate.ctx.pattern) {
+      _appstate.ctx.pattern.drawGen++;
+
+      canvas.remove();
+
+      initGL();
+    }
+  });
+
+  window.redraw_viewport();
 
   canvas.style["position"] = "fixed";
   canvas.style["z-index"] = "-1";

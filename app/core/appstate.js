@@ -12,26 +12,9 @@ import '../editors/all.js';
 import {MainMenu} from '../editors/menu/MainMenu.js';
 import {PropsEditor} from '../editors/properties/properties.js';
 import * as cconst from './const.js';
+import {makeScreen} from './app_ops.js';
 
 export var appstate;
-
-export function makeScreen(ctx) {
-  let screen = UIBase.createElement("app-screen-x");
-  screen.ctx = ctx;
-
-  let sarea = screen.newScreenArea();
-  screen.add(sarea);
-
-  sarea.switch_editor(MainMenu);
-  let sarea2 = screen.splitArea(sarea, 0.1);
-
-  sarea2.switch_editor(CanvasEditor);
-
-  let sarea3 = screen.splitArea(sarea2, 0.7, false);
-  sarea3.switch_editor(PropsEditor);
-
-  return screen;
-}
 
 export class AppState {
   constructor() {
@@ -115,6 +98,7 @@ export class AppState {
     console.warn("application reset");
 
     if (resetModel) {
+      this.fileKey = undefined;
       this.model = new FileState();
       this.model.setActivePattern("newton");
     }
@@ -152,33 +136,7 @@ export class AppState {
   }
 }
 
-export function loadDefaultFile(appstate, loadLocalStorage=true) {
-  let key = cconst.STARTUP_FILE_KEY;
-
-  if (loadLocalStorage && key in localStorage) {
-    try {
-      let buf = localStorage[key];
-      buf = atob(buf);
-
-      let data = new Uint8Array(buf.length);
-
-      for (let i = 0; i < buf.length; i++) {
-        data[i] = buf.charCodeAt(i);
-      }
-
-      appstate.loadFile(data);
-    } catch (error) {
-      util.print_stack(error);
-
-      console.error("failed to load startup file!");
-
-      appstate.reset();
-      appstate.api.execTool(appstate.ctx, "app.root_file_op()");
-    }
-  }
-}
-
-window.loadDefaultFile = loadDefaultFile;
+import {loadDefaultFile} from './app_ops.js';
 
 export function start() {
   appstate = window._appstate = new AppState();

@@ -299,6 +299,8 @@ export class Newton2Pattern extends Pattern {
   }
 
   setup(ctx, gl, uniforms, defines) {
+    defines.STEPS = ~~this.sliders[0];
+
     defines.VALUE_OFFSET = "SLIDERS[13]";
     defines.GAIN = "SLIDERS[2]";
     defines.COLOR_SHIFT = "SLIDERS[3]";

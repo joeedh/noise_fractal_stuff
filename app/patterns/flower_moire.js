@@ -152,11 +152,10 @@ export class FlowerMoire extends Pattern {
     defines.COLOR_SHIFT = "SLIDERS[3]";
     defines.COLOR_SCALE = "SLIDERS[4]";
     defines.BRIGHTNESS = "SLIDERS[5]";
+    defines.STEPS = ~~this.sliders[0];
   }
 
   viewportDraw(ctx, gl, uniforms, defines) {
-    defines.STEPS = ~~this.sliders[0];
-
     super.viewportDraw(ctx, gl, uniforms, defines);
   }
 

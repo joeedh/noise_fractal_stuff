@@ -1,13 +1,69 @@
 import {
   nstructjs, ToolOp, ToolProperty, BoolProperty,
   StringProperty, EnumProperty, FlagProperty, FloatProperty,
-  util, UndoFlags, IntProperty, platform
+  util, UndoFlags, IntProperty, platform, UIBase
 } from '../path.ux/pathux.js';
 import {Icons} from '../editors/icon_enum.js';
 import * as cconst from './const.js';
 import {loadPreset, Preset, presetManager, savePreset} from '../pattern/preset.js';
 import {render} from './render.js';
 import {FILE_EXT} from './const.js';
+import {MainMenu} from '../editors/menu/MainMenu.js';
+import {CanvasEditor} from '../editors/canvas/canvas.js';
+import {PropsEditor} from '../editors/properties/properties.js';
+
+export function makeScreen(ctx) {
+  let screen = UIBase.createElement("app-screen-x");
+  screen.ctx = ctx;
+
+  let sarea = screen.newScreenArea();
+  screen.add(sarea);
+
+  sarea.switch_editor(MainMenu);
+  let sarea2 = screen.splitArea(sarea, 0.1);
+
+  sarea2.switch_editor(CanvasEditor);
+
+  let sarea3 = screen.splitArea(sarea2, 0.7, false);
+  sarea3.switch_editor(PropsEditor);
+
+  return screen;
+}
+
+export function loadDefaultFile(appstate, loadLocalStorage=true) {
+  let key = cconst.STARTUP_FILE_KEY;
+
+  if (loadLocalStorage && key in localStorage) {
+    try {
+      let buf = localStorage[key];
+      buf = atob(buf);
+
+      let data = new Uint8Array(buf.length);
+
+      for (let i = 0; i < buf.length; i++) {
+        data[i] = buf.charCodeAt(i);
+      }
+
+      appstate.loadFile(data);
+    } catch (error) {
+      util.print_stack(error);
+
+      console.error("failed to load startup file!");
+
+      appstate.reset();
+      appstate.api.execTool(appstate.ctx, "app.root_file_op()");
+    }
+  } else {
+    appstate.reset(makeScreen(appstate.ctx), true, true);
+    appstate.api.execTool(appstate.ctx, "app.root_file_op");
+    appstate.toolstack.onFileSaved(); /* ensure toolstack.fileModified is up to date */
+    
+    appstate.screen.completeSetCSS();
+    appstate.screen.completeUpdate();
+  }
+}
+
+window.loadDefaultFile = loadDefaultFile;
 
 export class RootFileOp extends ToolOp {
   static tooldef() {
@@ -211,6 +267,29 @@ export class OpenFileOp extends ToolOp {
 }
 
 ToolOp.register(OpenFileOp);
+
+export class NewFileOp extends ToolOp {
+  static tooldef() {
+    return {
+      toolpath: "app.new",
+      uiname  : "New Project",
+      undoflag: UndoFlags.NO_UNDO
+    }
+  }
+
+  exec(ctx) {
+    if (ctx.toolstack.fileModified) {
+      if (!confirm("Project is modified, you will lose your work;\n still open new project?")) {
+        return;
+      }
+    }
+
+    _appstate.fileKey = undefined;
+    loadDefaultFile(_appstate, false);
+  }
+}
+
+ToolOp.register(NewFileOp);
 
 
 export class ClearStartup extends ToolOp {
