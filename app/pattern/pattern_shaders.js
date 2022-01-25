@@ -213,6 +213,10 @@ mat2 transpose(mat2 m) {
   return mat2(vec2(m[0][0], m[1][0]), vec2(m[0][1], m[1][1]));
 }
 
+vec2 rot2d(vec2 a, float th) {
+  return vec2(cos(th)*a.x + sin(th)*a.y, cos(th)*a.y - sin(th)*a.x);
+}
+
 `.trim() + "\n",
   webgl2: `#version 300 es
 precision highp float;
@@ -222,6 +226,11 @@ precision highp float;
 
 out vec4 fragColor;
 #define gl_FragColor fragColor
+
+vec2 rot2d(vec2 a, float th) {
+  return vec2(cos(th)*a.x + sin(th)*a.y, cos(th)*a.y - sin(th)*a.x);
+}
+
 `
 }
 
@@ -450,8 +459,16 @@ float uhash2(vec2 p) {
 #endif
 }
 
+vec2 uhash2v(vec2 p) {
+  float dx = hash2(p)*2.0 - 1.0;
+  float dy = hash2(vec2(p.y+2.23432, p.x+0.35234))*2.0 - 1.0;
+  
+  return vec2(dx, dy);
+}
+
   `.trim(),
   fragment   : `
+#ifndef CUSTOM_MAIN
 float mainImage( vec2 uv, out float w) {
 #if 0
     w = 1.0;
@@ -488,6 +505,10 @@ float mainImage( vec2 uv, out float w) {
     w = 1.0;
 #endif
 
+    if (enableAccum == 0.0) {
+      filterw = 0.0;
+    }
+    
     uv += filterw*vec2(dx, dy);
 
     float f = pattern(uv[0], uv[1]);
@@ -516,6 +537,7 @@ void main() {
   vec4 old = texture(rgba, uv);
   gl_FragColor = color + old*enableAccum;
 }
+#endif
 
 `.trim()
 };

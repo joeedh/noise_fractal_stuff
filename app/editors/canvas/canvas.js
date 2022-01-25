@@ -114,6 +114,28 @@ export class CanvasEditor extends EditorGL {
   init() {
     super.init();
 
+    this.addEventListener("mousewheel", (e) => {
+      console.log(e);
+      let dy = -e.deltaY;
+
+      dy = 1.0 + e.deltaY/4000.0;
+      dy = Math.min(Math.max(dy, 0.75), 1.25);
+
+      console.log(dy);
+
+      let pat = this.ctx.pattern;
+
+      pat.offsetx *= pat.scale;
+      pat.offsety *= pat.scale;
+
+      pat.scale *= dy;
+
+      pat.offsetx /= pat.scale;
+      pat.offsety /= pat.scale;
+
+      pat.drawGen++;
+      window.redraw_viewport();
+    });
     //let strip = this.header.row();
     //strip.noMarginsOrPadding();
     //strip.useIcons(false);

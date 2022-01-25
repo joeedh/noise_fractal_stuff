@@ -23,3 +23,6 @@ import './fractal_trace_presets.js';
 import './fractal_trace.js';
 
 import './graph.js';
+
+import './mountains.js';
+import './mountain_presets.js';

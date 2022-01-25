@@ -419,11 +419,21 @@ export function init_webgl(canvas, params, webgl2) {
   return gl;
 }
 
-function format_lines(script) {
+function format_lines(script, errortext) {
+  let linenr = getShaderErrorLine(errortext);
+
   var i = 1;
 
   var lines = script.split("\n")
   var maxcol = Math.ceil(Math.log(lines.length)/Math.log(10)) + 1;
+
+  if (typeof linenr === "number") {
+    let a = Math.max(linenr-25, 0);
+    let b = Math.min(linenr+5, lines.length);
+
+    i = a + 1;
+    lines = lines.slice(a, b);
+  }
 
   var s = "";
 
@@ -433,11 +443,29 @@ function format_lines(script) {
       s += " "
     }
 
+    if (i === linenr) {
+      line = util.termColor(line + " ", "red");
+    }
+
     s += line + "\n";
     i++;
   }
 
   return s;
+}
+
+function getShaderErrorLine(error) {
+  let linenr = error.match(/.*([0-9]+):([0-9]+): .*/);
+
+  if (linenr) {
+    linenr = parseInt(linenr[2]);
+  }
+
+  if (isNaN(linenr)) {
+    linenr = undefined;
+  }
+
+  return linenr;
 }
 
 //
@@ -490,12 +518,13 @@ function loadShader(ctx, shaderId, type) {
   ctx.compileShader(shader);
 
   // Check the compile status
-  var compiled = ctx.getShaderParameter(shader, ctx.COMPILE_STATUS);
+  let compiled = ctx.getShaderParameter(shader, ctx.COMPILE_STATUS);
   if (!compiled && !ctx.isContextLost()) {
     // Something went wrong during compilation; get the error
-    var error = ctx.getShaderInfoLog(shader);
+    let error = ctx.getShaderInfoLog(shader);
 
-    console.log(format_lines(shaderScript.text));
+    console.log(format_lines(shaderScript.text, error));
+
     console.log("\nError compiling shader: ", error);
 
     ctx.deleteShader(shader);

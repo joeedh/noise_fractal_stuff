@@ -467,6 +467,10 @@ export class Sliders extends Array {
     return this;
   }
 
+  getUniformRef(name_or_param) {
+    return `SLIDERS[${this.getParamIndex(name_or_param)}]`;
+  }
+
   getParamIndex(name_or_param) {
     let param;
 

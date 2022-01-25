@@ -69,10 +69,6 @@ float length2(vec2 p) {
   return f;
 }
 
-vec2 rot2d(vec2 a, float th) {
-  return vec2(cos(th)*a.x + sin(th)*a.y, cos(th)*a.y - sin(th)*a.x);
-}
-
 struct RenderState {
   vec3 co;
   vec3 dir;

@@ -821,15 +821,20 @@ float pattern(float ix, float iy) {
     }
 
     if (do_main_draw) {
-      let t = fbos[0];
-      fbos[0] = fbos[1];
-      fbos[1] = t;
+      this.swap(fbos);
     }
 
     if (do_main_draw) {
       this.drawSample++;
       this.T += this.DT;
     }
+  }
+
+  swap(fbos) {
+    let tmp = fbos[0];
+
+    fbos[0] = fbos[1];
+    fbos[1] = tmp;
   }
 
   updateInfo(ctx) {
