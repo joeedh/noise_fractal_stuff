@@ -4,16 +4,17 @@ import {Texture} from '../webgl/webgl.js';
 
 let _bluemasks = {};
 let _bluetexs = {};
+let loading_masks = {};
 
 export function getBlueMaskTex(gl, dimen) {
   if (gl.contextBad) {
     return undefined;
   }
-
+  
   if (dimen in _bluetexs) {
     let tex = _bluetexs[dimen];
 
-    if (tex.contextGen === gl.contextGen) {
+    if (tex.contextGen === gl.contextGen && tex.gl === gl) {
       return tex;
     } else {
       console.warn("Context loss detected");
@@ -21,25 +22,84 @@ export function getBlueMaskTex(gl, dimen) {
   }
 
   let tex = new Texture(gl.createTexture(), gl);
+  
   _bluetexs[dimen] = tex;
 
   let idata = genBlueMask(dimen);
 
-  tex.texImage2D(gl, gl.TEXTURE_2D, 0, gl.RGBA, dimen, dimen, 0, gl.RGBA, gl.UNSIGNED_BYTE, idata.data);
+  if (idata) {
+    tex.texImage2D(gl, gl.TEXTURE_2D, 0, gl.RGBA, dimen, dimen, 0, gl.RGBA, gl.UNSIGNED_BYTE, idata.data);
 
-  tex.texParameteri(gl, gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-  tex.texParameteri(gl, gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-  tex.texParameteri(gl, gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
-  tex.texParameteri(gl, gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
-
+    tex.texParameteri(gl, gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    tex.texParameteri(gl, gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    tex.texParameteri(gl, gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+    tex.texParameteri(gl, gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+  }
+  
   return tex;
+}
+
+function bluekey(dimen) {
+  return "_bluemask_" + dimen;
+}
+
+export function blueMaskValid(dimen) {
+  return !(dimen in loading_masks);
+}
+
+function load_mask_from_ls(dimen) {
+  let key = bluekey(dimen);
+  
+  console.log(localStorage[key]);
+  console.log("loading bluenoise mask from localStorage");
+  
+  loading_masks[dimen] = true;
+  
+  let img = new Image(); //document.createElement("img");
+  img.src = localStorage[key];
+  img.onload = () => {
+    delete loading_masks[dimen];
+    
+    let canvas = document.createElement("canvas");
+    let g = canvas.getContext("2d");
+    canvas.width = canvas.height = dimen;
+    g.drawImage(img, 0, 0);
+    
+    let idata = _bluemasks[dimen] = g.getImageData(0, 0, dimen, dimen);
+    
+    console.log("loaded blue noise mask from local storage");
+    
+    if (_bluetexs[dimen]) {
+      let tex = _bluetexs[dimen];
+      
+      let gl = tex.gl;
+      
+      tex.texImage2D(gl, gl.TEXTURE_2D, 0, gl.RGBA, dimen, dimen, 0, gl.RGBA, gl.UNSIGNED_BYTE, idata.data);
+
+      tex.texParameteri(gl, gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+      tex.texParameteri(gl, gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+      tex.texParameteri(gl, gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+      tex.texParameteri(gl, gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+      
+      console.log("setting texture...");
+    }
+  }
 }
 
 export function genBlueMask(dimen) {
   if (dimen in _bluemasks) {
     return _bluemasks[dimen];
   }
-
+  
+  if (bluekey(dimen) in localStorage) {
+    if (!(dimen in loading_masks)) {
+      loading_masks[dimen] = true;
+      load_mask_from_ls(dimen);
+    }
+    
+    return null;
+  }
+  
   let rand = new util.MersenneRandom();
   rand.seed(0);
 
@@ -173,8 +233,12 @@ export function genBlueMask(dimen) {
   let g = canvas.getContext("2d");
   canvas.width = canvas.height = dimen;
   g.putImageData(idata, 0, 0);
-
+  let url = canvas.toDataURL();
+  
+  localStorage[bluekey(dimen)] = url;
+  
   _bluemasks[dimen] = idata;
 
   return idata;
 }
+

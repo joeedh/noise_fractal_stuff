@@ -1,6 +1,6 @@
 import {Pattern, PatternFlags} from '../pattern/pattern.js';
 import {
-  Vector2, Vector3, util, math, Matrix4, Quat, Vector4
+  Vector2, Vector3, nstructjs, util, math, Matrix4, Quat, Vector4
 } from '../path.ux/pathux.js';
 import {savePreset} from '../pattern/preset.js';
 
@@ -166,7 +166,7 @@ float pattern(float ix, float iy) {
 #endif
 #endif
 
-  return f + SLIDERS[3];
+  return f;// + SLIDERS[3];
 }
 `;
 

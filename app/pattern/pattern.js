@@ -7,7 +7,7 @@ import {loadPreset, presetManager, savePreset} from './preset.js';
 export {CurveSet} from './pattern_shaders.js';
 
 import {PatternClasses} from './pattern_base.js';
-import {getBlueMaskTex} from './bluemask.js';
+import {getBlueMaskTex, blueMaskValid} from './bluemask.js';
 import {SliderParam, Sliders, SliderTypeMap, SliderTypes} from './pattern_types.js';
 
 export {PatternClasses} from './pattern_base.js';
@@ -666,9 +666,11 @@ float pattern(float ix, float iy) {
     let defines = {};
     let uniforms = {};
 
-    if (this.constructor.getPatternDef().flag & PatternFlags.NEED_BLUEMASK) {
+    if (1 || this.constructor.getPatternDef().flag & PatternFlags.NEED_BLUEMASK) {
       uniforms.blueMaskDimen = 128;
       uniforms.blueMask = getBlueMaskTex(gl, uniforms.blueMaskDimen);
+      
+      defines.HAVE_BLUE_NOISE = blueMaskValid(uniforms.blueMaskDimen);
     }
 
     if (this.use_curves) {

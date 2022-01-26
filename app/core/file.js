@@ -1,7 +1,6 @@
 import {nstructjs, util} from '../path.ux/pathux.js';
 import {Pattern, PatternClasses} from '../pattern/pattern.js';
 import * as cconst from './const.js';
-import {write_scripts} from '../path.ux/scripts/path-controller/util/struct.js';
 
 export const FileFlags = {
   HAS_SCREEN: 1

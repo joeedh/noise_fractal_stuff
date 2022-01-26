@@ -291,6 +291,9 @@ uniform float uSample;
 
 uniform sampler2D rgba;
 
+uniform float blueMaskDimen;
+uniform sampler2D blueMask;
+
 varying vec2 vCo;//drawing rectangle coordinates
 varying vec2 vUv;//possibly mapped coordinates
 
@@ -378,6 +381,20 @@ float hash2(vec2 p) {
 }
 
 float bluenoise(vec2 p) {
+#if defined(HAVE_BLUE_NOISE) && defined(PER_PIXEL_RANDOM)
+  float f;
+  
+  vec2 uv = vCo*iRes.xy/blueMaskDimen;
+  //uv.x += hash2(p)-0.5;
+  //uv.y += hash2(p.yx+vec2(0.223, 0.823))-0.5;
+  
+  uv = fract(uv);
+  
+  vec4 c = texture(blueMask, uv);
+  f = c[0];
+  
+  return f;
+#else
   float f;
   vec2 op = p;
 
@@ -428,6 +445,7 @@ float bluenoise(vec2 p) {
     
     
   return f;
+#endif
 }
 
 float uhash2(vec2 p) {
@@ -436,14 +454,51 @@ float uhash2(vec2 p) {
 #if 1 //blue noise-ish distribution
     f = bluenoise(p);
     
-    //return f*2.0 - 1.0;
     const float steps = 17.0;
     
     f = floor(f*steps)/steps;
     
+#ifdef PER_PIXEL_RANDOM
+    float f2 = sin(p.x*3.23423 + p.y*234.23432);
+    f2 = floor(f2*steps)/steps;
+    
+    f += f2;
+#endif
+    
+    f = fract(f*100.0 + sin(T*100.234) + T);
+    
     f = hash(f+T);
     f += hash(f+T+0.32432);
     f += hash(f+T+1.23423);
+    f *= 0.333333;
+    
+    return f*2.0 - 1.0;
+#else
+    f = hash2(p);
+    
+    f += hash2(p + vec2(2.234, 0.63));
+    f += hash2(p + vec2(-10.8, 0.95));
+    
+    f /= 3.0;
+    
+    return f*2.0 - 1.0;
+#endif
+}
+
+float uhash2b(vec2 p, float seed) {
+    float f;
+
+#if 1 //blue noise-ish distribution
+    f = bluenoise(p);
+    
+    const float steps = 17.0;
+    //f = fract(f+T);
+    
+    f = floor(f*steps)/steps;
+    
+    f = hash(f+T+seed);
+    f += hash(f+T+0.32432+seed);
+    f += hash(f+T+1.23423+seed);
     f *= 0.333333;
     
     return f*2.0 - 1.0;
@@ -477,8 +532,8 @@ float mainImage( vec2 uv, out float w) {
 #endif
 
 #ifdef PER_PIXEL_RANDOM
-    float dx = uhash2(uv);
-    float dy = uhash2(-uv + 2.53223);
+    float dx = uhash2b(uv, 0.0);
+    float dy = uhash2b(-uv.yx, 2.53223);
 #else
     float dx = uhash2(vec2(0.,0.));
     float dy = uhash2(-vec2(0.,0.) + 2.53223);
