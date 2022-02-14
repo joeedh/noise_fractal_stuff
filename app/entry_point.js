@@ -49,7 +49,7 @@ export function setupPathUX() {
     window._icon_image = img;
     console.log(img);
 
-    let sizes = [16, 24, 32, 64, 128]
+    let sizes = [16, 24, 12, 64, 128]
     let images = [];
     let sizes2 = [];
 

@@ -6,21 +6,10 @@ import {
 import {Pattern} from '../pattern/pattern.js';
 
 const shaderPre = `
-float cos1(float f) {
-  return cos(f*3.141592654)*0.5 + 0.5;
-}
-float sin1(float f) {
-  return sin(f*3.141592654)*0.5 + 0.5;
-}
-
-float tent2(float f) {
-  return tent(f+0.5);
-}
-
 //#define cos(x) (tent((x)/(2.0*M_PI))*2.0-1.0)
 //#define sin(x) (tent(0.5+(x)/(2.0*M_PI))*2.0-1.0)
 
-float flower_pattern(float x, float y) {
+float flower_pattern$(float x, float y) {
     float f;
     
     f = length(vec2(x, y));
@@ -34,7 +23,7 @@ float flower_pattern(float x, float y) {
 }
 
 
-float flower_samplef(float x, float y, float k, float seed1) {
+float flower_samplef$(float x, float y, float k, float seed1) {
     float seed2 = seed1*2.0;
 
     float a1 = ctent(x);
@@ -76,25 +65,25 @@ float pattern(float ix, float iy) {
   
   float scale = SLIDERS[6];
   
+  const float scale2 = 6.0;
+  
   uv.x += SLIDERS[7];
   uv.y += SLIDERS[8];
 
-  uv *= scale;
+  uv *= scale*scale2;
   
   vec2 startuv = uv;
-
-  uv = startuv*scale*6.0;
   
   float k = SLIDERS[9], df = 0.0005;
-  float ff = flower_samplef(uv.x, uv.y, k, SLIDERS[1]);
-  float dx = (flower_samplef(uv.x+df, uv.y, k, SLIDERS[1]) - ff) / df;
-  float dy = (flower_samplef(uv.x, uv.y+df, k, SLIDERS[1]) - ff) / df;
+  float ff = flower_samplef$(uv.x, uv.y, k, SLIDERS[1]);
+  float dx = (flower_samplef$(uv.x+df, uv.y, k, SLIDERS[1]) - ff) / df;
+  float dy = (flower_samplef$(uv.x, uv.y+df, k, SLIDERS[1]) - ff) / df;
   
   //return fract(ff*k);
   float x2 = fract(ff*k);
   float y2 = fract(k*atan(dy, dx)/M_PI);
   
-  return flower_pattern((x2-0.5)*0.5, (y2-0.5)*0.5);
+  return flower_pattern$((x2-0.5)*0.5, (y2-0.5)*0.5);
   //return startuv[1] < -0.1 ? x2 : y2;
 }
 

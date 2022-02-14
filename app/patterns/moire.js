@@ -8,7 +8,7 @@ export const MoirePresets = [];
 
 let nameBase = 1;
 
-export function add_preset(sliders, opt={}) {
+export function add_preset(sliders, opt = {}) {
   let pat = new MoirePattern();
 
   for (let k in opt) {
@@ -16,7 +16,7 @@ export function add_preset(sliders, opt={}) {
   }
 
   let ilen = Math.min(sliders.length, pat.sliders.length);
-  for (let i=0; i<ilen; i++) {
+  for (let i = 0; i < ilen; i++) {
     pat.sliders[i] = sliders[i];
   }
 
@@ -32,6 +32,7 @@ export const MoireFuncs = {
   MUL : 2,
   MIN : 3,
   MAX : 4,
+  ATAN: 5,
 };
 
 export const BandModes = {
@@ -49,6 +50,7 @@ export const SmoothFuncs = {
 
 const shaderPre = `
 float cosfunc(float f) {
+  //return fract(f/1.0/M_PI)*2.0-1.0;
   //return tent(f/2.0/M_PI)*2.0-1.0;
   return cos(f);
 }
@@ -103,6 +105,7 @@ float pattern(float ix, float iy) {
   p.y += SLIDERS[7];
   p *= SLIDERS[8];
   
+  float lastf2 = 0.0;
   float th = SLIDERS[1]*M_PI;//floor(SLIDERS[0]);
   float thscale = th*SLIDERS[9];//float(STEPS);
   
@@ -128,6 +131,9 @@ float pattern(float ix, float iy) {
     th += thscale;
     
     p = p*SLIDERS[10];
+    float seed3 = SLIDERS[13];
+    //p = vec2(p.x*seed3 - 0.5*p.y/seed3, p.y*seed3 + 0.5*p.x/seed3);
+    //p.x *= seed3;
     
     float w = 1.0;
 
@@ -141,8 +147,12 @@ float pattern(float ix, float iy) {
     f = min(f, f2);
 #elif FUNC == 4
     f = max(f, f2);
+#elif FUNC == 5
+    //f += atan(f2*SLIDERS[13]);
+    f += cos(M_PI*atan(f2, lastf2)*SLIDERS[13]);    
 #endif
 
+    lastf2 = f2;
     fsum += w;
   }
 
@@ -153,6 +163,8 @@ float pattern(float ix, float iy) {
 #elif FUNC == 2
   f = pow(f, 1.0/fsum);
 #elif FUNC == 3 || FUNC == 4
+#elif FUNC == 5
+  f /= fsum;
 #endif
 
 #if BAND_MODE == 1 || BAND_MODE == 2
@@ -205,6 +217,8 @@ export class MoirePattern extends Pattern {
         {name: "offset2", value: 1.0}, //10
         {name: "bands", value: 5.0, range: [1.0, 100.0], speed: 1.5}, //11
         {name: "exp", value: 1.0, desription: "exponent for SUM mode", range: [-2.0, 100.0], speed: 0.5}, //12
+        {name: "offset3", value: 1.0}, //13
+        {name: "valoffset", value: 0.0, noReset: true}, //14
       ],
       shader,
       shaderPre,
@@ -275,6 +289,8 @@ add_preset(${sliders}, ${opts});
 
     defines.BAND_MODE = this.band_mode;
     defines.SMOOTHFUNC = this.smooth_func;
+
+    defines.VALUE_OFFSET = "SLIDERS[14]";
 
     defines.GAIN = "SLIDERS[2]";
     defines.COLOR_SHIFT = "SLIDERS[3]";

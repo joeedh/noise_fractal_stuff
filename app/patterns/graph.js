@@ -8,6 +8,7 @@ import {Pattern, PatternFlags, PatternClasses, PatternsEnum} from '../pattern/pa
 import {MLGraph} from '../ml/ml_types.js';
 import {SliderTypes} from '../pattern/pattern_types.js';
 import './moire.js'; //prevent warning when ToolOp.register reads GraphAddOp.inputs.type
+import {Icons} from '../editors/icon_enum.js';
 
 export class GraphAddOp extends ToolOp {
   constructor() {
@@ -22,6 +23,7 @@ export class GraphAddOp extends ToolOp {
       description: "Add Pattern",
       toolpath   : "graph.add",
       is_modal   : true,
+      icon       : Icons.PLUS,
       inputs     : {
         before  : new IntProperty(-1),
         type    : EnumProp.copy(),
@@ -117,6 +119,7 @@ export class GraphRemoveOp extends ToolOp {
       uiname     : "-",
       description: "Remove Pattern",
       toolpath   : "graph.remove",
+      icon       : Icons.DELETE,
       inputs     : {
         index: new IntProperty()
       }
@@ -148,7 +151,107 @@ export class GraphRemoveOp extends ToolOp {
     window.redraw_viewport();
   }
 }
+
 ToolOp.register(GraphRemoveOp);
+
+
+export class GraphMoveUp extends ToolOp {
+  constructor() {
+    super();
+  }
+
+  static tooldef() {
+    let EnumProp = PatternsEnum ? PatternsEnum : new EnumProperty(0, {0: null});
+
+    return {
+      uiname     : "-",
+      description: "Move Pattern Up",
+      toolpath   : "graph.move_up",
+      icon       : Icons.CHEVRON_UP,
+      inputs     : {
+        index: new IntProperty()
+      }
+    }
+  }
+
+  static canRun(ctx) {
+    return ctx.pattern && ctx.pattern.typeName === "graph";
+
+  }
+
+  exec(ctx) {
+    let pat = ctx.pattern;
+    let index = this.inputs.index.getValue();
+
+    let gen = pat.graph.generators[index];
+
+    console.warn(index, pat, pat.graph);
+
+    if (!gen) {
+      console.error("Invalid generator at index", index);
+      ctx.error("Error removing pattern");
+      return;
+    }
+
+    console.log("Move up");
+
+    pat.graph.move(gen, -1);
+    pat.drawGen++;
+
+    window.redraw_viewport();
+  }
+}
+
+ToolOp.register(GraphMoveUp);
+
+export class GraphMoveDown extends ToolOp {
+  constructor() {
+    super();
+  }
+
+  static tooldef() {
+    let EnumProp = PatternsEnum ? PatternsEnum : new EnumProperty(0, {0: null});
+
+    return {
+      uiname     : "-",
+      description: "Move Pattern Down",
+      toolpath   : "graph.move_down",
+      icon       : Icons.CHEVRON_DOWN,
+      inputs     : {
+        index: new IntProperty()
+      }
+    }
+  }
+
+  static canRun(ctx) {
+    return ctx.pattern && ctx.pattern.typeName === "graph";
+
+  }
+
+  exec(ctx) {
+    let pat = ctx.pattern;
+    let index = this.inputs.index.getValue();
+
+    let gen = pat.graph.generators[index];
+
+    console.warn(index, pat, pat.graph);
+
+    if (!gen) {
+      console.error("Invalid generator at index", index);
+      ctx.error("Error removing pattern");
+      return;
+    }
+
+    console.log("Move up");
+
+    pat.graph.move(gen, 1);
+    pat.drawGen++;
+
+    window.redraw_viewport();
+  }
+}
+
+ToolOp.register(GraphMoveDown);
 
 export class GraphEditor extends Container {
   constructor() {
@@ -178,7 +281,10 @@ export class GraphEditor extends Container {
     this.clear();
     this.label("Editor");
 
+    this.useIcons(2);
     this.tool("graph.add(before=0)");
+    this.useIcons(false);
+
     let i = 0;
 
     let badparams = new Set(["_factor", "_blend_mode", "depend"]);
@@ -188,7 +294,13 @@ export class GraphEditor extends Container {
     for (let gen of pat.graph.generators) {
       let panel = this.panel(gen.typeName + ":" + gen.id);
 
+      panel.titleframe.useIcons(2);
       panel.titleframe.tool(`graph.remove(index=${gen_i})`);
+
+      let strip = panel.titleframe;//.strip();
+      strip.tool(`graph.move_up(index=${gen_i})`);
+      strip.tool(`graph.move_down(index=${gen_i})`);
+
       gen_i++;
 
       let parami = gen.sliders.getParamIndex("_factor");
@@ -259,12 +371,16 @@ export class GraphEditor extends Container {
 
       panel2.closed = true;
 
+      this.useIcons(2);
       this.tool(`graph.add(before=${i + 1})`);
+      this.useIcons(false);
       i++;
     }
 
     if (i !== pat.graph.generators.length) {
+      this.useIcons(2);
       this.tool("graph.add(before=-1)");
+      this.useIcons(false);
     }
 
     loadUIData(this, uidata);
@@ -285,7 +401,14 @@ export class GraphEditor extends Container {
 
     let pat = this.ctx.pattern;
 
-    let key = pat.graph.length;
+    let hash = this._update_digest.reset();
+
+    hash.add(pat.graph.length);
+    for (let gen of pat.graph.generators) {
+      hash.add(gen.id);
+    }
+
+    let key = hash.get();
 
     if (key !== this._last_update_key) {
       this._last_update_key = key;
@@ -370,7 +493,7 @@ float pattern(float ix, float iy) {
   }
 
   _doViewportDraw(ctx, canvas, gl, enableAccum, finalOnly = false, finalFbo = undefined, customUVs = undefined,
-                  customSize = undefined) {
+                  customSize                                                                       = undefined) {
     this.checkUpdate(gl);
 
     super._doViewportDraw(ctx, canvas, gl, enableAccum, finalOnly, finalFbo, customUVs, customSize);

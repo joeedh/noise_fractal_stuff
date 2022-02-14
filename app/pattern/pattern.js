@@ -1,4 +1,4 @@
-import {EnumProperty, util, nstructjs, Curve1D} from '../path.ux/pathux.js';
+import {EnumProperty, util, nstructjs, Curve1D, PackFlags} from '../path.ux/pathux.js';
 import {renderPattern} from './pattern_draw.js';
 import {ShaderProgram, RenderBuffer} from '../webgl/webgl.js';
 import {buildShader, Shaders, CurveSet} from './pattern_shaders.js';
@@ -246,7 +246,9 @@ float pattern(float ix, float iy) {
     }
 
     con.prop("fast_mode");
-    con.prop("filter_width");
+    con.slider("filter_width", {
+      packflag : PackFlags.FORCE_ROLLER_SLIDER
+    });
     con.prop("pixel_size");
     con.prop("max_samples");
     con.prop("mul_with_orig");
@@ -317,7 +319,7 @@ float pattern(float ix, float iy) {
 
     st.float("filter_width", "filter_width", "Filter Width")
       .noUnits()
-      .range(0.0, 10.0)
+      .range(0.0, 375.0)
       .on('change', onchange);
 
     st.float("pixel_size", "pixel_size", "Pixel Size")

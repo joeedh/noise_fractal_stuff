@@ -97,12 +97,38 @@ export class MLGraph {
     this.flag |= MLGraphFlags.RESORT;
   }
 
+  move(gen, offset) {
+    let i1 = this.generators.indexOf(gen);
+    let i2 = i1 + offset;
+
+    i2 = Math.min(Math.max(i2, 0), this.generators.length - 1);
+
+    if (i1 > i2) {
+      let tmp = i1;
+      i1 = i2;
+      i2 = tmp;
+    }
+
+    let gs = this.generators;
+    i2 = Math.min(i2, gs.length - 1);
+
+    while (i1 < i2) {
+      let tmp = gs[i1];
+      gs[i1] = gs[i1 + 1];
+      gs[i1 + 1] = tmp;
+
+      i1++;
+    }
+
+    this.flagResort();
+  }
+
   insert(gen, before = 0) {
     this.add(gen);
 
     let generators = this.generators;
 
-    if (generators.length === 1 || before === -1 || before === this.generators.length) {
+    if (generators.length === 1 || before < 0 || before >= this.generators.length) {
       return this;
     }
 
@@ -113,7 +139,7 @@ export class MLGraph {
       i--;
     }
 
-    this[before] = gen;
+    generators[before] = gen;
 
     return this;
   }
@@ -173,7 +199,7 @@ export class MLGraph {
 
     gen.id = -1;
 
-    //to prevent reference leaks, forcbly clear sortlist
+    //to prevent reference leaks, forcibly clear sortlist
     this.sortlist.length = 0;
 
     for (let param of gen.sliders.params) {
@@ -297,7 +323,7 @@ export class MLGraph {
 
       let x2 = gen.sliders[transform2.x]/scale + x;
       let y2 = gen.sliders[transform2.y]/scale + y;
-      let scale2 = gen.sliders[transform2.scale] * scale;
+      let scale2 = gen.sliders[transform2.scale]*scale;
 
       uniforms[`${k}[${transform2.x}]`] = x2;
       uniforms[`${k}[${transform2.y}]`] = y2;
@@ -320,6 +346,7 @@ export class MLGraph {
 
     let s = '';
     let getName = gen => `layer${gen.id}`;
+    let colorvars = {};
 
     for (let gen of this.sortlist) {
       s += `
@@ -329,7 +356,25 @@ uniform float ${this.getUniformKey(gen, gen.sliders.get("_factor"))};
 
     }
 
+    let COLOR_VARS = new Set([
+      "VALUE_OFFSET",
+      "GAIN",
+      "BRIGHTNESS",
+      "COLOR_SCALE",
+      "COLOR_SHIFT"
+    ]);
+
+    let doColorVar = (gen, k, v) => {
+      if (v.startsWith("SLIDERS[")) {
+        v = v.replace(/SLIDERS/, "SLIDERS" + gen.id);
+      }
+
+      colorvars[gen.id][k] = v;
+    }
+
     for (let gen of this.sortlist) {
+      colorvars[gen.id] = {};
+
       let code = gen.getFragmentCode();
       let name = getName(gen);
 
@@ -341,6 +386,10 @@ uniform float ${this.getUniformKey(gen, gen.sliders.get("_factor"))};
       console.log("VARS", gen.constructor.patternDef().typeName, uniforms, defines);
 
       for (let k in defines) {
+        if (COLOR_VARS.has(k)) {
+          doColorVar(gen, k, "" + defines[k]);
+        }
+
         let k2 = this.getDefineKey(gen, k);
         k = new RegExp("\\b" + k + "\\b", "g");
 
@@ -348,6 +397,10 @@ uniform float ${this.getUniformKey(gen, gen.sliders.get("_factor"))};
       }
 
       for (let k in uniforms) {
+        if (COLOR_VARS.has(k)) {
+          doColorVar(gen, k, uniforms[k]);
+        }
+
         let k2 = k.replace(/\$/g, "" + gen.id);
 
         code = code.replaceAll(k, k2);
@@ -377,9 +430,30 @@ ${code}
     let code = '  float f, f2, totw;\n\n';
     let first = true;
 
+    let safeFloat = (f) => {
+      f = "" + f;
+      if (f.search(/\./) < 0) {
+        return f + ".0";
+      }
+
+      return f;
+    }
+
     for (let gen of this.sortlist) {
+      let cvars = colorvars[gen.id];
+
+      console.log(gen.constructor.name, cvars);
+
+      //let B = cvars.BRIGHTNESS ?? 1.0;
+      //let C = cvars.COLOR_SHIFT ?? 1.0;
+      let S = cvars.COLOR_SCALE ?? safeFloat(1.0);
+      let G = cvars.GAIN ?? safeFloat(1.0);
+      let V = cvars.VALUE_OFFSET ?? safeFloat(0.0);
+
+
       code += `  /* ${gen.constructor.patternDef().typeName + ":" + gen.id} */\n`;
       code += `  f2 = ${getName(gen)}(ix, iy);\n`;
+      code += `  f2 = pow(abs(f2+${V}), ${G})*${S};`;
 
       //let w = gen.sliders._factor;
       let w = this.getUniformKey(gen, gen.sliders.get("_factor"));
@@ -446,7 +520,9 @@ ${code}
 
       for (let param of gen.sliders.params) {
         if (param.noReset) {
-          continue;
+          //respecting noReset doesn't really make any sense
+          //when composing patterns.
+          //continue;
         }
 
         let v = param.value;

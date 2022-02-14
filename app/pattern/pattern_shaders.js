@@ -491,10 +491,13 @@ float uhash2b(vec2 p, float seed) {
 #if 1 //blue noise-ish distribution
     f = bluenoise(p);
     
-    const float steps = 17.0;
+    const float steps = 19.0;
     //f = fract(f+T);
     
     f = floor(f*steps)/steps;
+    
+    //f = fract(p.x*10232.234 + sin(p.y*324.234)*32343.0 + sin((seed+T)*230.234));
+    //f = fract(1.0 / (0.00001 + 0.00001*(f+sin(T)+seed)));
     
     f = hash(f+T+seed);
     f += hash(f+T+0.32432+seed);

@@ -575,16 +575,29 @@ float pattern(float ix, float iy) {
 #define M_PI 3.14159265453
 #endif
 
-vec2 cexpn(vec2 z) {
+float cos1$(float f) {
+  return (cos(f) + cos(f*(1.0+SLIDERS[11])))*0.5;
+  //f = tent(f/M_PI/2.0);
+  //f = f*f*(3.0 - 2.0*f);
+  //f = -(f*2.0 - 1.0);
+  //return f;
+  return cos(f);
+}
+
+float sin1$(float f) {
+  return cos1$(f - M_PI*0.5);
+}
+
+vec2 cexpn$(vec2 z) {
   if (z.y == 0.0) {
     return vec2(exp(z.x), 0.0);
   }
   
   float f = exp(z.x);
-  return f * vec2(cos(z.y+SLIDERS[22]), sin(z.y+SLIDERS[22]));
+  return f * vec2(cos1$(z.y+SLIDERS[22]), sin1$(z.y+SLIDERS[22]));
 }
 
-vec2 cexp(vec2 x, vec2 b) {
+vec2 cexp$(vec2 x, vec2 b) {
   //log
   vec2 ln = vec2(
     log(length(x)),
@@ -593,7 +606,7 @@ vec2 cexp(vec2 x, vec2 b) {
   
   //ln = ln.x * vec2(cos(ln.y), sin(ln.y));
   
-  return cexpn(cmul(b, ln));
+  return cexpn$(cmul(b, ln));
   
   vec2 exp = cmul(b, ln);
   exp = vec2(
@@ -650,7 +663,7 @@ float pattern(float ix, float iy) {
       
       //p = cmul(p, p) + uv;
       
-      p = cexp(p, vec2(SLIDERS[21], 0.0)) + uv;
+      p = cexp$(p, vec2(SLIDERS[21], 0.0)) + uv;
 
       //p += -dv*SLIDERS[10]*0.05;
       
