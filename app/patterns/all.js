@@ -26,3 +26,6 @@ import './graph.js';
 
 import './mountains.js';
 import './mountain_presets.js';
+
+import './clothoid.js';
+import './clothoid_presets.js';
