@@ -661,6 +661,8 @@ export class Sliders extends Array {
   merge(paramDef) {
     paramDef = paramDef.concat([]); //copy
 
+    this.unbindProperties();
+
     let newlist = new Array(paramDef.length);
     let map = {};
 
@@ -685,9 +687,12 @@ export class Sliders extends Array {
     //add any missing parameters
     for (let i = 0; i < paramDef.length; i++) {
       let pdef = paramDef[i];
+      let param = new SliderParam(pdef.name, SliderTypeMap[pdef.type], pdef.value);
 
       if (newlist[i] === undefined) {
-        let param = new SliderParam(pdef.name, SliderTypeMap[pdef.type], pdef.value);
+        newlist[i] = param;
+      } else {
+        param.value = newlist[i].value;
         newlist[i] = param;
       }
 
@@ -706,7 +711,6 @@ export class Sliders extends Array {
       this.push(item);
     }
 
-    this.unbindProperties();
     this.bindProperties();
   }
 

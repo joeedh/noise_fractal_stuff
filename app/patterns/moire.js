@@ -204,7 +204,7 @@ export class MoirePattern extends Pattern {
       },
       presets      : MoirePresets,
       sliderDef    : [
-        {name: "steps", value: 3.0001, range: [1, 75]}, //0
+        {name: "steps", value: 3.0001, range: [1, 75], type: "int"}, //0
         {name: "theta", value: -0.75, speed: 0.05, range: [-Math.PI, Math.PI]}, //1
         {name: "gain", value: 1.1, range: [0, 750]}, //2
         {name: "color", value: 0.65, range: [0, 10]}, //3

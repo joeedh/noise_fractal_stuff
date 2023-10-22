@@ -834,7 +834,8 @@ export class MandelbrotPattern extends Pattern {
       presets      : MandelbrotPresets,
       sliderDef    : [
         {
-          name : "steps", integer: true,
+          name : "steps",
+          type : "int",
           range: [5, 955],
           value: 400,
           speed: 7.0,
@@ -863,11 +864,11 @@ export class MandelbrotPattern extends Pattern {
         {name: "orbdecay", value: 0.0, speed: 0.01, range: [0.0, 1.0]}, //18
         {name: "orbspeed", value: 0.1, speed: 0.01, range: [0.0001, 2.0]}, //19
         {name: "orbthresh", value: 4, speed: 1, range: [-1, 500]}, //20
-        {name: "exp", value : 2.0, range : [-5.0, 10000.0], speed : 0.25}, //21
-        {name: "th", value : 0.0, range : [-6.0, 6.0], speed : 0.0875}, //22
+        {name: "exp", value: 2.0, range: [-5.0, 10000.0], speed: 0.25}, //21
+        {name: "th", value: 0.0, range: [-6.0, 6.0], speed: 0.0875}, //22
       ],
       shader,
-      shaderPre : ''
+      shaderPre    : ''
     }
   }
 

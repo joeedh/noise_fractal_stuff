@@ -247,7 +247,7 @@ float pattern(float ix, float iy) {
 
     con.prop("fast_mode");
     con.slider("filter_width", {
-      packflag : PackFlags.FORCE_ROLLER_SLIDER
+      packflag: PackFlags.FORCE_ROLLER_SLIDER
     });
     con.prop("pixel_size");
     con.prop("max_samples");
@@ -351,9 +351,6 @@ float pattern(float ix, float iy) {
       }
     ]);
 
-    class dummy {
-    }
-
     function getIndex(path) {
       //grab index from datapath
 
@@ -394,14 +391,26 @@ float pattern(float ix, float iy) {
       return sliders[wrapSymbol];
     }
 
-    let floatst = api.mapStruct(dummy, true);
+    class FloatDummyClass {
+    }
+
+    class IntDummyClass {
+    }
+
+    let floatst = api.mapStruct(FloatDummyClass, true);
+    let intst = api.mapStruct(IntDummyClass, true);
+
+    let sdef = this !== Pattern ? this.getSliderDef() : [];
+
     floatst.float("value", "value", "Value")
       .noUnits().rollerSlider();
+    intst.int("value", "value", "Value")
+      .noUnits().rollerSlider().step(1);
 
     st.string("typeName", "type", "").readOnly();
     st.list("sliders", "sliders", [
       function getStruct(api, list, key) {
-        return floatst;
+        return sdef[key].type === "int" ? intst : floatst;
       },
 
       function get(api, list, key) {
@@ -671,7 +680,7 @@ float pattern(float ix, float iy) {
     if (1 || this.constructor.getPatternDef().flag & PatternFlags.NEED_BLUEMASK) {
       uniforms.blueMaskDimen = 128;
       uniforms.blueMask = getBlueMaskTex(gl, uniforms.blueMaskDimen);
-      
+
       defines.HAVE_BLUE_NOISE = blueMaskValid(uniforms.blueMaskDimen);
     }
 
@@ -935,7 +944,7 @@ float pattern(float ix, float iy) {
 
     let shader = this.shader;
     this.setup(ctx, gl, uniforms, defines);
-    
+
     shader.bind(gl, uniforms, defines);
 
     //this.vbuf.bind(gl, 0);

@@ -445,7 +445,10 @@ float pattern(float ix, float iy) {
 }
 `
 
-let default_sliders = [70, 1.0085816666793592, 0.19, 0.75, 1, 0, 0, 0.5481132143684899, 1.0394603699656666, 0.1, -0.027131458394895037, 0.5, 2.228481532745102, 12.194309577047196, 3.7673241791448557, 0.4501880372834175, 0.4560353431568105, 100, 0.4767438786691817, 0.5528460192685353, 0.23561289080058562, 1.0468000638632202, 0.30568250862488466, 0.00430181617522855];
+let default_sliders = [70, 1.0085816666793592, 0.19, 0.75, 1, 0, 0, 0.5481132143684899, 1.0394603699656666, 0.1,
+                       -0.027131458394895037, 0.5, 2.228481532745102, 12.194309577047196, 3.7673241791448557,
+                       0.4501880372834175, 0.4560353431568105, 100, 0.4767438786691817, 0.5528460192685353,
+                       0.23561289080058562, 1.0468000638632202, 0.30568250862488466, 0.00430181617522855];
 
 export class NewtonTracePattern extends Pattern {
   constructor() {
@@ -462,56 +465,57 @@ export class NewtonTracePattern extends Pattern {
 
   static patternDef() {
     let i = 0;
-    
+
     let sliderdef = [
-        {
-          name : "steps", integer: true,
-          range: [5, 955],
-          value: 100,
-          speed: 7.0,
-          exp  : 1.5,
-        }, //0
-        {name: "offset", value: 0.54, range: [-5.0, 5.0], speed: 0.1}, //1
-        {name: "gain", value: 0.19, range: [0.001, 1000], speed: 4.0, exp: 2.0, noReset : true},  //2
-        {name: "color", value: 0.75, range: [-50, 50], speed: 0.25, exp: 1.0, noReset : true}, //3
-        {name: "scale", value: 1.0, range: [0.001, 1000000.0]}, //4
-        "x",  //5
-        "y",  //6
-        {name: "colorscale", value: 5.9, noReset : true},//7
-        {name: "brightness", value: 1.0, range: [0.001, 10.0], noReset : true}, //8
-        {name: "hoff", value: 0.1, range: [0.0001, 10.0]}, //9
-        {name: "poff", value: 0.39, range: [-8.0, 8.0], speed: 0.1, exp: 1.0}, //10
-        {name: "simple", value: 0.5, range: [-44.0, 44.0]}, //11
-        {name: "pitch", value : 0.0}, //12,
-        {name: "roll", value : 0.0}, //13
-        {name: "fov", value : 0.1, speed : 0.1}, //14
-        {name: "dist", value : 5.0, speed: 1.0}, //15
-        {name: "eps", value : 0.25, speed : 0.0025}, //16
-        {name: "steps2", value : 25.0, speed : 2.5}, //17
-        {name: "limit", value : 0.5, speed : 0.1}, //18
-        {name: "depth", value : 0.5, speed : 0.1}, //19
-        {name: "scale2", value : 0.1, speed : 0.1}, //20
-        {name: "scale3", value : 0.5, speed : 0.1}, //21
-        {name: "scale4", value : 0.25, speed : 0.1}, //22
-        {name: "rlimit", value : 0.001, speed : 0.00025, exp : 1.0, range : [0.00001, 0.1]}, //23
-      ];
-    
-    for (let i=0; i<sliderdef.length; i++) {
+      {
+        name : "steps",
+        type : "int",
+        range: [5, 955],
+        value: 100,
+        speed: 7.0,
+        exp  : 1.5,
+      }, //0
+      {name: "offset", value: 0.54, range: [-5.0, 5.0], speed: 0.1}, //1
+      {name: "gain", value: 0.19, range: [0.001, 1000], speed: 4.0, exp: 2.0, noReset: true},  //2
+      {name: "color", value: 0.75, range: [-50, 50], speed: 0.25, exp: 1.0, noReset: true}, //3
+      {name: "scale", value: 1.0, range: [0.001, 1000000.0]}, //4
+      "x",  //5
+      "y",  //6
+      {name: "colorscale", value: 5.9, noReset: true},//7
+      {name: "brightness", value: 1.0, range: [0.001, 10.0], noReset: true}, //8
+      {name: "hoff", value: 0.1, range: [0.0001, 10.0]}, //9
+      {name: "poff", value: 0.39, range: [-8.0, 8.0], speed: 0.1, exp: 1.0}, //10
+      {name: "simple", value: 0.5, range: [-44.0, 44.0]}, //11
+      {name: "pitch", value: 0.0}, //12,
+      {name: "roll", value: 0.0}, //13
+      {name: "fov", value: 0.1, speed: 0.1}, //14
+      {name: "dist", value: 5.0, speed: 1.0}, //15
+      {name: "eps", value: 0.25, speed: 0.0025}, //16
+      {name: "steps2", value: 25.0, speed: 2.5}, //17
+      {name: "limit", value: 0.5, speed: 0.1}, //18
+      {name: "depth", value: 0.5, speed: 0.1}, //19
+      {name: "scale2", value: 0.1, speed: 0.1}, //20
+      {name: "scale3", value: 0.5, speed: 0.1}, //21
+      {name: "scale4", value: 0.25, speed: 0.1}, //22
+      {name: "rlimit", value: 0.001, speed: 0.00025, exp: 1.0, range: [0.00001, 0.1]}, //23
+    ];
+
+    for (let i = 0; i < sliderdef.length; i++) {
       if (i >= default_sliders.length) {
         break;
       }
-      
+
       let sdef = sliderdef[i];
-      
+
       if (typeof sdef === "string") {
-        sdef = {name : sdef};
+        sdef = {name: sdef};
       }
-      
+
       sdef.value = default_sliders[i];
-      
+
       sliderdef[i] = sdef;
     }
-    
+
     return {
       typeName     : "newton_trace",
       uiName       : "Newton Trace",
@@ -545,8 +549,8 @@ export class NewtonTracePattern extends Pattern {
     con.prop("samplesPerTile");
     con.prop("renderTiles");
   }
-  
-  savePresetText(opt={}) {
+
+  savePresetText(opt = {}) {
     opt.sharpness = opt.sharpness ?? this.sharpness;
     opt.filter_width = opt.filter_width ?? this.filter_width;
     //opt.max_samples = opt.max_samples ?? this.max_samples;
@@ -559,6 +563,7 @@ export class NewtonTracePattern extends Pattern {
 add_preset_new(${sliders}, ${opt});
     `.trim();
   }
+
   viewportDraw(ctx, gl, uniforms, defines) {
     super.viewportDraw(ctx, gl, uniforms, defines);
   }

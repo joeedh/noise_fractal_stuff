@@ -113,22 +113,23 @@ export class FlowerMoire extends Pattern {
       presets      : [],
       sliderDef    : [
         {
-          name : "steps", integer: true,
+          name : "steps",
+          type : "int",
           range: [5, 955],
           value: 15,
           speed: 7.0,
           exp  : 1.5,
         },//0
-        {name: "offset", value : 5.5, range : [-5.5, 15.5]}, //1
+        {name: "offset", value: 5.5, range: [-5.5, 15.5]}, //1
         {name: "gain", value: 2.0, range: [0.001, 1000], speed: 4.0, exp: 2.0},  //2
         {name: "color", value: 0.7, range: [-50, 50], speed: 0.25, exp: 1.0}, //3
         {name: "colorscale", value: 0.5},//4
         {name: "brightness", value: 1.0, range: [0.001, 10.0]}, //5
         {name: "scale", value: 0.7, range: [0.001, 1000000.0]}, //6
-        {name: "x", value : -0.42},  //7
+        {name: "x", value: -0.42},  //7
         {name: "y"},  //8
-        {name: "offset2", value : 2.85}, //9
-        {name: "offset3", value : 0.85}, //10
+        {name: "offset2", value: 2.85}, //9
+        {name: "offset3", value: 0.85}, //10
         {name: "offset4"}, //11
       ],
       shader,

@@ -9,40 +9,40 @@ import {savePreset} from '../pattern/preset.js';
 export const MoireNewtonPresets = [];
 
 export const MoireFuncs = {
-  SUM : 0, DIST : 1, MUL1 : 2, DIFF1 : 3, DIFF2: 4 
+  SUM: 0, DIST: 1, MUL1: 2, DIFF1: 3, DIFF2: 4
 };
 
 export const MoireModes = {
-  ZERO  : 0,
-  ONE   : 1,
-  TWO   : 2,
-  THREE : 3,
-  FOUR  : 4,
-  FIVE  : 5,
-  SIX   : 6,
-  SEVEN : 7
+  ZERO : 0,
+  ONE  : 1,
+  TWO  : 2,
+  THREE: 3,
+  FOUR : 4,
+  FIVE : 5,
+  SIX  : 6,
+  SEVEN: 7
 };
 
 let namegen = 1;
 
-export function add_preset(func, mode, sliders, options={}) {
+export function add_preset(func, mode, sliders, options = {}) {
   let pat = new MoireNewtonPattern();
-  
-  for (let i=0; i<sliders.length; i++) {
+
+  for (let i = 0; i < sliders.length; i++) {
     if (i >= pat.sliders.length) {
       break;
     }
-    
+
     pat.sliders[i] = sliders[i];
   }
-  
+
   pat.func = func;
   pat.newton_mode = mode;
-  
+
   for (let k in options) {
     pat[k] = options[k];
   }
-  
+
   let name = "Builtin " + (namegen++);
   let preset = savePreset(pat, name, 'Builtin');
   MoireNewtonPresets.push(preset);
@@ -493,35 +493,35 @@ export class MoireNewtonPattern extends Pattern {
     this.func = MoireFuncs.DIST;
     this.sharpness = 0.33; //use different default sharpness
   }
-  
+
   static buildSidebar(ctx, con) {
     super.buildSidebar(ctx, con);
-    
+
     con.prop("func");
     con.prop("newton_mode");
     con.prop("square_f");
   }
-  
+
   static apiDefine(api) {
     let st = super.apiDefine(api);
-    
-    let onchange = function() {
+
+    let onchange = function () {
       this.ctx.pattern.drawGen++;
       window.redraw_viewport();
     }
-    
+
     st.bool("square_f", "square_f", "Square F")
-    .on('change', onchange);
-    
+      .on('change', onchange);
+
     st.enum("func", "func", MoireFuncs, "Func")
-    .on("change", onchange);
-    
+      .on("change", onchange);
+
     st.enum("newton_mode", "newton_mode", MoireModes, "Mode")
-    .on("change", onchange);
+      .on("change", onchange);
 
     return st;
   }
-  
+
   static patternDef() {
     return {
       typeName     : "moire_newton",
@@ -537,7 +537,8 @@ export class MoireNewtonPattern extends Pattern {
       presets      : MoireNewtonPresets,
       sliderDef    : [
         {
-          name : "steps", integer: true,
+          name : "steps",
+          type : "int",
           range: [5, 955],
           value: 15,
           speed: 7.0,
@@ -550,13 +551,13 @@ export class MoireNewtonPattern extends Pattern {
         "y",  //5
         {name: "colorscale", value: 46.79, noReset: true},//6
         {name: "brightness", value: 1.04, range: [0.001, 10.0], noReset: true}, //7
-        {name: "hoff", value: 2.738, range: [0.0001, 10.0], speed: 0.05, exp : 1.5}, //8
+        {name: "hoff", value: 2.738, range: [0.0001, 10.0], speed: 0.05, exp: 1.5}, //8
         {name: "poff", value: 1.642, range: [-8.0, 8.0], speed: 0.1, exp: 1.0}, //9
         {name: "offset1", value: 2.2809, range: [-5.0, 25.0], speed: 0.1}, //10
         {name: "offset2", value: 0.8471, range: [-5.0, 25.0], speed: 0.1}, //11
         {name: "offset3", value: 0.62189, range: [-5.0, 25.0], speed: 0.5}, //12
-        {name: "offset4", value : 0.0, range : [-15.0, 15.0], speed : 0.1}, //13
-        ],
+        {name: "offset4", value: 0.0, range: [-15.0, 15.0], speed: 0.1}, //13
+      ],
       shader,
       shaderPre
     }
@@ -564,10 +565,10 @@ export class MoireNewtonPattern extends Pattern {
 
   savePresetText() {
     let sliders = JSON.stringify(this.sliders);
-    
+
     return `add_preset(${this.func}, ${this.newton_mode}, ${sliders}, {sharpness : ${this.sharpness}});`
   }
-  
+
   setup(ctx, gl, uniforms, defines) {
     if (this.square_f) {
       defines.SQUARE_F = true;
@@ -591,7 +592,7 @@ export class MoireNewtonPattern extends Pattern {
 
   copyTo(b) {
     super.copyTo(b);
-    
+
     b.newton_mode = this.newton_mode;
     b.func = this.func;
     b.square_f = this.square_f;
