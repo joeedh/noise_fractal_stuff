@@ -328,7 +328,13 @@ export class ChangePresetsOp extends ToolOp {
       presetManager.push(preset);
     }
 
-    presetManager.updatePreset(preset, pat, true);
+    try {
+      presetManager.updatePreset(preset, pat, true);
+    } catch (error) {
+      ctx.warn("Could not save current preset.");
+      console.warn(error.stack);
+      console.warn(error.message);
+    }
 
     let name = this.inputs.preset.getValue();
     let preset2 = presetManager.getPreset(pat.typeName, name);

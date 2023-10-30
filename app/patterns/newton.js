@@ -37,8 +37,11 @@ export function add_preset(sliders, options, fixScale = true, hide = false) {
 
   /* we don't want to use normal defaults, stick with zero--
      except for hoff*/
+  let sdef = NewtonPattern.getPatternDef().sliderDef;
+
   while (sliders.length < preset.sliders.length) {
-    sliders.push(sliders.length === 9 ? 0.32 : 0.0);
+    let val = sdef[sliders.length].value || 0.0;
+    sliders.push(sliders.length === 9 ? 0.32 : val);
   }
 
   let tot = Math.min(sliders.length, preset.sliders.length);
@@ -70,7 +73,8 @@ const shader = `
 
 //$ is replaced with pattern.id
 vec2 fsample$(vec2 z, vec2 p) {
-    const float d = 1.0;
+    float d = SLIDERS[15];
+    
     //(z-1)(z+1)(z-p)
     vec2 a = z - vec2(d, 0.0+SLIDERS[12]);
     vec2 b = z + vec2(d, 0.0-SLIDERS[12]);
@@ -303,6 +307,7 @@ export class NewtonPattern extends Pattern {
         {name: "offset2", value: 0.0, range: [-5, 5], speed: 0.2},//12
         {name: "valueoff", value: 0.0, range: [-15.0, 45.0], speed: 0.15, exp: 1.35, noReset: true}, //13
         {name: "offset3", value: 0.0, range: [-2.0, 10.0], speed: 0.025}, //14
+        {name: "d", value: 1.0, range: [-25.0, 25.0]}, //15
       ],
       shader,
       shaderPre

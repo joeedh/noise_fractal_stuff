@@ -273,9 +273,6 @@ bool rtrace(inout RenderState state) {
   return false;
 }
 
-uniform sampler2D blueMask;
-uniform float blueMaskDimen;
-
 vec3 hash3d(float seed) {
   vec2 uv = fract(vUv * iRes / blueMaskDimen);
   uv.x += hash(T); 
