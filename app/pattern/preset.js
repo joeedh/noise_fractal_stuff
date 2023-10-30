@@ -7,6 +7,69 @@ const KeyTag = Symbol("key-tag");
 export const MODIFIED_PRESET_NAME = "Modified Builtin Presets";
 export const BUILTIN_PRESET_NAME = "Builtin"
 export const MY_PRESETS_NAME = "My Presets";
+import lz from '../path.ux/scripts/path-controller/extern/lz-string/lz-string.js';
+
+
+export function compress(str) {
+  let s = 'LZ:';
+  return s + lz.compressToBase64(str);
+}
+
+export function decompress(str) {
+  if (!str.startsWith("LZ:")) {
+    return str;
+  }
+
+  str = str.slice(3, str.length);
+  return lz.decompressFromBase64(str);
+}
+
+export function localStorageGet(key) {
+  let ret = localStorage[key];
+
+  if (ret && typeof ret === "string") {
+    ret = decompress(ret);
+  }
+
+  return ret;
+}
+
+export function localStorageSet(key, val) {
+  if (val && typeof val === "string" && val.length > 512) {
+    val = compress(val);
+  }
+
+  //localStorage[key] = val;
+}
+
+window.compress = compress;
+window.decompress = decompress;
+
+window.compressPresets = () => {
+  let vs = [];
+
+  let size = 0;
+
+  for (let k in localStorage) {
+    let v = localStorage[k];
+
+    if (typeof v !== "string" || !v.length) {
+      continue;
+    }
+
+    /* Ensure we're not already compressed.*/
+    v = decompress(v);
+
+    if (v.length > 512) {
+      v = compress(v);
+      localStorage[k] = v;
+    }
+
+    size += v.length;
+  }
+
+  console.log(`SIZE: ${size/1024/1024}mb`);
+}
 
 export class CategoryList extends Array {
   constructor(type, category) {
@@ -299,7 +362,7 @@ export class PresetManager extends Array {
     for (let k in localStorage) {
       try {
         if (k[0] === "P" && k.search(/\:\$\:/) >= 0) {
-          let json = localStorage[k];
+          let json = localStorageGet(k);
 
           let preset = new Preset().loadJSON(json);
           this.push(preset);
@@ -328,7 +391,7 @@ export class PresetManager extends Array {
     }
 
 
-    localStorage[preset[KeyTag]] = JSON.stringify(preset);
+    localStorageSet(preset[KeyTag], JSON.stringify(preset));
 
     return preset;
   }
@@ -373,7 +436,8 @@ export class PresetManager extends Array {
     }
 
     if (preset.category === "Builtin") {
-      let buf1 = sanitize_stringify(preset);JSON.parse(JSON.stringify(preset));
+      let buf1 = sanitize_stringify(preset);
+      JSON.parse(JSON.stringify(preset));
       let buf2 = sanitize_stringify(savePreset(pattern, preset.name, preset.category));
 
       if (buf1 === buf2) {
@@ -420,7 +484,7 @@ export class PresetManager extends Array {
     let list = this.getCategoryList(preset.preset.typeName, preset.category);
     let i = list.indexOf(preset);
 
-    let ret = list[(i + 1) % list.length];
+    let ret = list[(i + 1)%list.length];
     return ret === preset ? undefined : ret;
   }
 }

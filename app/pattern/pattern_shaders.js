@@ -1,5 +1,6 @@
 import {Curve1D, nstructjs} from '../path.ux/scripts/pathux.js';
 import {Curve} from '../path.ux/scripts/widgets/ui_curvewidget_old.js';
+import {genBlueMask} from './bluemask.js';
 
 export class CurveSet {
   constructor() {
@@ -212,6 +213,10 @@ mat2 transpose(mat2 m) {
   return mat2(vec2(m[0][0], m[1][0]), vec2(m[0][1], m[1][1]));
 }
 
+vec2 rot2d(vec2 a, float th) {
+  return vec2(cos(th)*a.x + sin(th)*a.y, cos(th)*a.y - sin(th)*a.x);
+}
+
 `.trim() + "\n",
   webgl2: `#version 300 es
 precision highp float;
@@ -221,6 +226,11 @@ precision highp float;
 
 out vec4 fragColor;
 #define gl_FragColor fragColor
+
+vec2 rot2d(vec2 a, float th) {
+  return vec2(cos(th)*a.x + sin(th)*a.y, cos(th)*a.y - sin(th)*a.x);
+}
+
 `
 }
 
@@ -281,10 +291,66 @@ uniform float uSample;
 
 uniform sampler2D rgba;
 
+uniform float blueMaskDimen;
+uniform sampler2D blueMask;
+
 varying vec2 vCo;//drawing rectangle coordinates
 varying vec2 vUv;//possibly mapped coordinates
 
-#define M_PI 3.141592654
+#define M_PI 3.14159265358
+
+vec2 cmul(vec2 a, vec2 b) {
+    return vec2(
+        a[0]*b[0] - a[1]*b[1],
+        a[0]*b[1] + b[0]*a[1]
+    );
+}
+
+float ctent(float f) {
+    return cos(f*M_PI*2.0)*0.5 + 0.5;
+}
+
+#if 0
+float smin(float a, float b, float t) {
+    if (t == 0.0)
+        return a < b ? a : b;
+        
+    if (a < b-t*0.5) {
+        return a;
+    } else if (a < b+t*0.5) {
+        float f = (a-b+t*0.5) / t;
+    
+        f = f*f*(3.0 - 2.0*f);
+        
+        return a + (b - a)*f;
+    }
+
+    return b;
+}
+#else
+float smin(float a, float b, float t) {
+  float a1 = min(a, b), a2 = min(a, b);
+  
+  if (a >= b - t && a <= b + t) {
+    float s = (a - b) / (2.0 * t);
+    
+    s = s*s*(3.0 - 2.0*s);
+    
+    a1 = a + (b - a) * s;
+  }
+  
+  if (b >= a - t && b <= a + t) {
+    float s = (b - a) / (2.0 * t);
+    
+    s = s*s*(3.0 - 2.0*s);
+    
+    a2 = b + (a - b) * s;
+  }
+  
+  //return a1;
+  return (a1 + a2)*0.5;
+}
+#endif
 
 float tent(float f) {
     return 1.0 - abs(fract(f)-0.5)*2.0;
@@ -314,31 +380,166 @@ float hash2(vec2 p) {
     return fract(f);
 }
 
+float bluenoise(vec2 p) {
+#if defined(HAVE_BLUE_NOISE) && defined(PER_PIXEL_RANDOM)
+  float f;
+  
+  vec2 uv = vCo*iRes.xy/blueMaskDimen;
+  //uv.x += hash2(p)-0.5;
+  //uv.y += hash2(p.yx+vec2(0.223, 0.823))-0.5;
+  
+  uv = fract(uv);
+  
+  vec4 c = texture(blueMask, uv);
+  f = c[0];
+  
+  return f;
+#else
+  float f;
+  vec2 op = p;
+
+  p.x += tent(hash(fract(T*12.53423)*10.32432))*1500.0;
+  p.y += tent(hash(fract(T*12.3234)*20.9234+10.4234))*1500.0;
+  
+  float a = 0.24976; //0.55947; //1.42083; //1.2569;
+  float b;
+  
+  //a = 4.73493;
+  
+  //a = SLIDERS[1]*0.1;
+  //b = SLIDERS[2]*0.1;
+  
+  b = a*sqrt(5.0);
+  
+  float c = 0.5918;
+  float d;
+  
+  //p = floor(p*0.25);
+  
+  //c = SLIDERS[4]*0.1;
+  //d = SLIDERS[5]*0.1;
+  
+  d = 0.5*c;
+  
+  vec2 p2 = floor(p);
+  p2.x *= 0.7;
+  p2.x += mod(floor(p2.y*0.5), 2.0) >= 1.0 ? 0.5 : 0.0;
+  f = fract(-p2.x*c + p2.y*d);
+  
+  float dx = fract(p.x*a + p.y*b);
+  float dy = fract(p.y*a - p.x*b);
+  
+  f = (f+dx+dy)*0.33333333;
+  
+#if 0
+    if (f > sqrt((op.x*iInvRes.x)*(op.y*iInvRes.y))*SLIDERS[3]) {
+      f = 0.0;
+    } else {
+      f = 1.0;
+    }
+    
+    f = 1.0 - f;
+#else
+    //f = f*f*(3.0 - 2.0*f);
+#endif
+    
+    
+  return f;
+#endif
+}
+
 float uhash2(vec2 p) {
     float f;
+
+#if 1 //blue noise-ish distribution
+    f = bluenoise(p);
     
+    const float steps = 17.0;
+    
+    f = floor(f*steps)/steps;
+    
+#ifdef PER_PIXEL_RANDOM
+    float f2 = sin(p.x*3.23423 + p.y*234.23432);
+    f2 = floor(f2*steps)/steps;
+    
+    f += f2;
+#endif
+    
+    f = fract(f*100.0 + sin(T*100.234) + T);
+    
+    f = hash(f+T);
+    f += hash(f+T+0.32432);
+    f += hash(f+T+1.23423);
+    f *= 0.333333;
+    
+    return f*2.0 - 1.0;
+#else
     f = hash2(p);
-    //return f;
+    
     f += hash2(p + vec2(2.234, 0.63));
     f += hash2(p + vec2(-10.8, 0.95));
     
-    //f = pow(f, 1.0/3.0);
     f /= 3.0;
     
-    //f *= f*f*f*f;
+    return f*2.0 - 1.0;
+#endif
+}
+
+float uhash2b(vec2 p, float seed) {
+    float f;
+
+#if 1 //blue noise-ish distribution
+    f = bluenoise(p);
+    
+    const float steps = 19.0;
+    //f = fract(f+T);
+    
+    f = floor(f*steps)/steps;
+    
+    //f = fract(p.x*10232.234 + sin(p.y*324.234)*32343.0 + sin((seed+T)*230.234));
+    //f = fract(1.0 / (0.00001 + 0.00001*(f+sin(T)+seed)));
+    
+    f = hash(f+T+seed);
+    f += hash(f+T+0.32432+seed);
+    f += hash(f+T+1.23423+seed);
+    f *= 0.333333;
     
     return f*2.0 - 1.0;
+#else
+    f = hash2(p);
+    
+    f += hash2(p + vec2(2.234, 0.63));
+    f += hash2(p + vec2(-10.8, 0.95));
+    
+    f /= 3.0;
+    
+    return f*2.0 - 1.0;
+#endif
+}
+
+vec2 uhash2v(vec2 p) {
+  float dx = hash2(p)*2.0 - 1.0;
+  float dy = hash2(vec2(p.y+2.23432, p.x+0.35234))*2.0 - 1.0;
+  
+  return vec2(dx, dy);
 }
 
   `.trim(),
   fragment   : `
-float mainImage( vec2 uv, out float w) {    
+#ifndef CUSTOM_MAIN
+float mainImage( vec2 uv, out float w) {
+#if 0
+    w = 1.0;
+    //return uhash2(uv)*0.5 + 0.5;
+    return bluenoise(uv);
+#endif
+
 #ifdef PER_PIXEL_RANDOM
-    float dx = uhash2(uv);
-    float dy = uhash2(-uv + 2.43223);
+    float dx = uhash2b(uv, 0.0);
+    float dy = uhash2b(-uv.yx, 2.53223);
 #else
     float dx = uhash2(vec2(0.,0.));
-    float dy = uhash2(-vec2(0.,0.) + 2.432);
+    float dy = uhash2(-vec2(0.,0.) + 2.53223);
     
     //dx = fract(uSample)*2.0 - 1.0;
     //dy = fract(uSample+0.45)*2.0 - 1.0;
@@ -362,10 +563,15 @@ float mainImage( vec2 uv, out float w) {
     w = 1.0;
 #endif
 
+    if (enableAccum == 0.0) {
+      filterw = 0.0;
+    }
+    
     uv += filterw*vec2(dx, dy);
 
     float f = pattern(uv[0], uv[1]);
-
+    f = clamp(f, 0.0, 1.0);
+    
     // Output to screen
     vec4 color = vec4(f, f, f, 1.0);
     
@@ -389,6 +595,7 @@ void main() {
   vec4 old = texture(rgba, uv);
   gl_FragColor = color + old*enableAccum;
 }
+#endif
 
 `.trim()
 };

@@ -1,3 +1,5 @@
+import './polyfill.js';
+
 import {FileState, saveFile, loadFile} from './file.js';
 import {nstructjs, UIBase, DataAPI, util} from '../path.ux/pathux.js';
 import {api_define} from './api_define.js';
@@ -10,32 +12,18 @@ import '../editors/all.js';
 import {MainMenu} from '../editors/menu/MainMenu.js';
 import {PropsEditor} from '../editors/properties/properties.js';
 import * as cconst from './const.js';
+import {makeScreen} from './app_ops.js';
 
 export var appstate;
-
-export function makeScreen(ctx) {
-  let screen = UIBase.createElement("app-screen-x");
-  screen.ctx = ctx;
-
-  let sarea = screen.newScreenArea();
-  screen.add(sarea);
-
-  sarea.switch_editor(MainMenu);
-  let sarea2 = screen.splitArea(sarea, 0.1);
-
-  sarea2.switch_editor(CanvasEditor);
-
-  let sarea3 = screen.splitArea(sarea2, 0.7, false);
-  sarea3.switch_editor(PropsEditor);
-
-  return screen;
-}
 
 export class AppState {
   constructor() {
     this.api = api_define();
     this.model = new FileState();
     this.toolstack = new AppToolStack();
+
+    //file saving key to resave files
+    this.fileKey = undefined;
 
     this._last_tool = undefined;
 
@@ -47,6 +35,30 @@ export class AppState {
 
     this._autosave_req = undefined;
     this.lastAutoSaveTime = util.time_ms();
+  }
+
+  update() {
+    let title;
+
+    for (let node of document.head.childNodes) {
+      if (node.tagName === "TITLE") {
+        title = node;
+        break;
+      }
+    }
+
+    if (title) {
+      let s = title.innerHTML;
+
+      if (!this.toolstack.fileModified && s.startsWith("*")) {
+        s = s.slice(1, s.length-1);
+        title.innerHTML = s;
+      } else if (this.toolstack.fileModified && !s.startsWith("*")) {
+        s = "*" + s;
+        title.innerHTML = s;
+      }
+    }
+
   }
 
   autoSave() {
@@ -83,9 +95,10 @@ export class AppState {
       this.screen.remove();
     }
 
-    console.error("reset");
+    console.warn("application reset");
 
     if (resetModel) {
+      this.fileKey = undefined;
       this.model = new FileState();
       this.model.setActivePattern("newton");
     }
@@ -110,42 +123,20 @@ export class AppState {
     return loadFile(this, buf, {screen: false});
   }
 
-  saveFile() {
-    return saveFile(this, {screen: true});
+  saveFile(args={}) {
+    args.screen = args.screen ?? true;
+
+    return saveFile(this, args);
   }
 
-  loadFile(buf) {
-    return loadFile(this, buf, {screen: true});
-  }
-}
+  loadFile(buf, args={}) {
+    args.screen = args.screen ?? true;
 
-export function loadDefaultFile(appstate, loadLocalStorage=true) {
-  let key = cconst.STARTUP_FILE_KEY;
-
-  if (loadLocalStorage && key in localStorage) {
-    try {
-      let buf = localStorage[key];
-      buf = atob(buf);
-
-      let data = new Uint8Array(buf.length);
-
-      for (let i = 0; i < buf.length; i++) {
-        data[i] = buf.charCodeAt(i);
-      }
-
-      appstate.loadFile(data);
-    } catch (error) {
-      util.print_stack(error);
-
-      console.error("failed to load startup file!");
-
-      appstate.reset();
-      appstate.api.execTool(appstate.ctx, "app.root_file_op()");
-    }
+    return loadFile(this, buf, args);
   }
 }
 
-window.loadDefaultFile = loadDefaultFile;
+import {loadDefaultFile} from './app_ops.js';
 
 export function start() {
   appstate = window._appstate = new AppState();

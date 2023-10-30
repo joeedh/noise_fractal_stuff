@@ -8,6 +8,8 @@ import '../editors/canvas/canvas_ops.js';
 import {CategoryList, Preset, PresetList, PresetManager, presetManager} from '../pattern/preset.js';
 import {autoDiffGLSL} from '../glsl_autodiff/autodiff.js';
 import './app_ops.js';
+import {SliderLink, SliderParam} from '../pattern/pattern_types.js';
+import {MLGraph} from '../ml/ml_types.js';
 
 function api_define_preset(api) {
   let st = api.mapStruct(Preset, true);
@@ -136,10 +138,15 @@ function api_define_model(api) {
 export function api_define() {
   let api = new DataAPI();
 
+  SliderLink.apiDefine(api);
+  SliderParam.apiDefine(api);
+
   CurveSet.apiDefine(api);
 
   //make base class struct
   Pattern.apiDefine(api);
+
+  MLGraph.apiDefine(api);
 
   for (let cls of PatternClasses) {
     cls.apiDefine(api);

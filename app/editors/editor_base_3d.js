@@ -25,6 +25,10 @@ export class EditorGL extends Editor {
 
     this.glPos[1] = y;
 
+    if (gl.contextBad) {
+      return;
+    }
+
     gl.enable(gl.SCISSOR_TEST);
     gl.scissor(this.glPos[0], this.glPos[1], this.glSize[0], this.glSize[1]);
   }
