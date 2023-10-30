@@ -22,6 +22,7 @@ function api_define_canvaspath(api) {
   st.struct("material", "material", "Material", api.mapStruct(Material));
 
 }
+
 function api_define_canvas(api) {
   let st = api.mapStruct(Canvas);
   let pathst = api.mapStruct(CanvasPath);
@@ -66,20 +67,28 @@ function api_define_dynamics(api) {
 function api_define_brushsettings(api) {
   let st = api.mapStruct(BrushSettings, true);
 
-  st.float("size", "size", "Size").range(0.25, 1024).uiRange(0.25, 512).decimalPlaces(1).expRate(1.5)
-  .step(0.5);
-  st.float("spacing", "spacing", "spacing").range(0.01, 4).decimalPlaces(2)
-           .expRate(1.4).step(0.025).simpleSlider();
+  st.float("size", "size", "Size")
+    .range(0.25, 1024)
+    .uiRange(0.25, 512)
+    .decimalPlaces(1)
+    .expRate(1.25)
+    .unit("pixel")
+    .step(1.0)
+    .slideSpeed(5.0);
+
+  st.float("spacing", "spacing", "spacing").range(0.01, 4).decimalPlaces(2).noUnits()
+    .expRate(1.4).step(0.025).simpleSlider();
+
   st.color4("color", "color", "Color");
   st.float("soft", "soft", "Soft").range(0, 1.0).decimalPlaces(3).step(0.025)
-           .expRate(1.4).simpleSlider();
+    .expRate(1.4).simpleSlider().noUnits();
 }
 
 function api_define_workspace(api) {
   let st = api.mapStruct(WorkspaceEditor, true);
 
   st.struct("brush", "brush", "Brush", api.mapStruct(BrushSettings));
-  
+
 }
 
 export function defineAPI() {
@@ -99,13 +108,13 @@ export function defineAPI() {
   cstruct.struct("canvas", "canvas", "Canvas", api.mapStruct(Canvas));
   cstruct.struct("workspace", "workspace", "Workspace", api.mapStruct(WorkspaceEditor));
 
-  let dstruct = cstruct.struct("data", "data", "Data")  ;
+  let dstruct = cstruct.struct("data", "data", "Data");
   dstruct.curve1d("curvemap", "curvemap", "curvemap");
 
   dstruct.float("angle1", "angle1", "angle1").baseUnit("radian").displayUnit("degree").range(-Math.PI, Math.PI);
   dstruct.float("angle2", "angle2", "angle2").baseUnit("degree").displayUnit("radian").range(-180, 180);
 
-  dstruct.vec3("vector_test", "vector_test", "vector_test").baseUnit("degree").displayUnit("radian").range(-180, 180);
+  dstruct.vec4("vector_test", "vector_test", "vector_test").decimalPlaces(1).baseUnit("radian").displayUnit("degree").range(-180, 180);
 
   //set up some api fields require by path.ux
   cstruct.dynamicStruct("last_tool", "last_tool", "Last Tool");

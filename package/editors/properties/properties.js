@@ -120,8 +120,9 @@ export class PropsEditor extends Editor {
 
     tab = tabs.tab("Sliders");
 
-    let makeSlider = (i, sdef) => {
+    tab.style["margin-left"] = "10px";
 
+    let makeSlider = (i, sdef) => {
         let range = sdef.range ?? [-1000000, 1000000];
 
         let path = `pattern.sliders[${i}].value`;

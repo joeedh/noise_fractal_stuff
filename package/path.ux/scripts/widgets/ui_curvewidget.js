@@ -1,9 +1,9 @@
 import {Curve1DProperty} from "../path-controller/toolsys/toolprop.js";
-import {UIBase, Icons} from '../core/ui_base.js';
+import {UIBase, Icons, saveUIData, loadUIData} from '../core/ui_base.js';
 import {ColumnFrame, RowFrame} from "../core/ui.js";
 import * as util from '../path-controller/util/util.js';
 import {Vector2, Vector3} from "../path-controller/util/vectormath.js";
-import {Curve1D,  mySafeJSONStringify} from "../path-controller/curve/curve1d.js";
+import {Curve1D, mySafeJSONStringify} from "../path-controller/curve/curve1d.js";
 import {makeGenEnum} from '../path-controller/curve/curve1d_utils.js';
 
 export class Curve1DWidget extends ColumnFrame {
@@ -16,27 +16,45 @@ export class Curve1DWidget extends ColumnFrame {
     this.drawTransform = [1.0, [0, 0]];
 
     this._value = new Curve1D();
-    this._value.on("draw", this._on_draw);
+    this.checkCurve1dEvents();
+
+    let in_onchange = false;
 
     this._value._on_change = (msg) => {
-      if (this.onchange) {
-        this.onchange(this._value);
+      if (in_onchange) {
+        return;
       }
 
-      if (this.hasAttribute("datapath")) {
-        let path = this.getAttribute("datapath");
-        if (this._value !== undefined) {
-          let val = this.getPathValue(this.ctx, path);
+      /* Prevent infinite recursion. */
+      in_onchange = true;
 
-          if (val) {
-            val.load(this._value);
-            this.setPathValue(this.ctx, path, val);
-          } else {
-            val = this._value.copy();
-            this.setPathValue(this.ctx, path, val);
+      try {
+        if (this.onchange) {
+          this.onchange(this._value);
+        }
+
+        if (this.hasAttribute("datapath")) {
+          let path = this.getAttribute("datapath");
+          if (this._value !== undefined) {
+            let val = this.getPathValue(this.ctx, path);
+
+            if (val) {
+              val.load(this._value);
+              this.setPathValue(this.ctx, path, val);
+            } else {
+              val = this._value.copy();
+              this.setPathValue(this.ctx, path, val);
+            }
           }
         }
+      } catch (error) {
+        if (window.DEBUG && window.DEBUG.datapath) {
+          console.error(error.stack);
+          console.error(error.message);
+        }
       }
+
+      in_onchange = false;
     };
 
     this._gen_type = undefined;
@@ -50,6 +68,76 @@ export class Curve1DWidget extends ColumnFrame {
 
     window.cw = this;
     this.shadow.appendChild(this.canvas);
+  }
+
+  /**
+   * Checks if a curve1d instance exists at dom attribute "datapath"
+   * and if it does adds curve1d event handlers to it.
+   *
+   * Note: it's impossible to know for sure that a widget is truly dead,
+   * e.g. it could be hidden in a panel or something.  Curve1d's event
+   * handling system takes a callback that checks if a callback should
+   * be removed, which we provide by testing this.isConnected.
+   *
+   * Since this is not robust we have to check regularly if we need to add
+   * Curve1D event handlers, which is why this function exists.
+   */
+  checkCurve1dEvents() {
+    if (!this._value.subscribed("draw", this)) {
+      this._value.on("draw", this._on_draw, this, () => !this.isConnected);
+    }
+
+    if (this.ctx && this.hasAttribute("datapath")) {
+      let curve1d;
+
+      try {
+        curve1d = this.ctx.api.getValue(this.ctx, this.getAttribute("datapath"));
+      } catch (error) {
+        if (window.DEBUG && window.DEBUG.datapath) {
+          console.error(error.stack);
+          console.error(error.message);
+        }
+      }
+
+      if (!curve1d) {
+        this.disabled = true;
+        return;
+      }
+
+      if (this.disabled) {
+        this.disabled = false;
+      }
+
+      if (!curve1d.subscribed(undefined, this)) {
+        curve1d.on("select", (bspline1) => {
+          let bspline2 = this._value.getGenerator("BSplineCurve");
+
+          for (let i = 0; i < bspline1.points.length; i++) {
+            bspline2.points[i].flag = bspline1.points[i].flag;
+          }
+
+          bspline2.redraw();
+        });
+
+        curve1d.on("transform", (bspline1) => {
+          let bspline2 = this._value.getGenerator("BSplineCurve");
+
+          for (let i = 0; i < bspline1.points.length; i++) {
+            bspline2.points[i].co.load(bspline1.points[i].co);
+          }
+
+          bspline2.update();
+          bspline2.updateKnots();
+          bspline2.redraw();
+        });
+
+        curve1d.on("update", () => {
+          console.log("datapath curve1d update!");
+          this._value.load(curve1d);
+          this.rebuild();
+        }, this, () => !this.isConnected);
+      }
+    }
   }
 
   get value() {
@@ -122,6 +210,67 @@ export class Curve1DWidget extends ColumnFrame {
     }).iconsheet = 0;
 
     this.container = this.col();
+
+    let panel = this.panel("Range");
+
+    let clipCheck = panel.check(undefined, "Clip To Range");
+    clipCheck.onchange = (val) => {
+      this._value.clipToRange = val;
+      this._on_change();
+      this._redraw();
+    }
+    clipCheck.checked = this._value.clipToRange;
+
+    let xmin = panel.slider(undefined, "X Min", this._value.xRange[0], -10, 10, 0.1, false, undefined, (val) => {
+      this._value.xRange[0] = val.value;
+      this._on_change();
+      this._redraw();
+    });
+
+    let xmax = panel.slider(undefined, "X Max", this._value.xRange[1], -10, 10, 0.1, false, undefined, (val) => {
+      this._value.xRange[1] = val.value;
+      this._on_change();
+      this._redraw();
+    });
+
+    let ymin = panel.slider(undefined, "Y Min", this._value.yRange[0], -10, 10, 0.1, false, undefined, (val) => {
+      this._value.yRange[0] = val.value;
+      this._on_change();
+      this._redraw();
+    });
+
+    let ymax = panel.slider(undefined, "Y Max", this._value.yRange[1], -10, 10, 0.1, false, undefined, (val) => {
+      this._value.yRange[1] = val.value;
+      this._on_change();
+      this._redraw();
+    });
+
+    let last_update_key = "";
+    this.container.update.after(() => {
+      const xRange = this._value.xRange;
+      const yRange = this._value.yRange;
+      let key = "" + xRange[0] + ":" + xRange[1]
+        + ":" + yRange[0] + ":" + yRange[1] + ":" + this._value.clipToRange;
+
+      clipCheck.checked = this._value.clipToRange;
+
+      if (key !== last_update_key) {
+        last_update_key = key;
+
+        xmin.setValue(xRange[0]);
+        xmax.setValue(xRange[1]);
+
+        ymin.setValue(yRange[0]);
+        ymax.setValue(yRange[1]);
+      }
+    });
+
+    xmin.displayUnit = xmin.baseUnit = "none";
+    ymin.displayUnit = ymin.baseUnit = "none";
+    xmax.displayUnit = xmax.baseUnit = "none";
+    ymax.displayUnit = ymax.baseUnit = "none";
+
+    panel.closed = false;
   }
 
   setCSS() {
@@ -174,9 +323,8 @@ export class Curve1DWidget extends ColumnFrame {
 
     g.lineWidth /= scale;
 
-
     this.drawTransform[0] = scale*zoom;
-    this.drawTransform[1][0] =  0.0;
+    this.drawTransform[1][0] = 0.0;
     this.drawTransform[1][1] = -1.0;
 
     this.drawTransform[1][0] -= 0.5 - 0.5/zoom;
@@ -199,6 +347,9 @@ export class Curve1DWidget extends ColumnFrame {
       return;
     }
 
+    this.checkCurve1dEvents();
+
+    let uidata = saveUIData(this.container, "curve1d");
 
     this._gen_type = this.value.generatorType;
     let col = this.container;
@@ -214,11 +365,26 @@ export class Curve1DWidget extends ColumnFrame {
 
     col.clear();
 
+    let onSourceUpdate = () => {
+      if (!this.hasAttribute("datapath")) {
+        return;
+      }
+
+      let val = this.getPathValue(this.ctx, this.getAttribute("datapath"));
+      this._value.load(val);
+      this.rebuild();
+    };
+
+    let dpath = this.hasAttribute("datapath") ? this.getAttribute("datapath") : undefined;
     let gen = this.value.generators.active;
-    gen.makeGUI(col, this.canvas);
+    gen.makeGUI(col, this.canvas, this.drawTransform, dpath, onSourceUpdate);
+
+    loadUIData(this.container, uidata);
+    for (let i = 0; i < 4; i++) {
+      col.flushUpdate();
+    }
 
     this._lastGen = gen;
-
     this._redraw();
   }
 
@@ -245,23 +411,28 @@ export class Curve1DWidget extends ColumnFrame {
 
   updateGenUI() {
     let bad = this._lastGen !== this.value.generators.active;
-    
+
     if (bad) {
       this.rebuild();
       this._redraw();
     }
   }
+
   update() {
     super.update();
 
+    this.checkCurve1dEvents();
     this.updateDataPath();
     this.updateSize();
     this.updateGenUI();
   }
 
-  static define() {return {
-    tagname : "curve-widget-x",
-    style   : "curvewidget"
-  }}
+  static define() {
+    return {
+      tagname: "curve-widget-x",
+      style  : "curvewidget"
+    }
+  }
 }
+
 UIBase.internalRegister(Curve1DWidget);

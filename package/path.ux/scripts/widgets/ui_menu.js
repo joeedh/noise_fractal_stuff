@@ -8,21 +8,33 @@ import {OldButton} from "./ui_button.js";
 import {DomEventTypes} from '../path-controller/util/events.js';
 
 import {HotKey, keymap} from '../path-controller/util/simple_events.js';
+import { parseToolPath } from '../path-controller/controller.js'
 
 let EnumProperty = toolprop.EnumProperty,
-    PropTypes = toolprop.PropTypes;
+    PropTypes    = toolprop.PropTypes;
 
-let UIBase = ui_base.UIBase,
-    PackFlags = ui_base.PackFlags,
+let UIBase     = ui_base.UIBase,
+    PackFlags  = ui_base.PackFlags,
     IconSheets = ui_base.IconSheets;
 
 function getpx(css) {
   return parseFloat(css.trim().replace("px", ""))
 }
 
+function debugmenu() {
+  if (window.DEBUG && window.DEBUG.menu) {
+    console.warn("%cmenu:", "color:blue", ...arguments);
+  }
+}
+
+
 export class Menu extends UIBase {
   constructor() {
     super();
+
+    this.parentMenu = undefined;
+
+    this._was_clicked = false;
 
     this.items = [];
     this.autoSearchMode = true;
@@ -31,6 +43,8 @@ export class Menu extends UIBase {
     this.closeOnMouseUp = true;
 
     this._submenu = undefined;
+
+    this.ignoreFirstClick = false;
 
     this.itemindex = 0;
     this.closed = false;
@@ -72,11 +86,18 @@ export class Menu extends UIBase {
     this.shadow.appendChild(this.container);
   }
 
-  float(x, y, zindex=undefined) {
+  static define() {
+    return {
+      tagname: "menu-x",
+      style  : "menu"
+    };
+  }
+
+  float(x, y, zindex = undefined) {
     let dpi = this.getDPI();
     let rect = this.dom.getClientRects();
-    let maxx = this.getWinWidth()-10;
-    let maxy = this.getWinHeight()-10;
+    let maxx = this.getWinWidth() - 10;
+    let maxy = this.getWinHeight() - 10;
 
     if (rect.length > 0) {
       rect = rect[0];
@@ -93,9 +114,20 @@ export class Menu extends UIBase {
   }
 
   click() {
+    if (this._was_clicked) {
+      return;
+    }
+
+    if (this.ignoreFirstClick) {
+      this.ignoreFirstClick = Math.max(this.ignoreFirstClick - 1, 0);
+      return;
+    }
+
     if (!this.activeItem || this.activeItem._isMenu) {
       return;
     }
+
+    this._was_clicked = true;
 
     if (this.onselect) {
       try {
@@ -150,7 +182,7 @@ export class Menu extends UIBase {
     }
   }
 
-  _select(dir, focus=true) {
+  _select(dir, focus = true) {
     if (this.activeItem === undefined) {
       for (let item of this.items) {
         if (!item.hidden) {
@@ -163,7 +195,7 @@ export class Menu extends UIBase {
       let item = this.activeItem;
 
       do {
-        i = (i + dir + this.items.length) % this.items.length;
+        i = (i + dir + this.items.length)%this.items.length;
         item = this.items[i];
 
         if (!item.hidden) {
@@ -179,24 +211,19 @@ export class Menu extends UIBase {
     }
   }
 
-  selectPrev(focus=true) {
+  selectPrev(focus = true) {
     return this._select(-1, focus);
   }
 
-  selectNext(focus=true) {
+  selectNext(focus = true) {
     return this._select(1, focus);
   }
 
-  static define() {return {
-    tagname : "menu-x",
-    style   : "menu"
-  };}
-
-  start_fancy(prepend, setActive=true) {
+  start_fancy(prepend, setActive = true) {
     return this.startFancy(prepend, setActive);
   }
 
-  setActive(item, focus=true) {
+  setActive(item, focus = true) {
     if (this.activeItem === item) {
       return;
     }
@@ -220,7 +247,7 @@ export class Menu extends UIBase {
     this.activeItem = item;
   }
 
-  startFancy(prepend, setActive=true) {
+  startFancy(prepend, setActive = true) {
     this.hasSearchBox = true;
     this.started = true;
     menuWrangler.pushMenu(this);
@@ -285,13 +312,30 @@ export class Menu extends UIBase {
     });
   }
 
-  start(prepend=false, setActive=true) {
+  start(prepend = false, setActive = true) {
     this.closed = false;
 
     this.started = true;
     this.focus();
 
     menuWrangler.pushMenu(this);
+
+    let dokey = (key) => {
+      let val = this.getDefault(key);
+      if (typeof val === "number") {
+        val = "" + val + "px";
+      }
+
+      if (val !== undefined) {
+        this.dom.style[key] = val;
+      }
+    }
+
+    dokey("padding");
+    dokey("padding-top");
+    dokey("padding-left");
+    dokey("padding-right");
+    dokey("padding-bottom");
 
     if (this.items.length > 15 && this.autoSearchMode) {
       return this.start_fancy(prepend, setActive);
@@ -327,7 +371,7 @@ export class Menu extends UIBase {
     }, 0);
   }
 
-  addItemExtra(text, id=undefined, hotkey, icon=-1, add=true, tooltip=undefined) {
+  addItemExtra(text, id = undefined, hotkey, icon = -1, add = true, tooltip = undefined) {
     let dom = document.createElement("span");
 
     dom.style["display"] = "inline-flex";
@@ -376,7 +420,7 @@ export class Menu extends UIBase {
     if (hotkey) {
       dom.hotkey = hotkey;
       g.font = ui_base.getFont(this, undefined, "HotkeyText");
-      hwid = Math.ceil(g.measureText(hotkey).width / UIBase.getDPI());
+      hwid = Math.ceil(g.measureText(hotkey).width/UIBase.getDPI());
       twid += hwid + 8;
     }
 
@@ -443,12 +487,14 @@ export class Menu extends UIBase {
   }
 
   //item can be menu or text
-  addItem(item, id, add=true, tooltip=undefined) {
+  addItem(item, id, add = true, tooltip = undefined) {
     id = id === undefined ? item : id;
     let text = item;
 
     if (typeof item === "string" || item instanceof String) {
       let dom = document.createElement("dom");
+      dom.style["text-align"] = "left";
+
       dom.textContent = item;
       item = dom;
       //return this.addItemExtra(item, id);
@@ -481,6 +527,7 @@ export class Menu extends UIBase {
 
       li._isMenu = true;
       li._menu = item;
+      item.parentMenu = this;
 
       item.hidden = false;
       item.container = this.container;
@@ -496,15 +543,6 @@ export class Menu extends UIBase {
     li.label = text ? text : li.innerText.trim();
 
     if (add) {
-      li.addEventListener("click", (e) => {
-        if (this.activeItem !== undefined && this.activeItem._isMenu) {
-          //ignore
-          return;
-        }
-
-        this.click();
-      });
-
       li.addEventListener("blur", (e) => {
         if (this._ignoreFocusEvents) {
           return;
@@ -541,8 +579,11 @@ export class Menu extends UIBase {
         this.setActive(li, false);
       };
 
-      li.addEventListener("touchend", (e) => {
+      let onclick = (e) => {
         onfocus(e);
+
+        e.stopPropagation();
+        e.preventDefault();
 
         if (this.activeItem !== undefined && this.activeItem._isMenu) {
           //ignore
@@ -550,18 +591,35 @@ export class Menu extends UIBase {
         }
 
         this.click();
-      });
+      }
+
+      li.addEventListener("contextmenu", e => e.preventDefault());
+      this.addEventListener("contextmenu", e => e.preventDefault());
+
+      li.addEventListener("pointerup", onclick, {capture: true});
+      li.addEventListener("click", onclick, {capture: true});
+      li.addEventListener("pointerdown", onclick, {capture: true});
 
       li.addEventListener("focus", (e) => {
         onfocus(e);
+        onfocus(e);
       })
 
-      li.addEventListener("touchmove", (e) => {
+      li.addEventListener("pointermove", (e) => {
+        onfocus(e);
+        li.focus();
+      });
+      li.addEventListener("mouseover", (e) => {
+        onfocus(e);
+        li.focus();
+      });
+      li.addEventListener("mouseenter", (e) => {
         onfocus(e);
         li.focus();
       });
 
-      li.addEventListener("mouseenter", (e) => {
+      li.addEventListener("pointerover", (e) => {
+        onfocus(e);
         li.focus();
       });
 
@@ -573,7 +631,7 @@ export class Menu extends UIBase {
 
   _getBorderStyle() {
     let r = this.getDefault("border-width");
-    let s =this.getDefault("border-style");
+    let s = this.getDefault("border-style");
     let c = this.getDefault("border-color");
 
     return `${r}px ${s} ${c}`;
@@ -588,9 +646,34 @@ export class Menu extends UIBase {
       boxShadow = "box-shadow: " + this.getDefault("box-shadow") + ';';
     }
 
+    let sepcss = this.getDefault("MenuSeparator");
+    if (typeof sepcss === "object") {
+      let s = '';
+
+      for (let k in sepcss) {
+        let v = sepcss[k];
+
+        if (typeof v === "number") {
+          v = v.toFixed(4) + "px";
+        }
+
+        s += `    ${k}: ${v};\n`;
+      }
+
+      sepcss = s;
+    }
+
+    let itemRadius = 0;
+
+    if (this.hasDefault("item-radius")) {
+      itemRadius = this.getDefault("item-radius");
+    } else {
+      itemRadius = this.getDefault("border-radius");
+    }
+
     this.menustyle.textContent = `
         .menucon {
-          position:absolute;
+          position:fixed;
           float:left;
           
           border-radius : ${this.getDefault("border-radius")}px;
@@ -630,7 +713,7 @@ export class Menu extends UIBase {
           padding-top : ${pad1}px;
           padding-bottom : ${pad1}px;
           
-          border-radius : ${this.getDefault("border-radius")}px;
+          border-radius : ${itemRadius}px;
           
           color : ${this.getDefault("MenuText").color};
           font : ${this.getDefault("MenuText").genCSS()};
@@ -638,16 +721,16 @@ export class Menu extends UIBase {
         }
         
         .menuseparator {
-          ${this.getDefault("MenuSeparator")}
+          ${sepcss}
         }
         
         .menuitem:focus {
           display : flex;
-          flex-wrap : nowrap;
+          text-align: left;
           
           border : none;
           outline : none;
-          border-radius : ${this.getDefault("border-radius")}px;
+          border-radius : ${itemRadius}px;
           
           background-color: ${this.getDefault("MenuHighlight")};
           color : ${this.getDefault("MenuText").color};
@@ -668,7 +751,6 @@ export class Menu extends UIBase {
   seperator() {
     let bar = document.createElement("div");
     bar.setAttribute("class", "menuseparator");
-
 
     this.dom.appendChild(bar);
 
@@ -696,6 +778,8 @@ export class DropBox extends OldButton {
   constructor() {
     super();
 
+    this.lockTimer = 0;
+
     this._template = undefined;
 
     this._searchMenuMode = false;
@@ -713,11 +797,6 @@ export class DropBox extends OldButton {
     this._onpress = this._onpress.bind(this);
   }
 
-  init() {
-    super.init();
-    this.updateWidth();
-  }
-
   get searchMenuMode() {
     return this._searchMenuMode;
   }
@@ -726,6 +805,49 @@ export class DropBox extends OldButton {
     this._searchMenuMode = v;
   }
 
+  get template() {
+    return this._template;
+  }
+
+  set template(v) {
+    this._template = v;
+  }
+
+  get value() {
+    return this._value;
+  }
+
+  set value(v) {
+    this.setValue(v);
+  }
+
+  get menu() {
+    return this._menu;
+  }
+
+  set menu(val) {
+    this._menu = val;
+
+    if (val !== undefined) {
+      this._name = val.title;
+      this.updateName();
+    }
+  }
+
+  static define() {
+    return {
+      tagname: "dropbox-x",
+      style  : "dropbox"
+    };
+  }
+
+  init() {
+    super.init();
+
+    this.setAttribute("menu-button", "true");
+
+    this.updateWidth();
+  }
 
   setCSS() {
     //do not call parent classes's setCSS here
@@ -765,10 +887,10 @@ export class DropBox extends OldButton {
 
     this.altKey = s[0].toUpperCase().charCodeAt(0);
 
-    for (let i=0; i<s.length; i++) {
-      if (s[i] === "&" && i < s.length-1 && s[i+1] !== "&") {
-        this.altKey = s[i+1].toUpperCase().charCodeAt(0);
-      } else if (s[i] === "&" && i < s.length-1 && s[i+1] === "&") {
+    for (let i = 0; i < s.length; i++) {
+      if (s[i] === "&" && i < s.length - 1 && s[i + 1] !== "&") {
+        this.altKey = s[i + 1].toUpperCase().charCodeAt(0);
+      } else if (s[i] === "&" && i < s.length - 1 && s[i + 1] === "&") {
         continue;
       } else {
         ret += s[i];
@@ -777,6 +899,7 @@ export class DropBox extends OldButton {
 
     return ret;
   }
+
   updateWidth() {
     //let ret = super.updateWidth(10);
     let dpi = this.getDPI();
@@ -806,14 +929,38 @@ export class DropBox extends OldButton {
     return 0;
   }
 
-
   updateDataPath() {
     if (!this.ctx || !this.hasAttribute("datapath")) {
       return;
     }
 
-    let prop = this.getPathMeta(this.ctx, this.getAttribute("datapath"));
-    let val = this.getPathValue(this.ctx, this.getAttribute("datapath"));
+    let wasError = false;
+    let prop, val;
+
+    try {
+      this.pushReportContext(this._reportCtxName);
+      prop = this.ctx.api.resolvePath(this.ctx, this.getAttribute("datapath")).prop;
+      val = this.ctx.api.getValue(this.ctx, this.getAttribute("datapath"));
+
+      prop = prop && prop.prop ? prop.prop : prop;
+
+      this.popReportContext();
+    } catch (error) {
+      util.print_stack(error);
+      wasError = true;
+    }
+
+    if (wasError) {
+      this.disabled = true;
+      this.setCSS();
+      this._redraw();
+
+      return;
+    } else {
+      this.disabled = false;
+      this.setCSS();
+      this._redraw();
+    }
 
     if (!prop) {
       return;
@@ -823,22 +970,14 @@ export class DropBox extends OldButton {
       this.prop = prop;
     }
 
-    if (val === undefined) {
-      this.internalDisabled = true;
-
-      return;
-    } else {
-      this.internalDisabled = false;
-    }
-
     prop = this.prop;
 
     let name = this.getAttribute("name");
-
-    if (prop.type & (PropTypes.ENUM|PropTypes.FLAG)) {
+    
+    if (prop.type & (PropTypes.ENUM | PropTypes.FLAG)) {
       name = prop.ui_value_names[prop.keys[val]];
     } else {
-      name = ""+val;
+      name = "" + val;
     }
 
     if (name !== this.getAttribute("name")) {
@@ -869,14 +1008,6 @@ export class DropBox extends OldButton {
     if (this.hasAttribute("datapath")) {
       this.updateDataPath();
     }
-  }
-
-  set template(v) {
-    this._template = v;
-  }
-
-  get template() {
-    return this._template;
   }
 
   _build_menu_template() {
@@ -953,8 +1084,10 @@ export class DropBox extends OldButton {
       //check if datapath system will be calling .prop.setValue instead of us
       let callProp = true;
       if (this.hasAttribute("datapath")) {
-        let prop = this.getPathMeta(this.ctx, this.getAttribute("datapath"));
-        callProp = !prop || prop !== this.prop;
+        let rdef = this.ctx.api.resolvePath(this.ctx, this.getAttribute("datapath"));
+        let prop = rdef.dpath.data;
+
+        callProp = !rdef || !rdef.dpath || !(rdef.dpath.data instanceof ToolProperty);
       }
 
       this._value = this._convertVal(id);
@@ -975,13 +1108,21 @@ export class DropBox extends OldButton {
   }
 
   _onpress(e) {
+    this.abortToolTips(1000);
+
     if (this._menu !== undefined) {
+      this.lockTimer = util.time_ms();
+
       this._pressed = false;
       this._redraw();
 
       let menu = this._menu;
       this._menu = undefined;
       menu.close();
+      return;
+    }
+
+    if (util.time_ms() - this.lockTimer < 200) {
       return;
     }
 
@@ -1002,6 +1143,8 @@ export class DropBox extends OldButton {
 
     let onclose = this._menu.onclose;
     this._menu.onclose = () => {
+      this.lockTimer = util.time_ms();
+
       this._pressed = false;
       this._redraw();
 
@@ -1024,11 +1167,62 @@ export class DropBox extends OldButton {
     let x = e.x, y = e.y;
     let rects = this.dom.getBoundingClientRect(); //getClientRects();
 
+    let rheight = rects.height;
     x = rects.x - window.scrollX;
-    y = rects.y + rects.height - window.scrollY; // + rects[0].height; // visualViewport.scale;
+    y = rects.y + rheight - window.scrollY; // + rects[0].height; // visualViewport.scale;
 
     if (!window.haveElectron) {
       //y -= 8;
+    }
+
+    /* need to figure out a better way to pop up a menu
+    *  above a given y position */
+    if (cconst.menusCanPopupAbove && y > screen.size[1]*0.5 && !this.searchMenuMode) {
+      let con = screen.popup(this, 500, 400, false, 0);
+
+      con.style["z-index"] = "-10000";
+      con.style["position"] = UIBase.PositionKey;
+      document.body.appendChild(con);
+
+      con.style["visibility"] = "hidden";
+
+      con.add(menu);
+      menu.start();
+
+      let time = util.time_ms();
+
+      let timer = window.setInterval(() => {
+        if (util.time_ms() - time > 1500) {
+          window.clearInterval(timer);
+          return;
+        }
+
+        let r = menu.dom.getBoundingClientRect();
+
+        if (!r || r.height < 55) {
+          return;
+        }
+
+        window.clearInterval(timer);
+
+        y -= r.height + rheight;
+
+        menu.dom.remove();
+        con.remove();
+
+        let popup = this._popup = menu._popup = screen.popup(this, x, y, false, 0);
+        popup.noMarginsOrPadding();
+
+        //popup.shadow.appendChild(menu.dom);
+        popup.add(menu);
+        menu.start();
+
+        popup.style["left"] = x + "px";
+        popup.style["top"] = y + "px";
+        //menu.setCSS();
+      }, 1);
+
+      return;
     }
 
     /*
@@ -1036,7 +1230,7 @@ export class DropBox extends OldButton {
     w.style["width"] = w.style["height"] = "15px";
     w.style["background-color"] = "red";
     w.style["z-index"] = "5000";
-    w.style["position"] = "absolute";
+    w.style["position"] = UIBase.PositionKey;
     w.style["pointer-events"] = "none";
     w.style["left"] = x + "px";
     w.style["top"] = y + "px";
@@ -1059,12 +1253,16 @@ export class DropBox extends OldButton {
     if (this.getAttribute("simple")) {
       let color;
 
+      this.g.clearRect(0, 0, this.dom.width, this.dom.height);
+      
       if (this._highlight) {
-        ui_base.drawRoundBox2(this, {canvas: this.dom, g: this.g, color: this.getDefault("BoxHighlight") });
+        ui_base.drawRoundBox2(this, {canvas: this.dom, g: this.g, color: this.getDefault("BoxHighlight")});
       }
 
       if (this._focus) {
-        ui_base.drawRoundBox2(this, {canvas: this.dom, g : this.g, color : this.getDefault("BoxHighlight"), op : "stroke", no_clear : true});
+        ui_base.drawRoundBox2(this, {
+          canvas: this.dom, g: this.g, color: this.getDefault("BoxHighlight"), op: "stroke", no_clear: true
+        });
         ui_base.drawRoundBox(this, this.dom, this.g, undefined, undefined, 2, "stroke");
       }
 
@@ -1087,7 +1285,7 @@ export class DropBox extends OldButton {
       g.fillStyle = bg;
 
       g.beginPath();
-      g.rect(p2, p2, this.dom.width - p2 - h, this.dom.height - p2 * 2);
+      g.rect(p2, p2, this.dom.width - p2 - h, this.dom.height - p2*2);
       g.fill();
     }
     //*/
@@ -1103,26 +1301,17 @@ export class DropBox extends OldButton {
     //*/
 
     let sz = 0.3;
-    g.moveTo(w-h*0.5-p, p);
-    g.lineTo(w-p, p);
-    g.moveTo(w-h*0.5-p, p+sz*h/3);
-    g.lineTo(w-p, p+sz*h/3);
-    g.moveTo(w-h*0.5-p, p+sz*h*2/3);
-    g.lineTo(w-p, p+sz*h*2/3);
+    g.moveTo(w - h*0.5 - p, p);
+    g.lineTo(w - p, p);
+    g.moveTo(w - h*0.5 - p, p + sz*h/3);
+    g.lineTo(w - p, p + sz*h/3);
+    g.moveTo(w - h*0.5 - p, p + sz*h*2/3);
+    g.lineTo(w - p, p + sz*h*2/3);
 
     g.lineWidth = 1;
     g.stroke();
 
     this._draw_text();
-  }
-
-  set menu(val) {
-    this._menu = val;
-
-    if (val !== undefined) {
-      this._name = val.title;
-      this.updateName();
-    }
   }
 
   _convertVal(val) {
@@ -1139,15 +1328,7 @@ export class DropBox extends OldButton {
     return val;
   }
 
-  get value() {
-    return this._value;
-  }
-
-  set value(v) {
-    this.setValue(v);
-  }
-
-  setValue(val, setLabelOnly=false) {
+  setValue(val, setLabelOnly = false) {
     if (val === undefined || val === this._value) {
       return;
     }
@@ -1163,17 +1344,17 @@ export class DropBox extends OldButton {
 
     if (this.prop !== undefined && !setLabelOnly) {
       this.prop.setValue(val);
-      let val2=val;
+      let val2 = val;
 
       if (val2 in this.prop.keys)
         val2 = this.prop.keys[val2];
       val2 = this.prop.ui_value_names[val2];
 
-      this.setAttribute("name", ""+val2);
-      this._name = ""+val2;
+      this.setAttribute("name", "" + val2);
+      this._name = "" + val2;
     } else {
-      this.setAttribute("name", ""+val);
-      this._name = ""+val;
+      this.setAttribute("name", "" + val);
+      this._name = "" + val;
     }
 
     if (this.onchange && !setLabelOnly) {
@@ -1184,15 +1365,6 @@ export class DropBox extends OldButton {
     this.updateDataPath();
     this._redraw();
   }
-
-  get menu() {
-    return this._menu;
-  }
-
-  static define() {return {
-    tagname : "dropbox-x",
-    style   : "dropbox"
-  };}
 }
 
 UIBase.internalRegister(DropBox);
@@ -1202,18 +1374,31 @@ export class MenuWrangler {
     this.screen = undefined;
     this.menustack = [];
 
-    this.closetimer = 0;
+    this.lastPickElemTime = util.time_ms();
+
+    this._closetimer = 0;
     this.closeOnMouseUp = undefined;
     this.closereq = undefined;
 
     this.timer = undefined;
   }
 
+  get closetimer() {
+    return this._closetimer;
+  }
+
+  set closetimer(v) {
+    debugmenu("set closertime", v);
+    this._closetimer = v;
+  }
+
   get menu() {
-    return this.menustack.length > 0 ? this.menustack[this.menustack.length-1] : undefined;
+    return this.menustack.length > 0 ? this.menustack[this.menustack.length - 1] : undefined;
   }
 
   pushMenu(menu) {
+    debugmenu("pushMenu");
+
     this.spawnreq = undefined;
 
     if (this.menustack.length === 0 && menu.closeOnMouseUp) {
@@ -1224,10 +1409,14 @@ export class MenuWrangler {
   }
 
   popMenu(menu) {
+    debugmenu("popMenu");
+
     return this.menustack.pop();
   }
 
   endMenus() {
+    debugmenu("endMenus");
+
     for (let menu of this.menustack) {
       menu.close();
     }
@@ -1335,7 +1524,7 @@ export class MenuWrangler {
     }
   }
 
-  on_mousedown(e) {
+  on_pointerdown(e) {
     if (this.menu === undefined || this.screen === undefined) {
       this.closetimer = util.time_ms();
       return;
@@ -1353,7 +1542,7 @@ export class MenuWrangler {
     }
   }
 
-  on_mouseup(e) {
+  on_pointerup(e) {
     if (this.menu === undefined || this.screen === undefined) {
       this.closetimer = util.time_ms();
       return;
@@ -1403,7 +1592,7 @@ export class MenuWrangler {
     return undefined;
   }
 
-  on_mousemove(e) {
+  on_pointermove(e) {
     if (this.menu && this.menu.hasSearchBox) {
       this.closetimer = util.time_ms();
       this.closereq = undefined;
@@ -1426,13 +1615,14 @@ export class MenuWrangler {
       let r = menu.getBoundingClientRect();
       let pad = 15;
 
-      if (r && x >= r.x-pad && y >= r.y-pad && x <= r.x+r.width+pad*2 && y <= r.y+r.height+pad*2) {
+      if (r && x >= r.x - pad && y >= r.y - pad && x <= r.x + r.width + pad*2 && y <= r.y + r.height + pad*2) {
         element = menu;
       }
     }
 
-    if (!element) {
+    if (!element && util.time_ms() - this.lastPickElemTime > 250) {
       element = screen.pickElement(x, y);
+      this.lastPickElemTime = util.time_ms();
     }
 
     if (element === undefined) {
@@ -1444,8 +1634,21 @@ export class MenuWrangler {
       this.closereq = undefined;
       return;
     }
+    
+    let destroy = element.hasAttribute("menu-button") && element.hasAttribute("simple");
+    destroy = destroy && element.menu !== this.menu;
 
-    if (element instanceof DropBox && element.menu !== this.menu && element.getAttribute("simple")) {
+    if (destroy) {
+      /* check that dropbox doesn't contain our parent menu either */
+
+      let menu2 = this.menu;
+      while (menu2 !== element.menu) {
+        menu2 = menu2.parentMenu;
+        destroy = destroy && (menu2 === undefined || menu2 !== element.menu);
+      }
+    }
+
+    if (destroy) {
       //destroy entire menu stack
       this.endMenus();
 
@@ -1466,7 +1669,7 @@ export class MenuWrangler {
         break;
       }
 
-      if (w instanceof DropBox && w._menu === this.menu) {
+      if (w.hasAttribute("menu-button") && w.menu === this.menu) {
         ok = true;
         break;
       }
@@ -1501,19 +1704,23 @@ export class MenuWrangler {
     }
 
     this.timer = setInterval(() => {
+      debugmenu("start menu wrangler interval");
+
       this.update();
     }, 150);
   }
 
   stopTimer() {
     if (this.timer) {
+      debugmenu("stop menu wrangler interval");
+
       clearInterval(this.timer);
       this.timer = undefined;
     }
   }
 }
 
-export let menuWrangler = new MenuWrangler();
+export let menuWrangler = window._menuWrangler = new MenuWrangler();
 let wrangerStarted = false;
 
 export function startMenuEventWrangling(screen) {
@@ -1532,12 +1739,14 @@ export function startMenuEventWrangling(screen) {
 
     let dom = k.search("key") >= 0 ? window : document.body;
     dom = window;
-    dom.addEventListener(DomEventTypes[k], menuWrangler[k].bind(menuWrangler), {passive : false, capture : true})
+    dom.addEventListener(DomEventTypes[k], menuWrangler[k].bind(menuWrangler), {passive: false, capture: true})
   }
 
   menuWrangler.screen = screen;
   menuWrangler.startTimer();
 }
+
+window._startMenuEventWrangling = startMenuEventWrangling;
 
 export function setWranglerScreen(screen) {
   startMenuEventWrangling(screen);
@@ -1641,7 +1850,9 @@ export function createMenu(ctx, title, templ) {
   return menu;
 }
 
-export function startMenu(menu, x, y, searchMenuMode=false, safetyDelay=55) {
+export function startMenu(menu, x, y, searchMenuMode = false, safetyDelay = 55) {
+  menuWrangler.endMenus();
+
   let screen = menu.ctx.screen;
   let con = menu._popup = screen.popup(undefined, x, y, false, safetyDelay);
   con.noMarginsOrPadding();
@@ -1652,4 +1863,10 @@ export function startMenu(menu, x, y, searchMenuMode=false, safetyDelay=55) {
   } else {
     menu.start();
   }
+
+  menu.flushUpdate();
+  menu.flushSetCSS();
+
+  menu._popup.flushUpdate();
+  menu._popup.flushSetCSS();
 }

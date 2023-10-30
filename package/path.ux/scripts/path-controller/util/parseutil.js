@@ -52,13 +52,15 @@ export class lexer {
     this.lineno = 0;
     this.errfunc = errfunc;
     this.tokints = {}
+    this.print_tokens = false;
+    this.print_debug = false;
 
-    for (var i=0; i<tokdef.length; i++) {
+    for (let i = 0; i < tokdef.length; i++) {
       this.tokints[tokdef[i].name] = i;
     }
 
     this.statestack = [["__main__", 0]];
-    this.states = {"__main__" : [tokdef, errfunc]};
+    this.states = {"__main__": [tokdef, errfunc]};
     this.statedata = 0; //public variable
   }
 
@@ -80,7 +82,9 @@ export class lexer {
 //errfunc is optional, defines state-specific error function
   add_state(name, tokdef, errfunc) {
     if (errfunc === undefined) {
-      errfunc = function(lexer) { return true; };
+      errfunc = function (lexer) {
+        return true;
+      };
     }
 
     this.states[name] = [tokdef, errfunc];
@@ -103,8 +107,8 @@ export class lexer {
   }
 
   pop_state() {
-    var item = this.statestack[this.statestack.length-1];
-    var state = this.states[item[0]];
+    let item = this.statestack[this.statestack.length - 1];
+    let state = this.states[item[0]];
 
     this.tokdef = state[0];
     this.errfunc = state[1];
@@ -130,14 +134,14 @@ export class lexer {
       return;
 
     console.log("Syntax error near line " + this.lineno);
-    var next = Math.min(this.lexpos+8, this.lexdata.length);
+    let next = Math.min(this.lexpos + 8, this.lexdata.length);
     console.log("  " + this.lexdata.slice(this.lexpos, next));
 
     throw new PUTLParseError("Parse error");
   }
 
   peek() {
-    var tok = this.next(true);
+    let tok = this.next(true);
 
     if (tok === undefined)
       return undefined;
@@ -149,7 +153,7 @@ export class lexer {
 
   peek_i(i) {
     while (this.peeked_tokens.length <= i) {
-      var t = this.peek();
+      let t = this.peek();
       if (t === undefined)
         return undefined;
     }
@@ -158,13 +162,22 @@ export class lexer {
   }
 
   at_end() {
-    return this.lexpos >= this.lexdata.length && this.peeked_tokens.length == 0;
+    return this.lexpos >= this.lexdata.length && this.peeked_tokens.length === 0;
   }
 
   next(ignore_peek) {
     if (ignore_peek !== true && this.peeked_tokens.length > 0) {
-      var tok = this.peeked_tokens[0];
+      let tok = this.peeked_tokens[0];
+
+      if (this.print_debug) {
+        console.log("PEEK_SHIFTING", "" + tok);
+      }
+
       this.peeked_tokens.shift();
+
+      if (this.print_tokens) {
+        console.log(tok.toString());
+      }
 
       return tok;
     }
@@ -172,30 +185,30 @@ export class lexer {
     if (this.lexpos >= this.lexdata.length)
       return undefined;
 
-    var ts = this.tokdef;
-    var tlen = ts.length;
+    let ts = this.tokdef;
+    let tlen = ts.length;
 
-    var lexdata = this.lexdata.slice(this.lexpos, this.lexdata.length);
+    let lexdata = this.lexdata.slice(this.lexpos, this.lexdata.length);
 
-    var results = []
+    let results = []
 
-    for (var i=0; i<tlen; i++) {
-      var t = ts[i];
+    for (let i = 0; i < tlen; i++) {
+      let t = ts[i];
 
       if (t.re === undefined)
         continue;
 
-      var res = t.re.exec(lexdata);
+      let res = t.re.exec(lexdata);
 
       if (res !== null && res !== undefined && res.index === 0) {
         results.push([t, res]);
       }
     }
 
-    var max_res = 0;
-    var theres = undefined;
-    for (var i=0; i<results.length; i++) {
-      var res = results[i];
+    let max_res = 0;
+    let theres = undefined;
+    for (let i = 0; i < results.length; i++) {
+      let res = results[i];
 
       if (res[1][0].length > max_res) {
         theres = res;
@@ -208,20 +221,77 @@ export class lexer {
       return;
     }
 
-    var def = theres[0];
+    let def = theres[0];
 
-    var lexlen = max_res;
-    var tok = new token(def.name, theres[1][0], this.lexpos, lexlen, this.lineno, this, undefined);
+    let lexlen = max_res;
+    let tok = new token(def.name, theres[1][0], this.lexpos, lexlen, this.lineno, this, undefined);
     this.lexpos += max_res;
 
     if (def.func) {
       tok = def.func(tok)
+
       if (tok === undefined) {
-        return this.next();
+        return this.next(ignore_peek);
       }
     }
 
+    if (this.print_tokens) {
+      console.log(tok.toString());
+    }
+
+    if (!ignore_peek && this.print_debug) {
+      console.log("CONSUME", tok.toString(), "\n" + getTraceBack());
+    }
+
     return tok;
+  }
+}
+
+export function getTraceBack(limit, start) {
+  try {
+    throw new Error();
+  } catch (error) {
+    let stack = error.stack.split("\n");
+    stack = stack.slice(1, stack.length);
+
+    if (start === undefined) {
+      start = 0;
+    }
+
+    for (let i = 0; i < stack.length; i++) {
+      let l = stack[i];
+
+      let j = l.length - 1;
+      while (j > 0 && l[j] !== "/") {
+        j--;
+      }
+
+      let k = j;
+      while (k >= 0 && l[k] !== "(") {
+        k--;
+      }
+
+      let func = l.slice(0, k).trim();
+      let file = l.slice(j + 1, l.length - 1);
+
+      l = `  ${func} (${file})`;
+
+      if (l.search(/parseutil\.js/) >= 0) {
+        start = Math.max(start, i);
+      }
+      stack[i] = l;
+    }
+
+    if (limit !== undefined) {
+      stack.length = Math.min(stack.length, limit);
+    }
+
+    if (start !== undefined) {
+      stack = stack.slice(start, stack.length);
+    }
+
+    stack = stack.join("\n");
+    return stack;
   }
 }
 
@@ -248,7 +318,7 @@ export class parser {
     if (data !== undefined)
       this.lexer.input(data);
 
-    var ret = this.start(this);
+    let ret = this.start(this);
 
     if (err_on_unconsumed && !this.lexer.at_end() && this.lexer.next() !== undefined) {
       //console.log(this.lexer.lexdata.slice(this.lexer.lexpos-1, this.lexer.lexdata.length));
@@ -263,20 +333,22 @@ export class parser {
   }
 
   error(tok, msg) {
-    if (msg == undefined)
+    if (msg === undefined)
       msg = ""
 
-    if (tok == undefined)
-      var estr = "Parse error at end of input: " + msg
-    else
-      estr = "Parse error at line " + (tok.lineno+1) + ": " + msg;
+    let estr;
 
-    var buf = "1| "
-    var ld = this.lexer.lexdata;
-    var l = 1;
-    for (var i=0; i<ld.length; i++) {
-      var c = ld[i];
-      if (c == '\n') {
+    if (tok === undefined)
+      estr = "Parse error at end of input: " + msg
+    else
+      estr = "Parse error at line " + (tok.lineno + 1) + ": " + msg;
+
+    let buf = "1| "
+    let ld = this.lexer.lexdata;
+    let l = 1;
+    for (let i = 0; i < ld.length; i++) {
+      let c = ld[i];
+      if (c === '\n') {
         l++;
         buf += "\n" + l + "| "
       } else {
@@ -297,15 +369,15 @@ export class parser {
   }
 
   peek() {
-    var tok = this.lexer.peek();
-    if (tok != undefined)
+    let tok = this.lexer.peek();
+    if (tok !== undefined)
       tok.parser = this;
 
     return tok;
   }
 
   peek_i(i) {
-    var tok = this.lexer.peek_i(i);
+    let tok = this.lexer.peek_i(i);
     if (tok !== undefined)
       tok.parser = this;
 
@@ -317,7 +389,8 @@ export class parser {
   }
 
   next() {
-    var tok = this.lexer.next();
+    let tok = this.lexer.next();
+
     if (tok !== undefined)
       tok.parser = this;
 
@@ -325,7 +398,7 @@ export class parser {
   }
 
   optional(type) {
-    var tok = this.peek_i(0);
+    let tok = this.peek_i(0);
 
     if (tok && tok.type === type) {
       this.next();
@@ -341,12 +414,12 @@ export class parser {
   }
 
   expect(type, msg) {
-    var tok = this.next();
+    let tok = this.next();
 
-    if (msg == undefined)
+    if (msg === undefined)
       msg = type
 
-    if (tok == undefined || tok.type != type) {
+    if (tok === undefined || tok.type != type) {
       this.error(tok, "Expected " + msg + ", not " + tok.type);
     }
 
@@ -355,7 +428,7 @@ export class parser {
 }
 
 function test_parser() {
-  var basic_types = new set([
+  let basic_types = new set([
     "int",
     "float",
     "double",
@@ -365,7 +438,7 @@ function test_parser() {
     "mat4",
     "string"]);
 
-  var reserved_tokens = new set([
+  let reserved_tokens = new set([
     "int",
     "float",
     "double",
@@ -380,8 +453,9 @@ function test_parser() {
   function tk(name, re, func) {
     return new tokdef(name, re, func);
   }
-  var tokens = [
-    tk("ID", /[a-zA-Z]+[a-zA-Z0-9_]*/, function(t) {
+
+  let tokens = [
+    tk("ID", /[a-zA-Z]+[a-zA-Z0-9_]*/, function (t) {
       if (reserved_tokens.has(t.value)) {
         t.type = t.value.toUpperCase();
       }
@@ -391,12 +465,12 @@ function test_parser() {
     tk("OPEN", /\{/),
     tk("CLOSE", /}/),
     tk("COLON", /:/),
-    tk("JSCRIPT", /\|/, function(t) {
-      var js = ""
-      var lexer = t.lexer;
+    tk("JSCRIPT", /\|/, function (t) {
+      let js = ""
+      let lexer = t.lexer;
       while (lexer.lexpos < lexer.lexdata.length) {
-        var c = lexer.lexdata[lexer.lexpos];
-        if (c == "\n")
+        let c = lexer.lexdata[lexer.lexpos];
+        if (c === "\n")
           break;
 
         js += c;
@@ -404,7 +478,7 @@ function test_parser() {
       }
 
       if (js.endsWith(";")) {
-        js = js.slice(0, js.length-1);
+        js = js.slice(0, js.length - 1);
         lexer.lexpos--;
       }
 
@@ -417,19 +491,19 @@ function test_parser() {
     tk("COMMA", /,/),
     tk("NUM", /[0-9]/),
     tk("SEMI", /;/),
-    tk("NEWLINE", /\n/, function(t) {
+    tk("NEWLINE", /\n/, function (t) {
       t.lexer.lineno += 1;
     }),
-    tk("SPACE", / |\t/, function(t) {
+    tk("SPACE", / |\t/, function (t) {
       //throw out non-newline whitespace tokens
     })
   ];
 
-  for (var rt in reserved_tokens) {
+  for (let rt in reserved_tokens) {
     tokens.push(tk(rt.toUpperCase()));
   }
 
-  /*var a =
+  /*let a =
   Loop {
     eid : int;
     flag : int;
@@ -450,25 +524,25 @@ function test_parser() {
     return true; //throw error
   }
 
-  var lex = new lexer(tokens, errfunc)
+  let lex = new lexer(tokens, errfunc)
   console.log("Testing lexical scanner...")
 
   lex.input(a);
 
-  var tok;
+  let tok;
   while (tok = lex.next()) {
     console.log(tok.toString())
   }
 
-  var parser = new parser(lex);
+  let parser = new parser(lex);
   parser.input(a);
 
   function p_Array(p) {
     p.expect("ARRAY");
     p.expect("LPARAM");
 
-    var arraytype = p_Type(p);
-    var itername = "";
+    let arraytype = p_Type(p);
+    let itername = "";
 
     if (p.optional("COMMA")) {
       itername = arraytype;
@@ -478,27 +552,27 @@ function test_parser() {
 
     p.expect("RPARAM");
 
-    return {type : "array", data : {type : arraytype, iname : itername}};
+    return {type: "array", data: {type: arraytype, iname: itername}};
   }
 
   function p_Type(p) {
-    var tok = p.peek()
+    let tok = p.peek()
 
-    if (tok.type == "ID") {
+    if (tok.type === "ID") {
       p.next();
-      return {type : "struct", data : "\"" + tok.value + "\""};
+      return {type: "struct", data: "\"" + tok.value + "\""};
     } else if (basic_types.has(tok.type.toLowerCase())) {
       p.next();
-      return {type : tok.type.toLowerCase()};
-    } else if (tok.type == "ARRAY") {
+      return {type: tok.type.toLowerCase()};
+    } else if (tok.type === "ARRAY") {
       return p_Array(p);
     } else {
-      p.error(tok, "invalid type " + tok.type); //(tok.value == "" ? tok.type : tok.value));
+      p.error(tok, "invalid type " + tok.type); //(tok.value === "" ? tok.type : tok.value));
     }
   }
 
   function p_Field(p) {
-    var field = {}
+    let field = {}
 
     console.log("-----", p.peek().type);
 
@@ -509,14 +583,14 @@ function test_parser() {
     field.set = undefined;
     field.get = undefined;
 
-    var tok = p.peek();
-    if (tok.type == "JSCRIPT") {
-      field.get =  tok.value;
+    let tok = p.peek();
+    if (tok.type === "JSCRIPT") {
+      field.get = tok.value;
       p.next()
     }
 
     tok = p.peek();
-    if (tok.type == "JSCRIPT") {
+    if (tok.type === "JSCRIPT") {
       field.set = tok.value;
       p.next();
     }
@@ -527,7 +601,7 @@ function test_parser() {
   }
 
   function p_Struct(p) {
-    var st = {}
+    let st = {}
     st.name = p.expect("ID", "struct name")
     st.fields = [];
 
@@ -546,7 +620,7 @@ function test_parser() {
     return st;
   }
 
-  var ret = p_Struct(parser);
+  let ret = p_Struct(parser);
 
   console.log(JSON.stringify(ret));
 }

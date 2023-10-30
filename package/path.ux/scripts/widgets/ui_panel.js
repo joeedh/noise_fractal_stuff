@@ -110,6 +110,10 @@ export class PanelFrame extends ColumnFrame {
     this.__label.text = v;
     this.__label._updateFont();
 
+    if (this.hasAttribute("label")) {
+      this.setAttribute("label", v);
+    }
+
     if (this.ctx) {
       this.setCSS();
     }
@@ -172,8 +176,8 @@ export class PanelFrame extends ColumnFrame {
   }
 
   clear() {
-    super.clear();
-    super.add(this.titleframe);
+    this.contents.clear();
+    return this;
   }
 
   makeHeader() {
@@ -188,6 +192,10 @@ export class PanelFrame extends ColumnFrame {
     iconcheck.overrideDefault("padding", 0);
 
     iconcheck.noMarginsOrPadding();
+
+    iconcheck.overrideDefault("highlight", {
+      "background-color" : iconcheck.getSubDefault("highlight", "background-color")
+    });
 
     iconcheck.overrideDefault("background-color", "rgba(0,0,0,0)");
     iconcheck.overrideDefault("BoxDepressed", "rgba(0,0,0,0)");
@@ -218,7 +226,6 @@ export class PanelFrame extends ColumnFrame {
 
     let label = this.__label = row.label(this.getAttribute("label"));
 
-    this.__label.overrideClass("panel");
     this.__label.font = "TitleText";
 
     label._updateFont();

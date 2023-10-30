@@ -1,5 +1,5 @@
 "use strict";
-import '../util/nstructjs.js';
+import nstructjs from '../util/struct.js';
 
 /**
 
@@ -33,17 +33,19 @@ import '../util/nstructjs.js';
 }
 
  class MyTool extends ToolOp {
-  static tooldef() {return {
-    uiname     : "Tool Name",
-    toolpath   : "my.tool",
-    inputs     : {
-        input1 : new IntProperty(),
-        input2 : new EnumProperty(0, ExampleEnum)
-    },
-    outputs    : {
-        someoutput : new IntProperty
+  static tooldef() {
+    return {
+      uiname     : "Tool Name",
+      toolpath   : "my.tool",
+      inputs     : {
+          input1 : new IntProperty(),
+          input2 : new EnumProperty(0, ExampleEnum)
+      },
+      outputs    : {
+          someoutput : new IntProperty
+      }
     }
-  }}
+  }
 
   undoPre(ctx) {
     //run before tool starts
@@ -76,25 +78,26 @@ import * as util from '../util/util.js';
 
 export let ToolClasses = [];
 window._ToolClasses = ToolClasses;
+
 export function setContextClass(cls) {
   console.warn("setContextClass is deprecated");
 }
 
 export const ToolFlags = {
-  PRIVATE : 1
+  PRIVATE: 1
 
 };
 
 
 export const UndoFlags = {
-  NO_UNDO       : 2,
-  IS_UNDO_ROOT  : 4,
-  UNDO_BARRIER  :  8,
-  HAS_UNDO_DATA : 16
+  NO_UNDO      : 2,
+  IS_UNDO_ROOT : 4,
+  UNDO_BARRIER : 8,
+  HAS_UNDO_DATA: 16
 };
 
 class InheritFlag {
-  constructor(slots={}) {
+  constructor(slots = {}) {
     this.slots = slots;
   }
 }
@@ -131,6 +134,10 @@ export class ToolPropertyCache {
     this.dstruct = undefined;
   }
 
+  static getPropKey(cls, key, prop) {
+    return prop.apiname && prop.apiname.length > 0 ? prop.apiname : key;
+  }
+
   _buildAccessors(cls, key, prop, dstruct, api) {
     let tdef = cls._getFinalToolDef();
 
@@ -148,7 +155,7 @@ export class ToolPropertyCache {
     let st = dstruct;
     let partial = "";
 
-    for (let i=0; i<path.length; i++) {
+    for (let i = 0; i < path.length; i++) {
       let k = path[i];
       let pathk = k;
 
@@ -199,14 +206,9 @@ export class ToolPropertyCache {
     obj[name] = prop2.getValue();
   }
 
-
   _getAccessor(cls) {
     let toolpath = cls.tooldef().toolpath.trim();
     return this.pathmap.get(toolpath);
-  }
-
-  static getPropKey(cls, key, prop) {
-    return prop.apiname && prop.apiname.length > 0 ? prop.apiname : key;
   }
 
   useDefault(cls, key, prop) {
@@ -217,6 +219,10 @@ export class ToolPropertyCache {
   }
 
   has(cls, key, prop) {
+    if (prop.flag & PropFlags.NO_DEFAULT) {
+      return false;
+    }
+
     let obj = this._getAccessor(cls);
 
     key = this.constructor.getPropKey(cls, key, prop);
@@ -274,17 +280,137 @@ export const SavedToolDefaults = new ToolPropertyCache();
 
 export class ToolOp extends events.EventHandler {
   /**
+   Main ToolOp constructor.  It reads the inputs/outputs properteis from
+   this.constructor.tooldef() and copies them to build this.inputs and this.outputs.
+   If inputs or outputs are wrapped in ToolOp.inherit(), it will walk up the class
+   chain to fetch parent class properties.
+
+
+   Default input values are loaded from SavedToolDefaults.  If initialized (buildToolSysAPI
+   has been called) SavedToolDefaults will have a copy of all the default
+   property values of all registered ToolOps.
+   **/
+
+  constructor() {
+    super();
+
+    this._pointerId = undefined;
+    this._overdraw = undefined;
+    this.__memsize = undefined;
+
+    var def = this.constructor.tooldef();
+
+    if (def.undoflag !== undefined) {
+      this.undoflag = def.undoflag;
+    }
+
+    if (def.flag !== undefined) {
+      this.flag = def.flag;
+    }
+
+    this._accept = this._reject = undefined;
+    this._promise = undefined;
+
+    for (var k in def) {
+      this[k] = def[k];
+    }
+
+    let getSlots = (slots, key) => {
+      if (slots === undefined)
+        return {};
+
+      if (!(slots instanceof InheritFlag)) {
+        return slots;
+      }
+
+      slots = {};
+      let p = this.constructor;
+      let lastp = undefined;
+
+      while (p !== undefined && p !== Object && p !== ToolOp && p !== lastp) {
+        if (p.tooldef) {
+          let def = p.tooldef();
+
+          if (def[key] !== undefined) {
+            let slots2 = def[key];
+            let stop = !(slots2 instanceof InheritFlag);
+
+            if (slots2 instanceof InheritFlag) {
+              slots2 = slots2.slots;
+            }
+
+            for (let k in slots2) {
+              if (!(k in slots)) {
+                slots[k] = slots2[k];
+              }
+            }
+
+            if (stop) {
+              break;
+            }
+          }
+        }
+
+        lastp = p;
+        p = p.prototype.__proto__.constructor;
+      }
+
+      return slots;
+    };
+
+    let dinputs = getSlots(def.inputs, "inputs");
+    let doutputs = getSlots(def.outputs, "outputs");
+
+    this.inputs = {};
+    this.outputs = {};
+
+    if (dinputs) {
+      for (let k in dinputs) {
+        let prop = dinputs[k].copy();
+        prop.apiname = prop.apiname && prop.apiname.length > 0 ? prop.apiname : k;
+
+        if (!this.hasDefault(prop, k)) {
+          this.inputs[k] = prop;
+          continue;
+        }
+
+        try {
+          prop.setValue(this.getDefault(prop, k));
+        } catch (error) {
+          console.log(error.stack);
+          console.log(error.message);
+        }
+
+        prop.wasSet = false;
+        this.inputs[k] = prop;
+      }
+    }
+
+    if (doutputs) {
+      for (let k in doutputs) {
+        let prop = doutputs[k].copy();
+        prop.apiname = prop.apiname && prop.apiname.length > 0 ? prop.apiname : k;
+
+        this.outputs[k] = prop;
+      }
+    }
+
+    this.drawlines = [];
+  }
+
+  /**
    ToolOp definition.
 
    An example:
    <pre>
-   static tooldef() {return {
+   static tooldef() {
+    return {
       uiname   : "Tool Name",
       toolpath : "logical_module.tool", //logical_module need not match up to a real module
       icon     : -1, //tool's icon, or -1 if there is none
       description : "tooltip",
       is_modal : false, //tool is interactive and takes control of events
-      hotkey : undefined,
+      hotkey   : undefined,
       undoflag : 0, //see UndoFlags
       flag     : 0,
       inputs   : ToolOp.inherit({
@@ -292,7 +418,8 @@ export class ToolOp extends events.EventHandler {
         path   : new StringProperty("./path");
       }),
       outputs  : {}
-  }}
+      }
+    }
    </pre>
    */
   static tooldef() {
@@ -303,72 +430,16 @@ export class ToolOp extends events.EventHandler {
     return {};
   }
 
-  calcMemSize(ctx) {
-    if (this.__memsize !== undefined) {
-      return this.__memsize;
-    }
+  /** Returns a map of input property values,
+   *  e.g. `let {prop1, prop2} = this.getValues()` */
+  getInputs() {
+    let ret = {};
 
-    let tot = 0;
-
-    for (let step=0; step<2; step++) {
-      let props = step ? this.outputs : this.inputs;
-
-      for (let k in props) {
-        let prop = props[k];
-
-        let size = prop.calcMemSize();
-
-        if (isNaN(size) || !isFinite(size)) {
-          console.warn("Got NaN when calculating mem size for property", prop);
-          continue;
-        }
-
-        tot += size;
-      }
-    }
-
-    let size = this.calcUndoMem(ctx);
-
-    if (isNaN(size) || !isFinite(size)) {
-      console.warn("Got NaN in calcMemSize", this);
-    } else {
-      tot += size;
-    }
-
-    this.__memsize = tot;
-
-    return tot;
-  }
-
-  loadDefaults(force=true) {
     for (let k in this.inputs) {
-      let prop = this.inputs[k];
-
-      if (!force && prop.wasSet) {
-        continue;
-      }
-
-      if (this.hasDefault(prop, k)) {
-        prop.setValue(this.getDefault(prop, k));
-        prop.wasSet = false;
-      }
+      ret[k] = this.inputs[k].getValue();
     }
 
-    return this;
-  }
-
-  hasDefault(toolprop, key=toolprop.apiname) {
-    return SavedToolDefaults.has(this.constructor, key, toolprop);
-  }
-
-  getDefault(toolprop, key=toolprop.apiname) {
-    let cls = this.constructor;
-
-    if (SavedToolDefaults.has(cls, key, toolprop)) {
-      return SavedToolDefaults.get(cls, key, toolprop);
-    } else {
-      return toolprop.getValue();
-    }
+    return ret;
   }
 
   static Equals(a, b) {
@@ -390,19 +461,7 @@ export class ToolOp extends events.EventHandler {
     return !bad;
   }
 
-  saveDefaultInputs() {
-    for (let k in this.inputs) {
-      let prop = this.inputs[k];
-
-      if (prop.flag & PropFlags.SAVE_LAST_VALUE) {
-        SavedToolDefaults.set(this.constructor, k, prop);
-      }
-    }
-
-    return this;
-  }
-
-  static inherit(slots={}) {
+  static inherit(slots = {}) {
     return new InheritFlag(slots);
   }
 
@@ -425,7 +484,7 @@ export class ToolOp extends events.EventHandler {
       let prop = tool.inputs[k];
       let val = args[k];
 
-      if ((typeof val === "string") && prop.type & (PropTypes.ENUM|PropTypes.FLAG)) {
+      if ((typeof val === "string") && prop.type & (PropTypes.ENUM | PropTypes.FLAG)) {
         if (val in prop.values) {
           val = prop.values[val];
         } else {
@@ -440,31 +499,6 @@ export class ToolOp extends events.EventHandler {
     return tool;
   }
 
-  genToolString() {
-    let def = this.constructor.tooldef();
-    let path = def.toolpath + "(";
-
-    for (let k in this.inputs) {
-      let prop = this.inputs[k];
-
-      path += k + "=";
-      if (prop.type === PropTypes.STRING)
-        path += "'";
-
-      if (prop.type === PropTypes.FLOAT) {
-        path += prop.getValue().toFixed(3);
-      } else {
-        path += prop.getValue();
-      }
-
-      if (prop.type === PropTypes.STRING)
-        path += "'";
-      path += " ";
-    }
-    path +=")";
-    return path;
-  }
-
   static register(cls) {
     if (ToolClasses.indexOf(cls) >= 0) {
       console.warn("Tried to register same ToolOp class twice:", cls.name, cls);
@@ -474,7 +508,7 @@ export class ToolOp extends events.EventHandler {
     ToolClasses.push(cls);
   }
 
-  static _regWithNstructjs(cls, structName=cls.name) {
+  static _regWithNstructjs(cls, structName = cls.name) {
     if (nstructjs.isRegistered(cls)) {
       return;
     }
@@ -555,126 +589,135 @@ export class ToolOp extends events.EventHandler {
     return def;
   }
 
-  /**
-   Main ToolOp constructor.  It reads the inputs/outputs properteis from
-   this.constructor.tooldef() and copies them to build this.inputs and this.outputs.
-   If inputs or outputs are wrapped in ToolOp.inherit(), it will walk up the class
-   chain to fetch parent class properties.
-
-
-   Default input values are loaded from SavedToolDefaults.  If initialized (buildToolSysAPI
-   has been called) SavedToolDefaults will have a copy of all the default
-   property values of all registered ToolOps.
-   **/
-
-  constructor() {
-    super();
-
-    this._overdraw = undefined;
-    this.__memsize = undefined;
-
-    var def = this.constructor.tooldef();
-
-    if (def.undoflag !== undefined) {
-      this.undoflag = def.undoflag;
-    }
-
-    if (def.flag !== undefined) {
-      this.flag = def.flag;
-    }
-
-    this._accept = this._reject = undefined;
-    this._promise = undefined;
-
-    for (var k in def) {
-      this[k] = def[k];
-    }
-
-    let getSlots = (slots, key) => {
-      if (slots === undefined)
-        return {};
-
-      if (!(slots instanceof InheritFlag)) {
-        return slots;
-      }
-
-      slots = {};
-      let p = this.constructor;
-
-      while (p !== undefined && p !== Object && p !== ToolOp) {
-        if (p.tooldef) {
-          let def = p.tooldef();
-
-          if (def[key] !== undefined) {
-            let slots2 = def[key];
-            let stop = !(slots2 instanceof InheritFlag);
-
-            if (slots2 instanceof InheritFlag) {
-              slots2 = slots2.slots;
-            }
-
-            for (let k in slots2) {
-              if (!(k in slots)) {
-                slots[k] = slots2[k];
-              }
-            }
-
-            if (stop) {
-              break;
-            }
-          }
-
-        }
-        p = p.prototype.__proto__.constructor;
-      }
-
-      return slots;
-    };
-
-    let dinputs = getSlots(def.inputs, "inputs");
-    let doutputs = getSlots(def.outputs, "outputs");
-
-    this.inputs = {};
-    this.outputs = {};
-
-    if (dinputs) {
-      for (let k in dinputs) {
-        let prop = dinputs[k].copy();
-        prop.apiname = prop.apiname && prop.apiname.length > 0 ? prop.apiname : k;
-
-        if (!this.hasDefault(prop, k)) {
-          this.inputs[k] = prop;
-          continue;
-        }
-
-        try {
-          prop.setValue(this.getDefault(prop, k));
-        } catch (error) {
-          console.log(error.stack);
-          console.log(error.message);
-        }
-
-        prop.wasSet = false;
-        this.inputs[k] = prop;
-      }
-    }
-
-    if (doutputs) {
-      for (let k in doutputs) {
-        let prop = doutputs[k].copy();
-        prop.apiname = prop.apiname && prop.apiname.length > 0 ? prop.apiname : k;
-
-        this.outputs[k] = prop;
-      }
-    }
-
-    this.drawlines = [];
-  }
-
   static onTick() {
     for (let toolop of modalstack) {
       toolop.on_tick();
     }
+  }
+
+  static searchBoxOk(ctx) {
+    let flag = this.tooldef().flag;
+    let ret = !(flag && (flag & ToolFlags.PRIVATE));
+    ret = ret && this.canRun(ctx);
+
+    return ret;
+  }
+
+  //toolop is an optional instance of this class, may be undefined
+  static canRun(ctx, toolop = undefined) {
+    return true;
+  }
+
+  /** Called when the undo system needs to destroy
+   *  this toolop to save memory*/
+  onUndoDestroy() {
+
+  }
+
+  /** Used by undo system to limit memory */
+  calcMemSize(ctx) {
+    if (this.__memsize !== undefined) {
+      return this.__memsize;
+    }
+
+    let tot = 0;
+
+    for (let step = 0; step < 2; step++) {
+      let props = step ? this.outputs : this.inputs;
+
+      for (let k in props) {
+        let prop = props[k];
+
+        let size = prop.calcMemSize();
+
+        if (isNaN(size) || !isFinite(size)) {
+          console.warn("Got NaN when calculating mem size for property", prop);
+          continue;
+        }
+
+        tot += size;
+      }
+    }
+
+    let size = this.calcUndoMem(ctx);
+
+    if (isNaN(size) || !isFinite(size)) {
+      console.warn("Got NaN in calcMemSize", this);
+    } else {
+      tot += size;
+    }
+
+    this.__memsize = tot;
+
+    return tot;
+  }
+
+  loadDefaults(force = true) {
+    for (let k in this.inputs) {
+      let prop = this.inputs[k];
+
+      if (!force && prop.wasSet) {
+        continue;
+      }
+
+      if (this.hasDefault(prop, k)) {
+        prop.setValue(this.getDefault(prop, k));
+        prop.wasSet = false;
+      }
+    }
+
+    return this;
+  }
+
+  hasDefault(toolprop, key = toolprop.apiname) {
+    return SavedToolDefaults.has(this.constructor, key, toolprop);
+  }
+
+  getDefault(toolprop, key = toolprop.apiname) {
+    let cls = this.constructor;
+
+    if (SavedToolDefaults.has(cls, key, toolprop)) {
+      return SavedToolDefaults.get(cls, key, toolprop);
+    } else {
+      return toolprop.getValue();
+    }
+  }
+
+  saveDefaultInputs() {
+    for (let k in this.inputs) {
+      let prop = this.inputs[k];
+
+      if (prop.flag & PropFlags.SAVE_LAST_VALUE) {
+        SavedToolDefaults.set(this.constructor, k, prop);
+      }
+    }
+
+    return this;
+  }
+
+  genToolString() {
+    let def = this.constructor.tooldef();
+    let path = def.toolpath + "(";
+
+    for (let k in this.inputs) {
+      let prop = this.inputs[k];
+
+      path += k + "=";
+      if (prop.type === PropTypes.STRING)
+        path += "'";
+
+      if (prop.type === PropTypes.FLOAT) {
+        path += prop.getValue().toFixed(3);
+      } else {
+        path += prop.getValue();
+      }
+
+      if (prop.type === PropTypes.STRING)
+        path += "'";
+      path += " ";
+    }
+    path += ")";
+    return path;
   }
 
   on_tick() {
@@ -693,19 +736,6 @@ export class ToolOp extends events.EventHandler {
         this.modalEnd(true);
         break;
     }
-  }
-
-  static searchBoxOk(ctx) {
-    let flag = this.tooldef().flag;
-    let ret = !(flag && (flag & ToolFlags.PRIVATE));
-    ret = ret && this.canRun(ctx);
-
-    return ret;
-  }
-
-  //toolop is an optional instance of this class, may be undefined
-  static canRun(ctx, toolop=undefined) {
-    return true;
   }
 
   //called after undoPre
@@ -739,8 +769,10 @@ export class ToolOp extends events.EventHandler {
 
   execPre(ctx) {
   }
+
   exec(ctx) {
   }
+
   execPost(ctx) {
 
   }
@@ -799,7 +831,12 @@ export class ToolOp extends events.EventHandler {
       this._reject = reject;
 
       modalstack.push(this);
-      super.pushModal(ctx.screen);
+
+      if (this._pointerId !== undefined) {
+        super.pushPointerModal(ctx.screen, this._pointerId);
+      } else {
+        super.pushModal(ctx.screen);
+      }
     });
 
     return this._promise;
@@ -828,7 +865,9 @@ export class ToolOp extends events.EventHandler {
       if (this._accept) {
         this._accept(this.modal_ctx, true);
       }
+
       this._on_cancel(this);
+      this._on_cancel = undefined;
     }
 
     this.resetTempGeom();
@@ -902,6 +941,7 @@ class PropKey {
     this.val = val;
   }
 }
+
 PropKey.STRUCT = `
 toolsys.PropKey {
   key : string;
@@ -911,7 +951,7 @@ toolsys.PropKey {
 nstructjs.register(PropKey);
 
 export class MacroLink {
-  constructor(sourcetool_idx, srckey, srcprops="outputs", desttool_idx, dstkey, dstprops="inputs") {
+  constructor(sourcetool_idx, srckey, srcprops = "outputs", desttool_idx, dstkey, dstprops = "inputs") {
     this.source = sourcetool_idx;
     this.dest = desttool_idx;
 
@@ -922,6 +962,7 @@ export class MacroLink {
     this.destPropKey = dstkey;
   }
 }
+
 MacroLink.STRUCT = `
 toolsys.MacroLink {
   source         : int;
@@ -939,13 +980,8 @@ window._MacroClasses = MacroClasses;
 
 let macroidgen = 0;
 
-export class ToolMacro extends ToolOp {
-  static tooldef() {
-    return {
-      uiname: "Tool Macro"
-    }
-  }
 
+export class ToolMacro extends ToolOp {
   constructor() {
     super();
 
@@ -954,12 +990,53 @@ export class ToolMacro extends ToolOp {
     this.has_modal = false;
     this.connects = [];
     this.connectLinks = [];
+
+    this._macro_class = undefined;
+  }
+
+  static tooldef() {
+    return {
+      uiname: "Tool Macro"
+    }
+  }
+
+  //toolop is an optional instance of this class, may be undefined
+  static canRun(ctx, toolop = undefined) {
+    return true;
   }
 
   _getTypeClass() {
+    if (this._macro_class && this._macro_class.ready) {
+      return this._macro_class;
+    }
+
+    if (!this._macro_class) {
+      this._macro_class = class MacroTypeClass extends ToolOp {
+        static tooldef() {
+          return this.__tooldef;
+        }
+      }
+
+      this._macro_class.__tooldef = {
+        toolpath: this.constructor.tooldef().toolpath || ''
+      };
+      this._macro_class.ready = false;
+    }
+
+    if (!this.tools || this.tools.length === 0) {
+      /* We've been invoked by ToolOp constructor,
+      *  for now just return an empty class  */
+      return this._macro_class;
+    }
+
     let key = "";
     for (let tool of this.tools) {
       key = tool.constructor.name + ":";
+    }
+
+    /* Handle child classes of ToolMacro */
+    if (this.constructor !== ToolMacro) {
+      key += ":" + this.constructor.tooldef().toolpath;
     }
 
     for (let k in this.inputs) {
@@ -967,7 +1044,8 @@ export class ToolMacro extends ToolOp {
     }
 
     if (key in MacroClasses) {
-      return MacroClasses[key];
+      this._macro_class = MacroClasses[key];
+      return this._macro_class;
     }
 
     let name = "Macro("
@@ -1002,20 +1080,17 @@ export class ToolMacro extends ToolOp {
     }
 
     let tdef = {
-      uiname : name,
-      toolpath : key,
+      uiname  : name,
+      toolpath: key,
       inputs,
       outputs : {},
       is_modal
     };
 
-    let cls = class MacroTypeClass extends ToolOp {
-      static tooldef() {
-        return tdef;
-      }
-    }
-
+    let cls = this._macro_class;
+    cls.__tooldef = tdef;
     cls._macroTypeId = macroidgen++;
+    cls.ready = true;
 
     /*
     let cls = {
@@ -1045,11 +1120,11 @@ export class ToolMacro extends ToolOp {
     return this;
   }
 
-  hasDefault(toolprop, key=toolprop.apiname) {
+  hasDefault(toolprop, key = toolprop.apiname) {
     return SavedToolDefaults.has(this._getTypeClass(), key, toolprop);
   }
 
-  getDefault(toolprop, key=toolprop.apiname) {
+  getDefault(toolprop, key = toolprop.apiname) {
     let cls = this._getTypeClass();
 
     if (SavedToolDefaults.has(cls, key, toolprop)) {
@@ -1059,7 +1134,7 @@ export class ToolMacro extends ToolOp {
     }
   }
 
-  connect(srctool, srcoutput, dsttool, dstinput, srcprops="outputs", dstprops="inputs") {
+  connect(srctool, srcoutput, dsttool, dstinput, srcprops = "outputs", dstprops = "inputs") {
     if (typeof dsttool === "function") {
       return this.connectCB(...arguments);
     }
@@ -1081,7 +1156,7 @@ export class ToolMacro extends ToolOp {
       }
     }
 
-    if (dstprops === "inputs"){
+    if (dstprops === "inputs") {
       let tool = this.tools[i2];
       let prop = tool.inputs[dstinput];
 
@@ -1139,11 +1214,6 @@ export class ToolMacro extends ToolOp {
         c.callback.call(c.thisvar, c.srctool, c.dsttool);
       }
     }
-  }
-
-  //toolop is an optional instance of this class, may be undefined
-  static canRun(ctx, toolop=undefined) {
-    return true;
   }
 
   /*
@@ -1232,14 +1302,6 @@ export class ToolMacro extends ToolOp {
     }
   }
 
-  redo(ctx) {
-    for (let tool of this.tools) {
-      let ctx2 = tool.execCtx ? tool.execCtx : ctx;
-
-      tool.redo(ctx2);
-    }
-  }
-
   calcUndoMem(ctx) {
     let tot = 0;
 
@@ -1297,7 +1359,7 @@ export class ToolStack extends Array {
     return this[this.cur];
   }
 
-  limitMemory(maxmem=this.memLimit, ctx=this.ctx) {
+  limitMemory(maxmem = this.memLimit, ctx = this.ctx) {
     if (maxmem === undefined) {
       throw new Error("maxmem cannot be undefined");
     }
@@ -1315,17 +1377,21 @@ export class ToolStack extends Array {
       return size;
     }
 
+    for (let i = 0; i < start; i++) {
+      this[i].onUndoDestroy();
+    }
+
     this.cur -= start;
 
-    for (let i=0; i<this.length-start; i++) {
-      this[i] = this[i+start];
+    for (let i = 0; i < this.length - start; i++) {
+      this[i] = this[i + start];
     }
     this.length -= start;
 
     return this.calcMemSize(ctx);
   }
 
-  calcMemSize(ctx=this.ctx) {
+  calcMemSize(ctx = this.ctx) {
     let tot = 0;
 
     for (let tool of this) {
@@ -1361,7 +1427,7 @@ export class ToolStack extends Array {
    *
    * @param compareInputs : check if toolstack head has identical input values, defaults to false
    * */
-  execOrRedo(ctx, tool, compareInputs=false) {
+  execOrRedo(ctx, tool, compareInputs = false) {
     let head = this.head;
 
     let ok = compareInputs ? ToolOp.Equals(head, tool) : head && head.constructor === tool.constructor;
@@ -1415,10 +1481,10 @@ export class ToolStack extends Array {
       this.cur++;
 
       //save branch for if tool cancel
-      this._undo_branch = this.slice(this.cur+1, this.length);
+      this._undo_branch = this.slice(this.cur + 1, this.length);
 
       //truncate
-      this.length = this.cur+1;
+      this.length = this.cur + 1;
 
       this[this.cur] = toolop;
       toolop.undoPre(tctx);
@@ -1429,8 +1495,9 @@ export class ToolStack extends Array {
 
       this.modal_running = true;
 
-      toolop._on_cancel = (function(toolop) {
+      toolop._on_cancel = (function (toolop) {
         if (!(toolop.undoflag & UndoFlags.NO_UNDO)) {
+          this[this.cur].undo(ctx);
           this.pop_i(this.cur);
           this.cur--;
         }
@@ -1458,7 +1525,7 @@ export class ToolStack extends Array {
     }
 
     this.undo();
-    this.length = this.cur+1;
+    this.length = this.cur + 1;
 
     if (this._undo_branch !== undefined) {
       for (let item of this._undo_branch) {
@@ -1512,7 +1579,7 @@ export class ToolStack extends Array {
       this.limitMemory(this.memLimit);
     }
 
-    if (this.cur >= -1 && this.cur+1 < this.length) {
+    if (this.cur >= -1 && this.cur + 1 < this.length) {
       //console.log("redo!", this.cur, this.length);
 
       this.cur++;
@@ -1551,10 +1618,10 @@ export class ToolStack extends Array {
   }
 
   /**cb is a function(ctx), if it returns the value false then playback stops
-    promise will still be fulfilled.
+   promise will still be fulfilled.
 
-    onstep is a callback, if it returns a promise that promise will be
-    waited on, otherwise execution is queue with window.setTimeout().
+   onstep is a callback, if it returns a promise that promise will be
+   waited on, otherwise execution is queue with window.setTimeout().
    */
   replay(cb, onStep) {
     let cur = this.cur;
@@ -1591,7 +1658,7 @@ export class ToolStack extends Array {
                 next();
               });
             } else {
-              window.setTimeout(()=> {
+              window.setTimeout(() => {
                 next();
               })
             }
@@ -1636,7 +1703,7 @@ toolsys.ToolStack {
 `;
 nstructjs.register(ToolStack);
 
-window._testToolStackIO = function() {
+window._testToolStackIO = function () {
   let data = [];
   let cls = _appstate.toolstack.constructor;
 
@@ -1654,7 +1721,7 @@ window._testToolStackIO = function() {
   return toolstack;
 }
 
-export function buildToolSysAPI(api, registerWithNStructjs=true, rootCtxStruct=undefined) {
+export function buildToolSysAPI(api, registerWithNStructjs = true, rootCtxStruct = undefined) {
   let datastruct = api.mapStruct(ToolPropertyCache, true);
 
   for (let cls of ToolClasses) {
@@ -1663,7 +1730,7 @@ export function buildToolSysAPI(api, registerWithNStructjs=true, rootCtxStruct=u
     for (let k in def.inputs) {
       let prop = def.inputs[k];
 
-      if (!(prop.flag & (PropFlags.PRIVATE|PropFlags.READ_ONLY))) {
+      if (!(prop.flag & (PropFlags.PRIVATE | PropFlags.READ_ONLY))) {
         SavedToolDefaults._buildAccessors(cls, k, prop, datastruct, api);
       }
     }

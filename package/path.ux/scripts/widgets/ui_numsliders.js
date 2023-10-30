@@ -6,133 +6,81 @@ import * as units from "../core/units.js";
 import {Vector2} from "../path-controller/util/vectormath.js";
 import {ColumnFrame} from "../core/ui.js";
 import * as util from "../path-controller/util/util.js";
-import {PropTypes, isNumber, PropSubTypes, PropFlags} from "../path-controller/toolsys/toolprop.js";
-import {pushModalLight, popModalLight} from "../path-controller/util/simple_events.js";
+import {
+  PropTypes, isNumber, PropSubTypes, PropFlags, NumberConstraints, IntProperty
+} from "../path-controller/toolsys/toolprop.js";
+import {eventWasTouch} from "../path-controller/util/simple_events.js";
 import {KeyMap, keymap} from "../path-controller/util/simple_events.js";
+import {color2css, css2color} from "../core/ui_theme.js";
+import {ThemeEditor} from "./theme_editor.js";
+import {Unit} from '../core/units.js';
 
 export const sliderDomAttributes = new Set([
   "min", "max", "integer", "displayUnit", "baseUnit", "labelOnTop",
-  "radix", "step", "expRate", "stepIsRelative", "decimalPlaces"
+  "radix", "step", "expRate", "stepIsRelative", "decimalPlaces",
+  "slideSpeed"
 ]);
 
 function updateSliderFromDom(dom, slider = dom) {
-  let redraw = false;
+  slider.loadNumConstraints(undefined, dom);
+}
 
-  function getbool(attr, prop = attr) {
-    if (!dom.hasAttribute(attr)) {
-      return;
+export const SliderDefaults = {
+  stepIsRelative: false,
+  expRate       : 1.0 + 1.0/3.0,
+  radix         : 10,
+  decimalPlaces : 4,
+  baseUnit      : "none",
+  displayUnit   : "none",
+  slideSpeed    : 1.0,
+  step          : 0.1,
+}
+
+export function NumberSliderBase(cls = UIBase, skip = new Set(), defaults = SliderDefaults) {
+  skip = new Set(skip);
+
+  return class NumberSliderBase extends cls {
+    constructor() {
+      super();
+
+      for (let key of NumberConstraints) {
+        if (skip.has(key)) {
+          continue;
+        }
+
+        if (key in defaults) {
+          this[key] = defaults[key];
+        } else {
+          this[key] = undefined;
+        }
+      }
     }
 
-    let v = dom.getAttribute(attr);
-    let ret = v === null || v.toLowerCase() === "true" || v.toLowerCase === "yes";
-
-    let old = slider[prop];
-    if (old !== undefined && old !== ret) {
-      redraw = true;
+    loadNumConstraints(prop, dom) {
+      return super.loadNumConstraints(prop, dom, this._redraw);
     }
-
-    slider[prop] = ret;
-    return ret;
   }
-
-  function getfloat(attr, prop = attr) {
-    if (!dom.hasAttribute(attr)) {
-      return;
-    }
-
-    let v = dom.getAttribute(attr);
-    let ret = parseFloat(v);
-
-    let old = slider[prop];
-    if (old !== undefined && Math.abs(old - v) < 0.00001) {
-      redraw = true;
-    }
-
-    slider[prop] = ret;
-    return ret;
-  }
-
-  function getint(attr, prop = attr) {
-    if (!dom.hasAttribute(attr)) {
-      return;
-    }
-
-    let v = (""+dom.getAttribute(attr)).toLowerCase();
-    let ret;
-
-    if (v === "true") {
-      ret = true;
-    } else if (v === "false") {
-      ret = false;
-    } else {
-      ret = parseInt(v);
-    }
-
-    if (isNaN(ret)) {
-      console.error("bad value " + v);
-      return 0.0;
-    }
-
-    let old = slider[prop];
-    if (old !== undefined && Math.abs(old - v) < 0.00001) {
-      redraw = true;
-    }
-
-    slider[prop] = ret;
-    return ret;
-  }
-
-  if (dom.hasAttribute("min")) {
-    slider.range = slider.range || [-1e17, 1e17];
-
-    let r = slider.range[0];
-    slider.range[0] = parseFloat(dom.getAttribute("min"));
-    redraw = Math.abs(slider.range[0] - r) > 0.0001;
-  }
-
-  if (dom.hasAttribute("max")) {
-    slider.range = slider.range || [-1e17, 1e17];
-
-    let r = slider.range[1];
-    slider.range[1] = parseFloat(dom.getAttribute("max"));
-    redraw = redraw || Math.abs(slider.range[1] - r) > 0.0001;
-  }
-
-  if (dom.hasAttribute("displayUnit")) {
-    let old = slider.displayUnit;
-    slider.displayUnit = dom.getAttribute("displayUnit").trim();
-
-    redraw = redraw || old !== slider.displayUnit;
-  }
-
-  getint("integer", "isInt");
-
-  getint("radix");
-  getint("decimalPlaces");
-
-  getbool("labelOnTop");
-  getbool("stepIsRelative");
-  getfloat("expRate");
-  getfloat("step");
-
-  return redraw;
 }
 
 //use .setAttribute("linear") to disable nonlinear sliding
-export class NumSlider extends ValueButtonBase {
+export class NumSlider extends NumberSliderBase(ValueButtonBase) {
   constructor() {
     super();
 
+    this._highlight = undefined;
     this._last_label = undefined;
 
     this.mdown = false;
+    this.ma = undefined;
+
+    this.mpos = new Vector2();
+    this.start_mpos = new Vector2();
+
+    this._last_overarrow = false;
 
     this._name = "";
-    this._step = 0.1;
     this._value = 0.0;
-    this._expRate = 1.333;
-    this.decimalPlaces = 4;
-    this.radix = 10;
+    this.expRate = SliderDefaults.expRate;
 
     this.vertical = false;
     this._last_disabled = false;
@@ -140,24 +88,6 @@ export class NumSlider extends ValueButtonBase {
     this.range = [-1e17, 1e17];
     this.isInt = false;
     this.editAsBaseUnit = undefined;
-
-    this._redraw();
-  }
-
-  get step() {
-    return this._step;
-  }
-
-  set step(v) {
-    this._step = v;
-  }
-
-  get expRate() {
-    return this._expRate;
-  }
-
-  set expRate(v) {
-    this._expRate = v;
   }
 
   get value() {
@@ -165,15 +95,43 @@ export class NumSlider extends ValueButtonBase {
   }
 
   set value(val) {
-    this.setValue(val, true, false);
+    this.setValue(val);
+  }
+
+  /** Current name label.  If set to null label will
+   * be pulled from the datapath api.*/
+  get name() {
+    return this.getAttribute("name") || this._name;
+  }
+
+  /** Current name label.  If set to null label will
+   * be pulled from the datapath api.*/
+  set name(name) {
+    if (name === undefined || name === null) {
+      this.removeAttribute("name");
+    } else {
+      this.setAttribute("name", name);
+    }
   }
 
   static define() {
     return {
-      tagname    : "numslider-x",
-      style      : "numslider",
-      parentStyle: "button"
+      tagname          : "numslider-x",
+      style            : "numslider",
+      parentStyle      : "button",
+      havePickClipboard: true,
     };
+  }
+
+
+  updateWidth(force = false) {
+    let dpi = UIBase.getDPI();
+    let wid = ~~(this.getDefault("width")*dpi);
+
+    if (force || wid !== this._last_width) {
+      this._last_width = wid;
+      this.setCSS();
+    }
   }
 
   updateDataPath() {
@@ -181,42 +139,39 @@ export class NumSlider extends ValueButtonBase {
       return;
     }
 
-    let rdef = this.ctx.api.resolvePath(this.ctx, this.getAttribute("datapath"));
-    let prop = rdef ? rdef.prop : undefined;
+    let prop = this.getPathMeta(this.ctx, this.getAttribute("datapath"));
 
-    if (!prop)
+    if (!prop) {
       return;
-
-    if (prop.expRate) {
-      this._expRate = prop.expRate;
-    }
-    if (prop.radix !== undefined) {
-      this.radix = prop.radix;
     }
 
-    this.isInt = prop.type === PropTypes.INT;
+    let name;
 
-    if (prop.step) {
-      this._step = prop.getStep(rdef.value);
-    }
-    if (prop.decimalPlaces !== undefined) {
-      this.decimalPlaces = prop.decimalPlaces;
-    }
-
-    if (prop.baseUnit !== undefined) {
-      this.baseUnit = prop.baseUnit;
+    if (this.hasAttribute("name")) {
+      name = this.getAttribute("name");
+    } else {
+      name = "" + prop.uiname;
     }
 
-    if (this.editAsBaseUnit === undefined) {
-      if (prop.flag & PropFlags.EDIT_AS_BASE_UNIT) {
-        this.editAsBaseUnit = true;
-      } else {
-        this.editAsBaseUnit = false;
-      }
+    //lazily load constraints, since there's so much
+    //accessing of DOM attributes
+    let updateConstraints = false;
+
+    if (name !== this._name) {
+      this._name = name;
+      this.setCSS();
+      updateConstraints = true;
     }
 
-    if (prop.displayUnit !== undefined) {
-      this.displayUnit = prop.displayUnit;
+    let val = this.getPathValue(this.ctx, this.getAttribute("datapath"));
+
+    if (val !== this._value) {
+      updateConstraints = true;
+      /* Note that super.updateDataPath will update .value for us*/
+    }
+
+    if (updateConstraints) {
+      this.loadNumConstraints(prop);
     }
 
     super.updateDataPath();
@@ -229,14 +184,42 @@ export class NumSlider extends ValueButtonBase {
       this.setCSS();
     }
 
-    super.update();
-    this.updateDataPath();
+    this.updateWidth();
+    super.update(); //calls this.updateDataPath
 
     updateSliderFromDom(this);
   }
 
+  clipboardCopy() {
+    console.log("Copy", "" + this.value);
+    cconst.setClipboardData("value", "text/plain", "" + this.value);
+  }
+
+  clipboardPaste() {
+    let data = cconst.getClipboardData("text/plain");
+    console.log("Paste", data);
+
+    if (typeof data == "object") {
+      data = data.data;
+    }
+
+    let displayUnit = this.editAsBaseUnit ? undefined : this.displayUnit;
+    let val = units.parseValue(data, this.baseUnit, displayUnit);
+
+    if (typeof val === "number" && !isNaN(val)) {
+      this.setValue(val);
+    }
+  }
+
   swapWithTextbox() {
     let tbox = UIBase.createElement("textbox-x");
+
+    if (this.modalRunning) {
+      this.popModal();
+    }
+
+    this.mdown = false;
+    this._pressed = false;
 
     tbox.ctx = this.ctx;
     tbox._init();
@@ -315,29 +298,39 @@ export class NumSlider extends ValueButtonBase {
     });
 
     let onmousedown = (e) => {
+      e.preventDefault();
+
       if (this.disabled) {
-        e.preventDefault();
+        this.mdown = false;
+        this._pressed = false;
         e.stopPropagation();
 
         return;
       }
 
-      if (e.button === 0 && e.shiftKey) {
+      if (e.button) {
+        return;
+      }
+
+      this.mdown = true;
+      this._pressed = true;
+      this._redraw();
+
+      if (e.shiftKey) {
         e.preventDefault();
         e.stopPropagation();
 
         this.swapWithTextbox();
-      } else if (!e.button) {
+      } else if (this.overArrow(e.x, e.y)) {
+        this._on_click(e);
+      } else {
         this.dragStart(e);
-        this.mdown = true;
-
-        e.preventDefault();
         e.stopPropagation();
       }
     }
 
-    let onmouseup = this._on_click = (e) => {
-      this.mdown = false;
+    this._on_click = (e) => {
+      this.setMpos(e);
 
       if (this.disabled) {
         e.preventDefault();
@@ -346,34 +339,32 @@ export class NumSlider extends ValueButtonBase {
         return;
       }
 
-      let r = this.getClientRects()[0];
-      let x = e.x;
+      let step;
 
-      if (r) {
-        x -= r.x;
-        let sz = this._getArrowSize();
-
-        let v = this.value;
-
-        let step = this.step || 0.01;
-        if (this.isInt) {
-          step = Math.max(step, 1);
-        } else {
-          step *= 5.0;
+      if (step = this.overArrow(e.x, e.y)) {
+        if (e.shiftKey) {
+          step *= 0.1;
         }
 
-        let szmargin = Math.min(sz*8.0, r.width*0.4);
-
-        if (x < szmargin) {
-          this.setValue(v - step);
-        } else if (x > r.width - szmargin) {
-          this.setValue(v + step);
-        }
+        this.setValue(this.value + step);
       }
     }
 
+    this.addEventListener("pointermove", (e) => {
+      this.setMpos(e);
+
+      if (this.mdown && !this._modaldata && this.mpos.vectorDistance(this.start_mpos) > 13) {
+        this.dragStart(e);
+      }
+    });
+
     this.addEventListener("dblclick", (e) => {
-      if (this.disabled) {
+      this.setMpos(e);
+
+      this.mdown = false;
+      this._pressed = false;
+
+      if (this.disabled || this.overArrow(e.x, e.y)) {
         e.preventDefault();
         e.stopPropagation();
 
@@ -382,14 +373,22 @@ export class NumSlider extends ValueButtonBase {
 
       e.preventDefault();
       e.stopPropagation();
+
       this.swapWithTextbox();
     });
 
-    this.addEventListener("mousedown", (e) => {
+    this.addEventListener("pointerdown", (e) => {
+      this.setMpos(e);
+
       if (this.disabled) return;
       onmousedown(e);
-    });
+    }, {capture: true});
 
+    this.addEventListener("pointerup", (e) => {
+      this.mdown = false;
+      this._pressed = false;
+      this._redraw();
+    })
     /*
     this.addEventListener("touchstart", (e) => {
       if (this.disabled) return;
@@ -404,24 +403,31 @@ export class NumSlider extends ValueButtonBase {
     }, {passive : false});
     //*/
 
-    //this.addEventListener("mouseup", (e) => {
+    //this.addEventListener("pointerup", (e) => {
     //  return onmouseup(e);
     //});
 
-    this.addEventListener("mouseover", (e) => {
+    this.addEventListener("pointerover", (e) => {
+      this.setMpos(e);
       if (this.disabled) return;
 
-      this.dom._background = this.getDefault("BoxHighlight");
-      this._repos_canvas();
-      this._redraw();
+      if (!this._highlight) {
+        this._highlight = true;
+        this._repos_canvas();
+        this._redraw();
+      }
     })
 
     this.addEventListener("blur", (e) => {
+      this._highlight = false;
       this.mdown = false;
     });
 
-    this.addEventListener("mouseout", (e) => {
+    this.addEventListener("pointerout", (e) => {
+      this.setMpos(e);
       if (this.disabled) return;
+
+      this._highlight = false;
 
       this.dom._background = this.getDefault("background-color");
       this._repos_canvas();
@@ -429,18 +435,53 @@ export class NumSlider extends ValueButtonBase {
     })
   }
 
-  doRange() {
-    if (this.hasAttribute("min")) {
-      this.range[0] = parseFloat(this.getAttribute("min"));
-    }
-    if (this.hasAttribute("max")) {
-      this.range[1] = parseFloat(this.getAttribute("max"));
+  overArrow(x, y) {
+    let r = this.getBoundingClientRect();
+    let rwidth, rx;
+
+    if (this.vertical) {
+      rwidth = r.height;
+      rx = r.y;
+      x = y;
+    } else {
+      rwidth = r.width;
+      rx = r.x;
     }
 
-    this._value = Math.min(Math.max(this._value, this.range[0]), this.range[1]);
+    x -= rx;
+    let sz = this._getArrowSize();
+
+    let szmargin = sz + cconst.numSliderArrowLimit;
+
+    let step = this.step || 0.01;
+
+    if (this.isInt) {
+      step = Math.max(step, 1);
+    }
+
+    if (isNaN(step)) {
+      console.error("NaN step size", "step:", this.step, "numslider:", this._id);
+      this.flash("red");
+      step = this.isInt ? 1 : 0.1;
+    }
+
+    if (x < szmargin) {
+      return -step;
+    } else if (x > rwidth - szmargin) {
+      return step;
+    }
+
+    return 0;
   }
 
-  setValue(value, fire_onchange = true) {
+  doRange() {
+    console.warn("Deprecated: NumSlider.prototype.doRange, use loadNumConstraints instead!");
+    this.loadNumConstraints();
+  }
+
+  setValue(value, fire_onchange = true, setDataPath = true, checkConstraints = true) {
+    value = Math.min(Math.max(value, this.range[0]), this.range[1]);
+
     this._value = value;
 
     if (this.hasAttribute("integer")) {
@@ -451,9 +492,11 @@ export class NumSlider extends ValueButtonBase {
       this._value = Math.floor(this._value);
     }
 
-    this.doRange();
+    if (checkConstraints) {
+      this.loadNumConstraints();
+    }
 
-    if (this.ctx && this.hasAttribute("datapath")) {
+    if (setDataPath && this.ctx && this.hasAttribute("datapath")) {
       this.setPathValue(this.ctx, this.getAttribute("datapath"), this._value);
     }
 
@@ -464,11 +507,40 @@ export class NumSlider extends ValueButtonBase {
     this._redraw();
   }
 
+  setMpos(e) {
+    this.mpos[0] = e.x;
+    this.mpos[1] = e.y;
+
+    if (!this.mdown) {
+      this.start_mpos[0] = e.x;
+      this.start_mpos[1] = e.y;
+    }
+
+    let over = this.overArrow(e.x, e.y);
+
+    if (over !== this._last_overarrow) {
+      this._last_overarrow = over;
+      this._redraw();
+    }
+  }
+
   dragStart(e) {
+    this.mdown = false;
+    this._pressed = true;
+
     if (this.disabled) return;
+
+    if (this.modalRunning) {
+      console.log("modal already running for numslider", this);
+      return;
+    }
+
+    this.last_time = util.time_ms();
 
     let last_background = this.dom._background;
     let cancel;
+
+    this.ma = new util.MovingAvg(eventWasTouch(e) ? 8 : 2);
 
     let startvalue = this.value;
     let value = startvalue;
@@ -482,7 +554,6 @@ export class NumSlider extends ValueButtonBase {
         this.onchange(this);
       }
     }
-
 
     let handlers = {
       on_keydown: (e) => {
@@ -498,14 +569,20 @@ export class NumSlider extends ValueButtonBase {
         e.stopPropagation();
       },
 
-      on_mousemove: (e) => {
+      on_pointermove: (e) => {
         if (this.disabled) return;
 
         e.preventDefault();
         e.stopPropagation();
 
-        let dx = (this.vertical ? e.y : e.x) - startx;
-        startx = (this.vertical ? e.y : e.x)
+        let x = this.ma.add(this.vertical ? e.y : e.x);
+        let dx = x - startx;
+        startx = x;
+
+        if (util.time_ms() - this.last_time < 35) {
+          return;
+        }
+        this.last_time = util.time_ms();
 
         if (e.shiftKey) {
           dx *= 0.1;
@@ -515,26 +592,31 @@ export class NumSlider extends ValueButtonBase {
 
         sumdelta += Math.abs(dx);
 
-        value += dx*this._step*0.1;
+        value += dx*this.step*0.1*this.slideSpeed;
 
         let dvalue = value - startvalue;
         let dsign = Math.sign(dvalue);
 
+        let expRate = this.expRate;
+
+        //if (eventWasTouch(e)) {
+        //  expRate = (1 + expRate)*0.5;
+        //}
+
         if (!this.hasAttribute("linear")) {
-          dvalue = Math.pow(Math.abs(dvalue), this._expRate)*dsign;
+          dvalue = Math.pow(Math.abs(dvalue), expRate)*dsign;
         }
 
         this.value = startvalue + dvalue;
-        this.doRange();
 
         /*
         if (e.shiftKey) {
           dx *= 0.1;
-          this.value = startvalue2 + dx*0.1*this._step;
+          this.value = startvalue2 + dx*0.1*this.step*this.slideSpeed;
           startvalue3 = this.value;
         } else {
           startvalue2 = this.value;
-          this.value = startvalue3 + dx*0.1*this._step;
+          this.value = startvalue3 + dx*0.1*this.step*this.slideSpeed;
         }*/
 
         this.updateWidth();
@@ -542,42 +624,31 @@ export class NumSlider extends ValueButtonBase {
         fire();
       },
 
-      on_mouseup: (e) => {
-        let dpi = UIBase.getDPI();
-
-        let limit = cconst.numSliderArrowLimit;
-        limit = limit === undefined ? 6 : limit;
-        limit *= dpi;
-
-        let dv = this.vertical ? starty - e.y : startx - e.x;
+      on_pointerup: (e) => {
+        this.setMpos(e);
 
         this.undoBreakPoint();
         cancel(false);
-
-        //check for arrow click
-        if (sumdelta < limit) {
-          this._on_click(e);
-        }
 
         e.preventDefault();
         e.stopPropagation();
       },
 
-      on_mouseout: (e) => {
+      on_pointerout: (e) => {
         last_background = this.getDefault("background-color");
 
         e.preventDefault();
         e.stopPropagation();
       },
 
-      on_mouseover: (e) => {
+      on_pointerover: (e) => {
         last_background = this.getDefault("BoxHighlight");
 
         e.preventDefault();
         e.stopPropagation();
       },
 
-      on_mousedown: (e) => {
+      on_pointerdown: (e) => {
         this.popModal();
       },
     };
@@ -586,6 +657,8 @@ export class NumSlider extends ValueButtonBase {
     this.pushModal(handlers);
 
     cancel = (restore_value) => {
+      this._pressed = false;
+
       if (restore_value) {
         this.value = startvalue;
         this.updateWidth();
@@ -597,52 +670,35 @@ export class NumSlider extends ValueButtonBase {
 
       this.popModal();
     }
-
-    /*
-    cancel = (restore_value) => {
-      if (restore_value) {
-        this.value = startvalue;
-        this.updateWidth();
-        fire();
-      }
-
-      this.dom._background = last_background; //ui_base.getDefault("background-color");
-      this._redraw();
-
-      console.trace("end");
-
-      window.removeEventListener("keydown", keydown, true);
-      window.removeEventListener("mousemove", mousemove, {captured : true, passive : false});
-
-      window.removeEventListener("touchend", touchend, true);
-      window.removeEventListener("touchmove", touchmove, {captured : true, passive : false});
-      window.removeEventListener("touchcancel", touchcancel, true);
-      window.removeEventListener("mouseup", mouseup, true);
-
-      this.removeEventListener("mouseover", mouseover, true);
-      this.removeEventListener("mouseout", mouseout, true);
-    }
-
-    window.addEventListener("keydown", keydown, true);
-    window.addEventListener("mousemove", mousemove, true);
-    window.addEventListener("touchend", touchend, true);
-    window.addEventListener("touchmove", touchmove, {captured : true, passive : false});
-    window.addEventListener("touchcancel", touchcancel, true);
-    window.addEventListener("mouseup", mouseup, true);
-
-    this.addEventListener("mouseover", mouseover, true);
-    this.addEventListener("mouseout", mouseout, true);
-    //*/
   }
 
-  setCSS() {
-    //do not call parent class implementation
+  get _pressed() {
+    return this.__pressed;
+  }
+
+  set _pressed(v) {
+    /* Try to improve usability on pen/touch displays
+     * by forcing pressed state to last at least 100ms.
+     */
+    if (!v) {
+      window.setTimeout(() => {
+        let redraw = this.__pressed;
+
+        this.__pressed = false;
+        if (redraw) {
+          this._redraw();
+        }
+      }, 100);
+    } else {
+      this.__pressed = v;
+    }
+  }
+
+  setCSS(unused_setBG, fromRedraw) {
+    /* Do not call parent class implementation. */
+
     let dpi = this.getDPI();
-
     let ts = this.getDefault("DefaultText").size*UIBase.getDPI();
-
-    let dd = this.isInt ? 5 : this.decimalPlaces + 8;
-
     let label = this._genLabel();
 
     let tw = ui_base.measureText(this, label, {
@@ -650,29 +706,49 @@ export class NumSlider extends ValueButtonBase {
       font: this.getDefault("DefaultText")
     }).width/dpi;
 
-    tw = Math.max(tw + this._getArrowSize()*0, this.getDefault("width"));
+    /* Enforce a minimum size based on final text. */
+    tw = Math.max(tw + this._getArrowSize()*1, this.getDefault("width"));
 
     tw += ts;
     tw = ~~tw;
 
-    //tw = Math.max(tw, w);
+    let w, h;
+
     if (this.vertical) {
-      this.style["width"] = this.dom.style["width"] = this.getDefault("height") + "px";
-
-      this.style["height"] = tw + "px";
-      this.dom.style["height"] = tw + "px";
+      w = this.getDefault("height");
+      h = tw;
     } else {
-      this.style["height"] = this.dom.style["height"] = this.getDefault("height") + "px";
-
-      this.style["width"] = tw + "px";
-      this.dom.style["width"] = tw + "px";
+      h = this.getDefault("height");
+      w = tw;
     }
 
-    this._repos_canvas();
-    this._redraw();
+    w = ~~(w*dpi);
+    h = ~~(h*dpi);
+
+    this.style["width"] = this.dom.style["width"] = (w/dpi) + "px";
+    this.style["height"] = this.dom.style["height"] = (h/dpi) + "px";
+    this.dom.width = w;
+    this.dom.height = h;
+
+    if (!fromRedraw) {
+      this._repos_canvas();
+      this._redraw();
+    }
+  }
+
+  _repos_canvas() {
+    //super._repos_canvas();
+  }
+
+  updateDefaultSize() {
+    /* Do nothing, don't invoke parent class method. */
   }
 
   updateName(force) {
+    if (!this.hasAttribute("name")) {
+      return;
+    }
+
     let name = this.getAttribute("name");
 
     if (force || name !== this._name) {
@@ -700,46 +776,74 @@ export class NumSlider extends ValueButtonBase {
         val = Math.floor(val);
       }
 
-      //console.error(this.isInt, val);
-
       val = units.buildString(val, this.baseUnit, this.decimalPlaces, this.displayUnit);
-      //val = myToFixed(val, this.decimalPlaces);
 
       text = val;
       if (this._name) {
         text = this._name + ": " + text;
+      } else if (this.hasAttribute("name")) {
+        text = "" + this.getAttribute("name") + ": " + text;
       }
     }
 
     return text;
   }
 
-  _redraw() {
+  _redraw(fromCSS) {
+    if (!fromCSS) {
+      this.setCSS(undefined, true);
+    }
+
     let g = this.g;
     let canvas = this.dom;
 
     let dpi = this.getDPI();
     let disabled = this.disabled;
 
-    let r = this.getDefault("border-radius");
+    /* Fallback on BoxHighlight for backwards compatibility with
+     * old themes. */
+
+    let over = !this._modaldata && this.overArrow(this.mpos[0], this.mpos[1]);
+
+    let subkey = undefined;
+    let pressed = this._pressed && !over;
+
+    if (this._highlight && pressed) {
+      subkey = "highlight-pressed";
+    } else if (this._highlight) {
+      subkey = "highlight";
+    } else if (pressed) {
+      subkey = "pressed";
+    }
+
+    let getDefault = (key, backupval = undefined, subkey2 = subkey) => {
+      /* Have highlight-pressed fall back to pressed. */
+      if (subkey2 === "highlight-pressed" && !this.hasClassSubDefault(subkey2, key, false)) {
+        return this.getSubDefault("pressed", key, undefined, backupval);
+      }
+
+      if (!subkey2) {
+        return this.getDefault(key, undefined, backupval);
+      } else {
+        return this.getSubDefault(subkey2, key, undefined, backupval);
+      }
+    }
+
+    let r = getDefault("border-radius");
     if (this.isInt) {
       r *= 0.25;
     }
 
-    let boxbg = this.getDefault("background-color");
+    let boxbg = getDefault("background-color");
 
     ui_base.drawRoundBox(this, this.dom, this.g, undefined, undefined,
-      r, "fill", disabled ? this.getDefault("DisabledBG") : boxbg);
+      r, "fill", disabled ? getDefault("DisabledBG") : boxbg);
     ui_base.drawRoundBox(this, this.dom, this.g, undefined, undefined,
-      r, "stroke", disabled ? this.getDefault("DisabledBG") : this.getDefault("border-color"));
+      r, "stroke", disabled ? getDefault("DisabledBG") : getDefault("border-color"));
 
-    r *= dpi;
-    let pad = this.getDefault("padding");
-    let ts = this.getDefault("DefaultText").size;
-
+    let ts = getDefault("DefaultText").size;
     let text = this._genLabel();
 
-    let tw = ui_base.measureText(this, text, this.dom, this.g).width;
     let cx = ts + this._getArrowSize();
     let cy = this.dom.height/2;
 
@@ -755,35 +859,81 @@ export class NumSlider extends ValueButtonBase {
       ui_base.drawText(this, cx, -ts*0.5, text, {
         canvas: this.dom,
         g     : this.g,
-        size  : ts
+        size  : ts,
+        font  : getDefault("DefaultText"),
       });
       g.restore();
     } else {
       ui_base.drawText(this, cx, cy + ts/2, text, {
         canvas: this.dom,
         g     : this.g,
-        size  : ts
+        size  : ts,
+        font  : getDefault("DefaultText"),
       });
     }
 
-    //}
+    let parseArrowColor = (arrowcolor) => {
+      arrowcolor = arrowcolor.trim();
+      if (arrowcolor.endsWith("%")) {
+        arrowcolor = arrowcolor.slice(0, arrowcolor.length - 1).trim();
 
-    let arrowcolor = this.getDefault("arrow-color") || "33%";
-    arrowcolor = arrowcolor.trim();
+        let perc = parseFloat(arrowcolor)/100.0;
+        let c = css2color(this.getDefault("background-color"));
 
-    if (arrowcolor.endsWith("%")) {
-      arrowcolor = arrowcolor.slice(0, arrowcolor.length - 1).trim();
-      let perc = parseFloat(arrowcolor)/100.0;
-      let c = css2color(this.getDefault("arrow-color"));
+        let f = (c[0] + c[1] + c[2])*perc;
 
-      let f = 1.0 - (c[0] + c[1] + c[2])*perc;
+        f = ~~(f*255);
+        arrowcolor = `rgba(${f},${f},${f},0.95)`;
 
-      f = ~~(f*255);
-      g.fillStyle = `rgba(${f},${f},${f},0.95)`;
-
-    } else {
-      g.fillStyle = arrowcolor;
+      }
+      return arrowcolor;
     }
+
+    let arrowcolor_base;
+    let arrowcolor;
+
+    arrowcolor_base = this.getDefault("arrow-color");
+    arrowcolor_base = parseArrowColor(arrowcolor_base);
+
+    if (this._pressed && this._highlight) {
+      arrowcolor = this.getSubDefault("highlight-pressed", "arrow-color", null, undefined, false);
+
+      if (!arrowcolor) {
+        arrowcolor = this.getSubDefault("pressed", "arrow-color");
+      }
+
+      if (!arrowcolor) {
+        arrowcolor = "33%";
+      }
+    } else if (this._pressed) {
+      arrowcolor = this.getSubDefault("pressed", "arrow-color", "arrow-color", "33%");
+    } else if (this._highlight) {
+      if (!this.hasClassSubDefault("highlight", "arrow-color", false)) {
+        if (this.hasClassSubDefault("highlight", "background-color", false)) {
+          arrowcolor = this.getSubDefault("highlight", "background-color");
+        } else {
+          arrowcolor = this.getDefault("BoxHighlight");
+        }
+
+        arrowcolor = css2color(arrowcolor);
+        let base = this.getSubDefault("pressed", "arrow-color", undefined, "33%");
+        base = css2color(base);
+
+        arrowcolor.interp(base, 0.25);
+        arrowcolor = color2css(arrowcolor);
+      } else {
+        arrowcolor = this.getSubDefault("highlight", "arrow-color");
+      }
+    } else {
+      arrowcolor = getDefault("arrow-color", "33%");
+    }
+
+    if (this._pressed) {
+//      arrowcolor = this.getSubDefault("pressed", "arrow-color");
+    }
+
+    arrowcolor = parseArrowColor(arrowcolor);
+
 
     let d = 7, w = canvas.width, h = canvas.height;
     let sz = this._getArrowSize();
@@ -794,18 +944,32 @@ export class NumSlider extends ValueButtonBase {
       g.lineTo(w*0.5 + sz*0.5, d + sz);
       g.lineTo(w*0.5 - sz*0.5, d + sz);
 
+      g.fillStyle = over < 0 ? arrowcolor : arrowcolor_base;
+      g.fill();
+
+      g.beginPath();
       g.moveTo(w*0.5, h - d);
       g.lineTo(w*0.5 + sz*0.5, h - sz - d);
       g.lineTo(w*0.5 - sz*0.5, h - sz - d);
+
+      g.fillStyle = over > 0 ? arrowcolor : arrowcolor_base;
+      g.fill();
     } else {
       g.beginPath();
       g.moveTo(d, h*0.5);
       g.lineTo(d + sz, h*0.5 + sz*0.5);
       g.lineTo(d + sz, h*0.5 - sz*0.5);
 
+      g.fillStyle = over < 0 ? arrowcolor : arrowcolor_base;
+      g.fill();
+
+      g.beginPath();
       g.moveTo(w - d, h*0.5);
       g.lineTo(w - sz - d, h*0.5 + sz*0.5);
       g.lineTo(w - sz - d, h*0.5 - sz*0.5);
+
+      g.fillStyle = over > 0 ? arrowcolor : arrowcolor_base;
+      g.fill();
     }
 
     g.fill();
@@ -819,7 +983,7 @@ export class NumSlider extends ValueButtonBase {
 UIBase.internalRegister(NumSlider);
 
 
-export class NumSliderSimpleBase extends UIBase {
+export class NumSliderSimpleBase extends NumberSliderBase(UIBase) {
   constructor() {
     super();
 
@@ -830,8 +994,6 @@ export class NumSliderSimpleBase extends UIBase {
     this.canvas = document.createElement("canvas");
     this.g = this.canvas.getContext("2d");
 
-    this.canvas.style["width"] = this.getDefault("width") + "px";
-    this.canvas.style["height"] = this.getDefault("height") + "px";
     this.canvas.style["pointer-events"] = "none";
 
     this.highlight = false;
@@ -840,11 +1002,17 @@ export class NumSliderSimpleBase extends UIBase {
     this.shadow.appendChild(this.canvas);
     this.range = [0, 1];
 
+    /** if not undefined defines subrange of visible slider */
+    this.uiRange = undefined;
+
     this.step = 0.1;
     this._value = 0.5;
+    this.ma = undefined;
     this._focus = false;
 
     this.modal = undefined;
+
+    this._last_slider_key = '';
   }
 
   get value() {
@@ -863,7 +1031,7 @@ export class NumSliderSimpleBase extends UIBase {
     }
   }
 
-  setValue(val, fire_onchange = true) {
+  setValue(val, fire_onchange = true, setDataPath = true) {
     val = Math.min(Math.max(val, this.range[0]), this.range[1]);
 
     if (this.isInt) {
@@ -878,7 +1046,7 @@ export class NumSliderSimpleBase extends UIBase {
         this.onchange(val);
       }
 
-      if (this.getAttribute("datapath")) {
+      if (setDataPath && this.getAttribute("datapath")) {
         let path = this.getAttribute("datapath");
         this.setPathValue(this.ctx, path, this._value);
       }
@@ -908,19 +1076,8 @@ export class NumSliderSimpleBase extends UIBase {
         return;
       }
 
-      this.isInt = prop.type === PropTypes.INT;
-
-      if (prop.range !== undefined) {
-        this.range[0] = prop.range[0];
-        this.range[1] = prop.range[1];
-      }
-      if (prop.uiRange !== undefined) {
-        this.uiRange = new Array(2);
-        this.uiRange[0] = prop.uiRange[0];
-        this.uiRange[1] = prop.uiRange[1];
-      }
-
-      this.value = val;
+      this.loadNumConstraints(prop);
+      this.setValue(val, true, false);
     }
   }
 
@@ -954,36 +1111,44 @@ export class NumSliderSimpleBase extends UIBase {
       return;
     }
 
+    this.ma = new util.MovingAvg(eventWasTouch(e) ? 4 : 2);
+    let handlers;
+
     let end = () => {
-      if (this._modal === undefined) {
+      if (handlers === undefined) {
         return;
       }
 
-      popModalLight(this._modal);
-
-      this._modal = undefined;
-      this.modal = undefined;
+      this.popModal();
+      handlers = undefined;
     };
 
-    this.modal = {
-      mousemove: (e) => {
+    handlers = {
+      pointermove: (e) => {
+        let x = e.x, y = e.y;
+
+        x = this.ma.add(x);
+
+        let e2 = new MouseEvent(e, {
+          x, y
+        });
         this._setFromMouse(e);
       },
 
-      mouseover : (e) => {
+      pointerover : (e) => {
       },
-      mouseout  : (e) => {
+      pointerout  : (e) => {
       },
-      mouseleave: (e) => {
+      pointerleave: (e) => {
       },
-      mouseenter: (e) => {
+      pointerenter: (e) => {
       },
-      blur      : (e) => {
+      blur        : (e) => {
       },
-      focus     : (e) => {
+      focus       : (e) => {
       },
 
-      mouseup: (e) => {
+      pointerup: (e) => {
         this.undoBreakPoint();
         end();
       },
@@ -1007,10 +1172,11 @@ export class NumSliderSimpleBase extends UIBase {
       }
     }
 
-    for (let k in this.modal) {
-      this.modal[k] = makefunc(this.modal[k]);
+    for (let k in handlers) {
+      handlers[k] = makefunc(handlers[k]);
     }
-    this._modal = pushModalLight(this.modal);
+
+    this.pushModal(handlers);
   }
 
   init() {
@@ -1052,7 +1218,7 @@ export class NumSliderSimpleBase extends UIBase {
       this.focus();
     });
 
-    this.addEventListener("mousedown", (e) => {
+    this.addEventListener("pointerdown", (e) => {
       if (this.disabled) {
         return;
       }
@@ -1063,23 +1229,23 @@ export class NumSliderSimpleBase extends UIBase {
       this._startModal(e);
     });
 
-    this.addEventListener("mousein", (e) => {
+    this.addEventListener("pointerin", (e) => {
       this.setHighlight(e);
       this._redraw();
     });
-    this.addEventListener("mouseout", (e) => {
+    this.addEventListener("pointerout", (e) => {
       this.highlight = false;
       this._redraw();
     });
-    this.addEventListener("mouseover", (e) => {
+    this.addEventListener("pointerover", (e) => {
       this.setHighlight(e);
       this._redraw();
     });
-    this.addEventListener("mousemove", (e) => {
+    this.addEventListener("pointermove", (e) => {
       this.setHighlight(e);
       this._redraw();
     });
-    this.addEventListener("mouseleave", (e) => {
+    this.addEventListener("pointerleave", (e) => {
       this.highlight = false;
       this._redraw();
     });
@@ -1110,11 +1276,7 @@ export class NumSliderSimpleBase extends UIBase {
 
     let y = (h - sh)*0.5;
 
-    //export function drawRoundBox(elem, canvas, g, width, height, r=undefined,
-    //                             op="fill", color=undefined, margin=undefined, no_clear=false) {
-
     let r = this.getDefault("border-radius");
-    r = 3;
 
     g.translate(0, y);
     ui_base.drawRoundBox(this, this.canvas, g, w, sh, r, "fill", color, undefined, true);
@@ -1123,15 +1285,12 @@ export class NumSliderSimpleBase extends UIBase {
     ui_base.drawRoundBox(this, this.canvas, g, w, sh, r, "stroke", bcolor, undefined, true);
     g.translate(0, -y);
 
-    //g.beginPath();
-    //g.rect(0, y, w, sh);
-    //g.fill();
-
     if (this.highlight === 1) {
       color = this.getDefault("BoxHighlight");
     } else {
       color = this.getDefault("border-color");
     }
+
     g.strokeStyle = color;
     g.stroke();
 
@@ -1190,8 +1349,10 @@ export class NumSliderSimpleBase extends UIBase {
     let boxw = this.canvas.height - 4;
     let w2 = w - boxw;
 
+    let range = this.uiRange || this.range;
+
     x = (x - boxw*0.5)/w2;
-    x = x*(this.range[1] - this.range[0]) + this.range[0];
+    x = x*(range[1] - range[0]) + range[0];
 
     return x;
   }
@@ -1201,7 +1362,11 @@ export class NumSliderSimpleBase extends UIBase {
     let dpi = UIBase.getDPI();
     let sh = ~~(this.getDefault("SlideHeight")*dpi + 0.5);
     let x = this._value;
-    x = (x - this.range[0])/(this.range[1] - this.range[0]);
+
+    let range = this.uiRange || this.range;
+
+    x = (x - range[0])/(range[1] - range[0]);
+
     let boxw = this.canvas.height - 4;
     let w2 = w - boxw;
 
@@ -1211,12 +1376,18 @@ export class NumSliderSimpleBase extends UIBase {
   }
 
   setCSS() {
-    //UIBase.setCSS does annoying thing with background-color
+    //UIBase.setCSS does annoying things with background-color
     //super.setCSS();
 
-    this.canvas.style["width"] = "min-contents";
-    this.canvas.style["min-width"] = this.getDefault("width") + "px";
+    const dpi = UIBase.getDPI();
     this.style["min-width"] = this.getDefault("width") + "px";
+    this.style["width"] = this.getDefault("width") + "px";
+
+    this.canvas.style["width"] = "" + (this.canvas.width/dpi) + "px";
+    this.canvas.style["height"] = "" + (this.canvas.height/dpi) + "px`";
+
+    this.canvas.height = this.getDefault("height")*UIBase.getDPI();
+
     this._redraw();
   }
 
@@ -1232,8 +1403,8 @@ export class NumSliderSimpleBase extends UIBase {
     }
 
     let dpi = UIBase.getDPI();
-    let w = ~~(rect.width*dpi), h = ~~(rect.height*dpi);
     let canvas = this.canvas;
+    let w = ~~(rect.width*dpi), h = ~~(rect.height*dpi);
 
     if (w !== canvas.width || h !== canvas.height) {
       this.canvas.width = w;
@@ -1245,14 +1416,29 @@ export class NumSliderSimpleBase extends UIBase {
   }
 
   _ondestroy() {
-    if (this._modal) {
-      popModalLight(this._modal);
-      this._modal = undefined;
+    if (this.modalRunning) {
+      this.popModal();
     }
   }
 
   update() {
     super.update();
+
+    /*
+    if (this.checkThemeUpdate()) {
+      this._redraw();
+    }
+    */
+
+    let key = "" + this.getDefault("width") + ":" + this.getDefault("height") + ":" + this.getDefault("SlideHeight");
+
+    if (key !== this._last_slider_key) {
+      this._last_slider_key = key;
+
+      this.flushUpdate();
+      this.setCSS();
+      this._redraw();
+    }
 
     if (this.getAttribute("tab-index") !== this.tabIndex) {
       this.tabIndex = this.getAttribute("tab-index");
@@ -1285,6 +1471,26 @@ export class SliderWithTextbox extends ColumnFrame {
 
     this.textbox.overrideDefault("width", this.getDefault("TextBoxWidth"));
     this.textbox.setAttribute("class", "numslider_simple_textbox");
+    this.textbox.startSelected = true;
+
+    this._last_value = undefined;
+  }
+
+  get addLabel() {
+    if (this.hasAttribute("add-label")) {
+      let val = ("" + this.getAttribute("add-label")).toLowerCase();
+      return val === "true" || val === "yes";
+    }
+
+    return this.getDefault("addLabel");
+  }
+
+  set addLabel(v) {
+    this.setAttribute("add-label", v ? "true" : "false");
+
+    if (this.addLabel && !this.l) {
+      this.doOnce(this.rebuild);
+    }
   }
 
   /**
@@ -1328,6 +1534,14 @@ export class SliderWithTextbox extends ColumnFrame {
     this.textbox.range = this._numslider.range;
   }
 
+  get editAsBaseUnit() {
+    return this.numslider.editAsBaseUnit;
+  }
+
+  set editAsBaseUnit(v) {
+    this.numslider.editAsBaseUnit = v;
+  }
+
   get range() {
     return this.numslider.range;
   }
@@ -1368,6 +1582,14 @@ export class SliderWithTextbox extends ColumnFrame {
     this.numslider.isInt = v;
   }
 
+  get slideSpeed() {
+    return this.numslider.slideSpeed;
+  }
+
+  set slideSpeed(v) {
+    this.numslider.slideSpeed = v;
+  }
+
   get radix() {
     return this.numslider.radix;
   }
@@ -1385,7 +1607,7 @@ export class SliderWithTextbox extends ColumnFrame {
   }
 
   get displayUnit() {
-    return this.textbox.displayUnit;
+    return this.numslider.displayUnit;
   }
 
   set displayUnit(val) {
@@ -1442,6 +1664,7 @@ export class SliderWithTextbox extends ColumnFrame {
     super.init();
 
     this.rebuild();
+    window.setTimeout(() => this.updateTextBox(), 500);
   }
 
   rebuild() {
@@ -1456,23 +1679,22 @@ export class SliderWithTextbox extends ColumnFrame {
     }
 
     if (this.hasAttribute("name")) {
-      this._name = this.hasAttribute("name");
+      this._name = this.getAttribute("name");
     } else {
       this._name = "slider";
     }
 
-    this.l = this.container.label(this._name);
-    this.l.overrideClass("numslider_textbox");
-    this.l.font = "TitleText";
-    this.l.style["display"] = "float";
-    this.l.style["position"] = "relative";
 
-    if (!this.labelOnTop && !(this.numslider instanceof NumSlider)) {
-      this.l.style["left"] = "8px";
-      this.l.style["top"] = "5px";
+    if (this.addLabel) {
+      this.l = this.container.label(this._name);
+      this.l.overrideClass("numslider_textbox");
+      this.l.font = "TitleText";
+      this.l.style["display"] = "float";
+      this.l.style["position"] = "relative";
     }
 
     let strip = this.container.row();
+    //strip.style['justify-content'] = 'space-between';
     strip.add(this.numslider);
 
     let path = this.hasAttribute("datapath") ? this.getAttribute("datapath") : undefined;
@@ -1557,13 +1779,12 @@ export class SliderWithTextbox extends ColumnFrame {
       return;
     }
 
-    if (this._lock_textbox > 0)
+    if (this._lock_textbox > 0 || this.textbox.editing)
       return;
-
-    //this.textbox.text = util.formatNumberUI(this._value, this.isInt, this.decimalPlaces);
 
     this.textbox.text = this.formatNumber(this._value);
     this.textbox.update();
+
     updateSliderFromDom(this, this.numslider);
   }
 
@@ -1602,7 +1823,9 @@ export class SliderWithTextbox extends ColumnFrame {
 
     if (name !== this._name) {
       this._name = name;
-      this.l.text = name;
+      if (this.l) {
+        this.l.text = name;
+      }
     }
   }
 
@@ -1624,24 +1847,10 @@ export class SliderWithTextbox extends ColumnFrame {
       return;
     }
 
-    if (!this.baseUnit && prop.baseUnit) {
-      this.baseUnit = prop.baseUnit;
-    }
-
-    if (prop.decimalPlaces !== undefined) {
-      this.decimalPlaces = prop.decimalPlaces;
-    }
-
-    if (this.editAsBaseUnit === undefined) {
-      if (prop.flag & PropFlags.EDIT_AS_BASE_UNIT) {
-        this.editAsBaseUnit = true;
-      } else {
-        this.editAsBaseUnit = false;
-      }
-    }
-
-    if (!this.displayUnit && prop.displayUnit) {
-      this.displayUnit = prop.displayUnit;
+    let val = this.getPathValue(this.ctx, this.getAttribute("datapath"));
+    if (val !== this._last_value) {
+      this._last_value = this._value = val;
+      this.updateTextBox();
     }
   }
 
@@ -1652,8 +1861,8 @@ export class SliderWithTextbox extends ColumnFrame {
     this.updateDataPath();
     let redraw = false;
 
-    updateSliderFromDom(this.numslider, this);
-    updateSliderFromDom(this.textbox, this);
+    updateSliderFromDom(this, this.numslider);
+    updateSliderFromDom(this, this.textbox);
 
     if (redraw) {
       this.setCSS();
@@ -1668,10 +1877,12 @@ export class SliderWithTextbox extends ColumnFrame {
 
     if (this.hasAttribute("datapath")) {
       this.numslider.setAttribute("datapath", this.getAttribute("datapath"));
+      this.textbox.setAttribute("datapath", this.getAttribute("datapath"));
     }
 
     if (this.hasAttribute("mass_set_path")) {
       this.numslider.setAttribute("mass_set_path", this.getAttribute("mass_set_path"))
+      this.textbox.setAttribute("mass_set_path", this.getAttribute("mass_set_path"));
     }
   }
 
@@ -1715,6 +1926,19 @@ export class NumSliderWithTextBox extends SliderWithTextbox {
     return {
       tagname: "numslider-textbox-x",
       style  : "numslider_textbox"
+    }
+  }
+
+  update() {
+    super.update();
+
+    if (this.hasAttribute("name")) {
+      let name = this.getAttribute("name");
+
+      if (name !== this.numslider.name) {
+        this.numslider.setAttribute("name", name);
+        this.numslider._redraw();
+      }
     }
   }
 

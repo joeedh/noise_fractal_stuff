@@ -38,7 +38,7 @@ export function buildParser() {
       t.value = parseInt(t.value);
       return t;
     }),
-    t('NUMBER', /[0-9]+\.[0-9]*/, (t) => {
+    t('NUMBER', /-?[0-9]+\.[0-9]*/, (t) => {
       t.value = parseFloat(t.value);
       return t;
     }),

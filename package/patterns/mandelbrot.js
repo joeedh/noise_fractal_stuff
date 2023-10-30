@@ -491,13 +491,6 @@ const shader = `
 //uniform float T;
 //uniform float SLIDERS[MAX_SLIDERS];
 
-vec2 cmul(vec2 a, vec2 b) {
-    return vec2(
-        a[0]*b[0] - a[1]*b[1],
-        a[0]*b[1] + b[0]*a[1]
-    );
-}
-
 #if 0
 #ifdef SHOW_DV
 float pattern(float ix, float iy, out vec2 dv) {
@@ -582,16 +575,29 @@ float pattern(float ix, float iy) {
 #define M_PI 3.14159265453
 #endif
 
-vec2 cexpn(vec2 z) {
+float cos1$(float f) {
+  return (cos(f) + cos(f*(1.0+SLIDERS[11])))*0.5;
+  //f = tent(f/M_PI/2.0);
+  //f = f*f*(3.0 - 2.0*f);
+  //f = -(f*2.0 - 1.0);
+  //return f;
+  return cos(f);
+}
+
+float sin1$(float f) {
+  return cos1$(f - M_PI*0.5);
+}
+
+vec2 cexpn$(vec2 z) {
   if (z.y == 0.0) {
     return vec2(exp(z.x), 0.0);
   }
   
   float f = exp(z.x);
-  return f * vec2(cos(z.y+SLIDERS[22]), sin(z.y+SLIDERS[22]));
+  return f * vec2(cos1$(z.y+SLIDERS[22]), sin1$(z.y+SLIDERS[22]));
 }
 
-vec2 cexp(vec2 x, vec2 b) {
+vec2 cexp$(vec2 x, vec2 b) {
   //log
   vec2 ln = vec2(
     log(length(x)),
@@ -600,7 +606,7 @@ vec2 cexp(vec2 x, vec2 b) {
   
   //ln = ln.x * vec2(cos(ln.y), sin(ln.y));
   
-  return cexpn(cmul(b, ln));
+  return cexpn$(cmul(b, ln));
   
   vec2 exp = cmul(b, ln);
   exp = vec2(
@@ -657,7 +663,7 @@ float pattern(float ix, float iy) {
       
       //p = cmul(p, p) + uv;
       
-      p = cexp(p, vec2(SLIDERS[21], 0.0)) + uv;
+      p = cexp$(p, vec2(SLIDERS[21], 0.0)) + uv;
 
       //p += -dv*SLIDERS[10]*0.05;
       
@@ -828,9 +834,10 @@ export class MandelbrotPattern extends Pattern {
       presets      : MandelbrotPresets,
       sliderDef    : [
         {
-          name : "steps", integer: true,
+          name : "steps",
+          type : "int",
           range: [5, 955],
-          value: 800,
+          value: 400,
           speed: 7.0,
           exp  : 1.5,
         },//0
@@ -857,10 +864,11 @@ export class MandelbrotPattern extends Pattern {
         {name: "orbdecay", value: 0.0, speed: 0.01, range: [0.0, 1.0]}, //18
         {name: "orbspeed", value: 0.1, speed: 0.01, range: [0.0001, 2.0]}, //19
         {name: "orbthresh", value: 4, speed: 1, range: [-1, 500]}, //20
-        {name: "exp", value : 2.0, range : [-5.0, 10000.0], speed : 0.25}, //21
-        {name: "th", value : 0.0, range : [-6.0, 6.0], speed : 0.0875}, //22
+        {name: "exp", value: 2.0, range: [-5.0, 10000.0], speed: 0.25}, //21
+        {name: "th", value: 0.0, range: [-6.0, 6.0], speed: 0.0875}, //22
       ],
-      shader
+      shader,
+      shaderPre    : ''
     }
   }
 
@@ -925,6 +933,7 @@ add_preset(${this.orbit_mode}, ${this.orbit_seed}, ${sliders}, ${opts}${name});
 
   setup(ctx, gl, uniforms, defines) {
     defines.OFFSET2 = ~~this.sliders.offset2;
+    defines.STEPS = ~~this.sliders[0];
 
     if (this.showDv) {
       defines.SHOW_DV = null;

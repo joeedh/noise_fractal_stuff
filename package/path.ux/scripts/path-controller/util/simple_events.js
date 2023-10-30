@@ -5,6 +5,60 @@ import {Vector2} from './vectormath.js';
 export let modalstack = [];
 let singleMouseCBs = {};
 
+function debugDomEvents() {
+  let cbsymbol = Symbol("event-callback");
+  let thsymbol = Symbol("debug-info");
+
+  let idgen = 0;
+
+  function init(et) {
+    if (!et[thsymbol]) {
+      et[thsymbol] = idgen++;
+    }
+  }
+
+  function getkey(et, type, options) {
+    init(et);
+    return "" + et[thsymbol] + ":" + type + ":" + JSON.stringify(options);
+  }
+
+  let addEventListener = EventTarget.prototype.addEventListener;
+  let removeEventListener = EventTarget.prototype.removeEventListener;
+
+  EventTarget.prototype.addEventListener = function (type, cb, options) {
+    init(this);
+
+    if (!cb[cbsymbol]) {
+      cb[cbsymbol] = new Set();
+    }
+
+    let key = getkey(this, type, options);
+    cb[cbsymbol].add(key);
+
+    return addEventListener.call(this, type, cb, options);
+  }
+
+  EventTarget.prototype.removeEventListener = function (type, cb, options) {
+    init(this);
+
+    if (!cb[cbsymbol]) {
+      console.error("Invalid callback in removeEventListener for", type, this, cb);
+      return;
+    }
+
+    let key = getkey(this, type, options);
+
+    if (!cb[cbsymbol].has(key)) {
+      console.error("Callback not in removeEventListener;", type, this, cb);
+      return;
+    }
+
+    cb[cbsymbol].delete(key);
+
+    return removeEventListener.call(this, type, cb, options);
+  }
+}
+
 function singletonMouseEvents() {
   let keys = ["mousedown", "mouseup", "mousemove"];
   for (let k of keys) {
@@ -86,7 +140,7 @@ function singletonMouseEvents() {
       singleMouseCBs[type].add(cb);
     }
   };
-};
+}
 
 singletonMouseEvents = singletonMouseEvents();
 
@@ -127,9 +181,10 @@ export class DoubleClickHandler {
 
   _on_mousemove(e) {
     let mpos = new Vector2();
-    mpos[0] = e.x; mpos[1] = e.y;
+    mpos[0] = e.x;
+    mpos[1] = e.y;
 
-    let dist = mpos.vectorDistance(this.start_mpos) * devicePixelRatio;
+    let dist = mpos.vectorDistance(this.start_mpos)*devicePixelRatio;
 
     if (dist > 11) {
       //console.log("cancel", dist);
@@ -212,7 +267,7 @@ export class DoubleClickHandler {
       this.ondblclick(this.dblEvent);
     }
   }
-  
+
   abort() {
     this.last = this.down = 0;
   }
@@ -236,24 +291,27 @@ export function pathDebugEvent(e, extra) {
   e.__prevdef = e.preventDefault;
   e.__stopprop = e.stopPropagation;
 
-  e.preventDefault = function() {
+  e.preventDefault = function () {
     console.warn("preventDefault", extra);
     return this.__prevdef();
   };
 
-  e.stopPropagation = function() {
+  e.stopPropagation = function () {
     console.warn("stopPropagation", extra);
     return this.__stopprop();
   }
 }
-/*
-stupid DOM event system.  I hate it.
-*/
 
+/** Returns true if event came from a touchscreen or pen device */
 export function eventWasTouch(e) {
   let ret = e.sourceCapabilities && e.sourceCapabilities.firesTouchEvents;
   ret = ret || e.was_touch;
+  ret = ret || e instanceof TouchEvent;
   ret = ret || e.touches !== undefined;
+
+  if (e instanceof PointerEvent) {
+    ret = ret || (e.pointerType === "pen" || e.pointerType === "touch");
+  }
 
   return ret;
 }
@@ -292,6 +350,7 @@ export function copyEvent(e) {
 }
 
 let Screen;
+
 export function _setScreenClass(cls) {
   Screen = cls;
 }
@@ -317,30 +376,45 @@ function findScreen() {
 
 window._findScreen = findScreen;
 
+let ContextAreaClass;
 
-export function pushModalLight(obj, autoStopPropagation=true) {
-  if (cconst.DEBUG.modalEvents) {
-    console.warn("pushModalLight");
+export function _setModalAreaClass(cls) {
+  ContextAreaClass = cls;
+}
+
+export function pushPointerModal(obj, elem, pointerId, autoStopPropagation = true) {
+  return pushModalLight(obj, autoStopPropagation, elem, pointerId);
+}
+
+export function pushModalLight(obj, autoStopPropagation = true, elem, pointerId) {
+  let keys;
+
+  if (pointerId === undefined) {
+    keys = new Set([
+      "keydown", "keyup", "mousedown", "mouseup", "touchstart", "touchend",
+      "touchcancel", "mousewheel", "mousemove", "mouseover", "mouseout", "mouseenter",
+      "mouseleave", "dragstart", "drag", "dragend", "dragexit", "dragleave", "dragover",
+      "dragenter", "drop", "pointerdown", "pointermove", "pointerup", "pointercancel",
+      "pointerstart", "pointerend", "pointerleave", "pointerexit", "pointerenter",
+      "pointerover"
+    ]);
+  } else {
+    keys = new Set([
+      "keydown", "keyup", "keypress", "mousewheel"
+    ]);
   }
 
-  let keys = new Set([
-    "keydown", "keyup", "keypress", "mousedown", "mouseup", "touchstart", "touchend",
-    "touchcancel", "mousewheel", "mousemove", "mouseover", "mouseout", "mouseenter",
-    "mouseleave", "dragstart", "drag", "dragend", "dragexit", "dragleave", "dragover",
-    "dragenter", "drop", "pointerdown", "pointermove", "pointerup", "pointercancel"
-  ]);
-
   let ret = {
-    keys : keys,
+    keys     : keys,
     handlers : {},
-    last_mpos : [0, 0]
+    last_mpos: [0, 0]
   };
 
   let touchmap = {
     "touchstart" : "mousedown",
-    "touchmove" : "mousemove",
-    "touchend" : "mouseup",
-    "touchcancel" : "mouseup"
+    "touchmove"  : "mousemove",
+    "touchend"   : "mouseup",
+    "touchcancel": "mouseup"
   };
 
   let mpos = [0, 0];
@@ -364,8 +438,7 @@ export function pushModalLight(obj, autoStopPropagation=true) {
   }
 
   function make_default_touchhandler(type, state) {
-    return function(e) {
-      //console.warn("touch event!", type, touchmap[type], e.touches.length);
+    return function (e) {
       if (cconst.DEBUG.domEvents) {
         pathDebugEvent(e);
       }
@@ -381,18 +454,17 @@ export function pushModalLight(obj, autoStopPropagation=true) {
         e2.touches = e.touches;
 
         if (e.touches.length > 0) {
-          let dpi = window.devicePixelRatio; //UIBase.getDPI();
           let t = e.touches[0];
 
           mpos[0] = t.pageX;
           mpos[1] = t.pageY;
 
-          e2.pageX = e2.x = t.pageX;// * dpi;
-          e2.pageY = e2.y = t.pageY;// * dpi;
-          e2.clientX = t.clientX;// * dpi;
-          e2.clientY = t.clientY;// * dpi;
-          e2.x = t.clientX;// * dpi;
-          e2.y = t.clientY;// * dpi;
+          e2.pageX = e2.x = t.pageX;
+          e2.pageY = e2.y = t.pageY;
+          e2.clientX = t.clientX;
+          e2.clientY = t.clientY;
+          e2.x = t.clientX;
+          e2.y = t.clientY;
 
           ret.last_mpos[0] = e2.x;
           ret.last_mpos[1] = e2.y;
@@ -416,7 +488,7 @@ export function pushModalLight(obj, autoStopPropagation=true) {
   }
 
   function make_handler(type, key) {
-    return function(e) {
+    return function (e) {
       if (cconst.DEBUG.domEvents) {
         pathDebugEvent(e);
       }
@@ -429,6 +501,9 @@ export function pushModalLight(obj, autoStopPropagation=true) {
       if (key.startsWith("mouse")) {
         mpos[0] = e.pageX;
         mpos[1] = e.pageY;
+      } else if (key.startsWith("pointer")) {
+        mpos[0] = e.x;
+        mpos[1] = e.y;
       }
 
       handleAreaContext();
@@ -450,9 +525,9 @@ export function pushModalLight(obj, autoStopPropagation=true) {
 
     if (obj[k])
       key = k;
-    else if (obj["on"+k])
+    else if (obj["on" + k])
       key = "on" + k;
-    else if (obj["on_"+k])
+    else if (obj["on_" + k])
       key = "on_" + k;
     else if (k in touchmap)
       continue; //default touch event handlers will be done seperately
@@ -471,7 +546,7 @@ export function pushModalLight(obj, autoStopPropagation=true) {
     let handler = make_handler(k, key);
     ret.handlers[k] = handler;
 
-    let settings = handler.settings = {passive : false, capture : true};
+    let settings = handler.settings = {passive: false, capture: true};
     window.addEventListener(k, handler, settings);
   }
 
@@ -481,17 +556,112 @@ export function pushModalLight(obj, autoStopPropagation=true) {
 
       ret.handlers[k] = make_default_touchhandler(k, ret);
 
-      let settings = ret.handlers[k].settings = {passive : false, capture : true};
+      let settings = ret.handlers[k].settings = {passive: false, capture: true};
       window.addEventListener(k, ret.handlers[k], settings);
     }
   }
 
+  if (pointerId !== undefined) {
+    ret.pointer = {
+      elem, pointerId
+    };
+
+    function make_pointer(k) {
+      let k2 = "on_" + k;
+
+      ret.pointer[k] = function (e) {
+        if (obj[k2] !== undefined) {
+          obj[k2](e);
+        }
+
+        if (autoStopPropagation) {
+          e.stopPropagation();
+          e.preventDefault();
+        }
+      }
+    }
+
+    make_pointer("pointerdown");
+    make_pointer("pointermove");
+    make_pointer("pointerup");
+    make_pointer("pointerstart");
+    make_pointer("pointerend");
+    make_pointer("pointerleave");
+    make_pointer("pointerenter");
+    make_pointer("pointerout");
+    make_pointer("pointerover");
+    make_pointer("pointerexit");
+    make_pointer("pointercancel");
+
+    for (let k in ret.pointer) {
+      if (k !== "elem" && k !== "pointerId") {
+        elem.addEventListener(k, ret.pointer[k]);
+      }
+    }
+
+    try {
+      elem.setPointerCapture(pointerId)
+    } catch (error) {
+      util.print_stack(error);
+
+      console.log("attempting fallback");
+
+      for (let k in ret.pointer) {
+        if (k !== "elem" && k !== "pointerId") {
+          elem.removeEventListener(k, ret.pointer[k]);
+        }
+      }
+
+      delete ret.pointer;
+
+      modalstack.push(ret);
+      popModalLight(ret);
+
+      for (let k in obj) {
+        if (k === "pointercancel" || k === "pointerend" || k === "pointerstart") {
+          continue;
+        }
+
+        if (k.startsWith("pointer")) {
+          let k2 = k.replace(/pointer/, "mouse");
+          if (k2 in obj) {
+            console.warn("warning, existing mouse handler", k2);
+            continue;
+          }
+
+          let v = obj[k];
+          obj[k] = undefined;
+
+          obj[k2] = v;
+        }
+      }
+
+      console.log(obj);
+
+      return pushModalLight(obj, autoStopPropagation);
+    }
+  }
+
   modalstack.push(ret);
+  ContextAreaClass.lock();
+
+  if (cconst.DEBUG.modalEvents) {
+    console.warn("pushModalLight", ret.pointer ? "(pointer events)" : "");
+  }
 
   return ret;
 }
 
+/* Trace all calls to EventTarget.prototype.[add/rem]EventListener */
 if (0) {
+  window._print_evt_debug = false;
+
+  function evtprint() {
+    if (window.window._print_evt_debug) {
+      console.warn(...arguments);
+    }
+  }
+
   let addevent = EventTarget.prototype.addEventListener;
   let remevent = EventTarget.prototype.removeEventListener;
 
@@ -499,7 +669,7 @@ if (0) {
 
   EventTarget.prototype.addEventListener = function (name, func, args) {
     //if (name.startsWith("key")) {
-    console.warn("listener added", name, func, args);
+    evtprint("listener added", name, func.name, args);
     //}
 
     let func2 = function (e) {
@@ -507,12 +677,12 @@ if (0) {
         get(target, p, receiver) {
           if (p === "preventDefault") {
             return function () {
-              console.warn("preventDefault", name, arguments);
+              evtprint("preventDefault", name, arguments);
               return e.preventDefault(...arguments);
             }
           } else if (p === "stopPropagation") {
             return function () {
-              console.warn("stopPropagation", name, arguments);
+              evtprint("stopPropagation", name, arguments);
               return e.preventDefault(...arguments);
             }
           }
@@ -531,7 +701,7 @@ if (0) {
 
   EventTarget.prototype.removeEventListener = function (name, func, args) {
     //if (name.startsWith("key")) {
-    console.warn("listener removed", name, func, args);
+    evtprint("listener removed", name, func.name, args);
     //}
 
     func = func[funckey];
@@ -546,7 +716,7 @@ export function popModalLight(state) {
     return;
   }
 
-  if (state !== modalstack[modalstack.length-1]) {
+  if (state !== modalstack[modalstack.length - 1]) {
     if (modalstack.indexOf(state) < 0) {
       console.warn("Error in popModalLight; modal handler not found");
       return;
@@ -562,67 +732,85 @@ export function popModalLight(state) {
 
   state.handlers = {};
   modalstack.remove(state);
+  ContextAreaClass.unlock();
 
   if (cconst.DEBUG.modalEvents) {
-    console.warn("popModalLight", modalstack);
+    console.warn("popModalLight", modalstack, state.pointer ? "(pointer events)" : "");
+  }
+
+  if (state.pointer) {
+    let elem = state.pointer.elem;
+
+    try {
+      elem.releasePointerCapture(state.pointer.pointerId);
+    } catch (error) {
+      util.print_stack(error);
+    }
+
+    for (let k in state.pointer) {
+      if (k !== "elem" && k !== "pointerId") {
+        elem.removeEventListener(k, state.pointer[k]);
+      }
+    }
   }
 }
 
 export function haveModal() {
   return modalstack.length > 0;
 }
+
 window._haveModal = haveModal; //for debugging console
 
 export var keymap_latin_1 = {
-  "Space": 32,
-  "Escape" : 27,
-  "Enter": 13,
-  "Return" : 13,
-  "Up" : 38,
-  "Down" : 40,
-  "Left": 37,
-  "Right": 39,
+  "Space" : 32,
+  "Escape": 27,
+  "Enter" : 13,
+  "Return": 13,
+  "Up"    : 38,
+  "Down"  : 40,
+  "Left"  : 37,
+  "Right" : 39,
 
-  "Num0": 96,
-  "Num1": 97,
-  "Num2": 98,
-  "Num3": 99,
-  "Num4": 100,
-  "Num5": 101,
-  "Num6": 102,
-  "Num7": 103,
-  "Num8": 104,
-  "Num9": 105,
-  "Home": 36,
-  "End": 35,
-  "Delete": 46,
+  "Num0"     : 96,
+  "Num1"     : 97,
+  "Num2"     : 98,
+  "Num3"     : 99,
+  "Num4"     : 100,
+  "Num5"     : 101,
+  "Num6"     : 102,
+  "Num7"     : 103,
+  "Num8"     : 104,
+  "Num9"     : 105,
+  "Home"     : 36,
+  "End"      : 35,
+  "Delete"   : 46,
   "Backspace": 8,
-  "Insert": 45,
-  "PageUp": 33,
-  "PageDown": 34,
-  "Tab" : 9,
-  "-" : 189,
-  "=" : 187,
-  "." : 190,
-  "/" : 191,
-  "," : 188,
-  ";" : 186,
-  "'" : 222,
-  "[" : 219,
-  "]" : 221,
-  "NumPlus" : 107,
+  "Insert"   : 45,
+  "PageUp"   : 33,
+  "PageDown" : 34,
+  "Tab"      : 9,
+  "-"        : 189,
+  "="        : 187,
+  "."        : 190,
+  "/"        : 191,
+  ","        : 188,
+  ";"        : 186,
+  "'"        : 222,
+  "["        : 219,
+  "]"        : 221,
+  "NumPlus"  : 107,
   "NumMinus" : 109,
-  "Shift" : 16,
-  "Ctrl" : 17,
-  "Control" : 17,
-  "Alt" : 18
+  "Shift"    : 16,
+  "Ctrl"     : 17,
+  "Control"  : 17,
+  "Alt"      : 18
 }
 
-for (var i=0; i<26; i++) {
-  keymap_latin_1[String.fromCharCode(i+65)] = i+65
+for (var i = 0; i < 26; i++) {
+  keymap_latin_1[String.fromCharCode(i + 65)] = i + 65
 }
-for (var i=0; i<10; i++) {
-  keymap_latin_1[String.fromCharCode(i+48)] = i+48
+for (var i = 0; i < 10; i++) {
+  keymap_latin_1[String.fromCharCode(i + 48)] = i + 48
 }
 
 for (var k in keymap_latin_1) {
@@ -659,7 +847,7 @@ export class HotKey {
   buildString() {
     let s = "";
 
-    for (let i=0; i<this.mods.length; i++) {
+    for (let i = 0; i < this.mods.length; i++) {
       if (i > 0) {
         s += " + ";
       }
@@ -686,7 +874,7 @@ export class KeyMap extends Array {
    * @param pathid{string} Id of keymap, used when patching hotkeys, when
    *                       that is implemented
    * */
-  constructor(hotkeys=[], pathid="undefined") {
+  constructor(hotkeys = [], pathid = "undefined") {
     super();
 
     this.pathid = pathid;
@@ -730,8 +918,6 @@ export class KeyMap extends Array {
       }
 
       if (ok) {
-        console.log("handling hotkey", hk, this);
-
         try {
           hk.exec(ctx);
         } catch (error) {

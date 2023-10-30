@@ -22,7 +22,7 @@ export class ModelInterface {
     return ListIface;
   }
 
-  createTool(path, inputs={}, constructor_argument=undefined) {
+  createTool(path, inputs = {}, constructor_argument = undefined) {
     throw new Error("implement me");
   }
 
@@ -38,11 +38,11 @@ export class ModelInterface {
    *
    * @param compareInputs : check if toolstack head has identical input values, defaults to false
    * */
-  execOrRedo(ctx, toolop, compareInputs=false) {
+  execOrRedo(ctx, toolop, compareInputs = false) {
     return ctx.toolstack.execOrRedo(ctx, toolop, compareInputs);
   }
 
-  execTool(ctx, path, inputs={}, constructor_argument=undefined) {
+  execTool(ctx, path, inputs = {}, constructor_argument = undefined, event = undefined) {
     return new Promise((accept, reject) => {
       let tool = path;
 
@@ -61,7 +61,7 @@ export class ModelInterface {
 
       //execute
       try {
-        ctx.toolstack.execTool(ctx, tool);
+        ctx.toolstack.execTool(ctx, tool, event);
       } catch (error) { //for some reason chrome is suppressing errors
         print_stack(error);
         throw error;
@@ -115,7 +115,7 @@ export class ModelInterface {
   }
 
   setValue(ctx, path, val, rootStruct) {
-    let res = this.resolvePath(ctx, path, undefined,  rootStruct);
+    let res = this.resolvePath(ctx, path, undefined, rootStruct);
     let prop = res.prop;
 
     if (prop !== undefined && (prop.flag & PropFlags.READ_ONLY)) {
@@ -195,7 +195,15 @@ export class ModelInterface {
         throw new DataPathError("Expected a number for a bitmask property");
       }
     } else if (res.subkey !== undefined && isVecProperty(res.prop)) {
-      res.obj[res.subkey] = val;
+      if (res.key !== "") {
+        res.obj[res.key][res.subkey] = val;
+      } else {
+        res.obj[res.subkey] = val;
+      }
+    } else if (res.key === "" && isVecProperty(res.prop)) {
+      for (let i = 0; i < res.obj.length; i++) {
+        res.obj[i] = val[i];
+      }
     } else if (!(prop !== undefined && prop instanceof ListIface)) {
       res.obj[res.key] = val;
     }
@@ -227,14 +235,15 @@ export class ModelInterface {
     if (rdef.subkey !== undefined) {
       let subkey = rdef.subkey;
 
-      if (type & (PropTypes.VEC2|PropTypes.VEC3|PropTypes.VEC4)) {
+      if (type & (PropTypes.VEC2 | PropTypes.VEC3 | PropTypes.VEC4)) {
         if (prop.descriptions && subkey in prop.descriptions) {
           return prop.descriptions[subkey];
         }
-      } else if (type & (PropTypes.ENUM|PropTypes.FLAG)) {
+      } else if (type & (PropTypes.ENUM | PropTypes.FLAG)) {
         if (!(subkey in prop.values) && subkey in prop.keys) {
           subkey = prop.keys[subkey]
-        };
+        }
+        ;
 
         if (prop.descriptions && subkey in prop.descriptions) {
           return prop.descriptions[subkey];
@@ -264,12 +273,12 @@ export class ModelInterface {
   }
 
   getPropName(ctx, path) {
-    let i = path.length-1;
+    let i = path.length - 1;
     while (i >= 0 && path[i] !== ".") {
       i--;
     }
 
-    path = path.slice(i+1, path.length).trim();
+    path = path.slice(i + 1, path.length).trim();
 
     if (path.endsWith("]")) {
       i = path.length - 1;
@@ -285,7 +294,7 @@ export class ModelInterface {
     return path;
   }
 
-  getValue(ctx, path, rootStruct=undefined) {
+  getValue(ctx, path, rootStruct = undefined) {
     if (typeof ctx == "string") {
       throw new Error("You forgot to pass context to getValue");
     }
@@ -300,7 +309,7 @@ export class ModelInterface {
 
     //resolvePath handles the case of vector properties with custom callbacks for us
     //(and possibly all the other cases too, need to check)
-    exec = exec && !(ret.prop !== undefined && (ret.prop.type & (PropTypes.VEC2|PropTypes.VEC3|PropTypes.VEC4|PropTypes.QUAT)));
+    exec = exec && !(ret.prop !== undefined && (ret.prop.type & (PropTypes.VEC2 | PropTypes.VEC3 | PropTypes.VEC4 | PropTypes.QUAT)));
 
     if (exec) {
       ret.prop.dataref = ret.obj;
@@ -309,7 +318,7 @@ export class ModelInterface {
 
       let val = ret.prop.getValue();
 
-      if (typeof val === "string" && (ret.prop.type & (PropTypes.FLAG|PropTypes.ENUM))) {
+      if (typeof val === "string" && (ret.prop.type & (PropTypes.FLAG | PropTypes.ENUM))) {
         val = ret.prop.values[val];
       }
 

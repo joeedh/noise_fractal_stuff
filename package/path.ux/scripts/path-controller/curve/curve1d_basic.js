@@ -1,13 +1,12 @@
-import {nstructjs} from "../util/struct.js";
+import nstructjs from "../util/struct.js";
 import {CurveFlags, TangentModes, CurveTypeData} from './curve1d_base.js';
 import {Vector2, Vector3, Vector4, Quat, Matrix4} from '../util/vectormath.js';
-import {genHermiteTable, evalHermiteTable} from './curve1d_base.js';
 import * as util from '../util/util.js';
 
 let _udigest = new util.HashDigest();
 
 function feq(a, b) {
-  return Math.abs(a-b) < 0.00001;
+  return Math.abs(a - b) < 0.00001;
 }
 
 class EquationCurve extends CurveTypeData {
@@ -16,7 +15,20 @@ class EquationCurve extends CurveTypeData {
 
     this.equation = "x";
     this._last_equation = "";
-    this.hermite = undefined;
+    this._last_xrange = new Vector2();
+    this._func = undefined;
+  }
+
+  get hasGUI() {
+    return this.uidata !== undefined;
+  }
+
+  static define() {
+    return {
+      uiname  : "Equation",
+      name    : "equation",
+      typeName: "EquationCurve"
+    }
   }
 
   calcHashKey(digest = _udigest.reset()) {
@@ -25,14 +37,11 @@ class EquationCurve extends CurveTypeData {
     super.calcHashKey(d);
 
     d.add(this.equation);
+    d.add(this.parent.xRange[0]);
+    d.add(this.parent.xRange[1]);
 
     return d.get();
   }
-
-  static define() {return {
-    uiname : "Equation",
-    name   : "equation"
-  }}
 
   equals(b) {
     return super.equals(b) && this.equation === b.equation;
@@ -42,7 +51,7 @@ class EquationCurve extends CurveTypeData {
     let ret = super.toJSON();
 
     return Object.assign(ret, {
-      equation : this.equation
+      equation: this.equation
     });
   }
 
@@ -56,24 +65,25 @@ class EquationCurve extends CurveTypeData {
     return this;
   }
 
-  get hasGUI() {
-    return this.uidata !== undefined;
-  }
-
   makeGUI(container, canvas, drawTransform) {
     this.uidata = {
-      canvas     : canvas,
-      g          : canvas.g,
-      draw_trans : drawTransform,
+      canvas    : canvas,
+      g         : canvas.g,
+      draw_trans: drawTransform,
     };
 
-    let text = this.uidata.textbox = container.textbox(undefined, this.equation);
+    let row = container.row();
+
+    let text = this.uidata.textbox = row.textbox(undefined, "" + this.equation);
     text.onchange = (val) => {
       console.log(val);
       this.equation = val;
       this.update();
       this.redraw();
     }
+
+    container.label("Equation");
+
   }
 
   killGUI(dom, gui, canvas, g, draw_transform) {
@@ -91,10 +101,16 @@ class EquationCurve extends CurveTypeData {
   }
 
   evaluate(s) {
-    if (!this.hermite || this._last_equation !== this.equation) {
+    let update = this.hermite || this._last_equation !== this.equation;
+    update = update || this._last_xrange.vectorDistance(this.parent.xRange) > 0.0;
+    update = update || !this._func;
+
+    if (update) {
+      this._last_xrange.load(this.parent.xRange);
       this._last_equation = this.equation;
 
       this.updateTextBox();
+      this.#makeFunc();
 
       this._evaluate(0.0);
 
@@ -102,30 +118,48 @@ class EquationCurve extends CurveTypeData {
         console.warn("ERROR!");
         return 0.0;
       }
-
-      let steps = 32;
-      this.hermite = genHermiteTable((s) => this._evaluate(s), steps);
     }
 
-    return evalHermiteTable(this.hermite, s);
+    return this._func(s);
+  }
+
+  #makeFunc() {
+    this._func = undefined;
+
+    var sin = Math.sin, cos = Math.cos, pi = Math.PI, PI = Math.PI,
+        e                                                = Math.E, E                                    = Math.E, tan                      = Math.tan, abs = Math.abs,
+        floor                                            = Math.floor, ceil = Math.ceil, acos = Math.acos,
+        asin                                             = Math.asin, atan = Math.atan, cosh         = Math.cos,
+        sinh                                             = Math.sinh, log                            = Math.log, pow = Math.pow,
+        exp                                              = Math.exp, sqrt = Math.sqrt, cbrt           = Math.cbrt,
+        min                                              = Math.min, max = Math.max;
+
+    var func;
+    let code = `
+    func = function(x) {
+      return ${this.equation};
+    }
+    `;
+    try {
+      eval(code);
+
+      this._haserror = false;
+    } catch (error) {
+      this._haserror = true;
+      console.warn("Compile error!", error.message);
+    }
+
+    this._func = func;
   }
 
   _evaluate(s) {
-    let sin = Math.sin, cos = Math.cos, pi = Math.PI, PI = Math.PI,
-      e = Math.E, E = Math.E, tan = Math.tan, abs = Math.abs,
-      floor = Math.floor, ceil = Math.ceil, acos = Math.acos,
-      asin = Math.asin, atan = Math.atan, cosh = Math.cos,
-      sinh = Math.sinh, log = Math.log, pow = Math.pow,
-      exp = Math.exp, sqrt = Math.sqrt, cbrt = Math.cbrt,
-      min = Math.min, max = Math.max;
-
     try {
-      let x = s;
-      let ret = eval(this.equation);
-
+      let f = this._func(s);
       this._haserror = false;
 
-      return ret;
+      if (isNaN(f)) {
+        return 0.0;
+      }
     } catch (error) {
       this._haserror = true;
       console.warn("ERROR!");
@@ -137,11 +171,11 @@ class EquationCurve extends CurveTypeData {
     let df = 0.0001;
 
     if (s > 1.0 - df*3) {
-      return (this.evaluate(s) - this.evaluate(s - df)) / df;
+      return (this.evaluate(s) - this.evaluate(s - df))/df;
     } else if (s < df*3) {
-      return (this.evaluate(s+df) - this.evaluate(s)) / df;
+      return (this.evaluate(s + df) - this.evaluate(s))/df;
     } else {
-      return (this.evaluate(s+df) - this.evaluate(s-df)) / (2 * df);
+      return (this.evaluate(s + df) - this.evaluate(s - df))/(2*df);
     }
   }
 
@@ -149,31 +183,31 @@ class EquationCurve extends CurveTypeData {
     let df = 0.0001;
 
     if (s > 1.0 - df*3) {
-      return (this.derivative(s) - this.derivative(s - df)) / df;
+      return (this.derivative(s) - this.derivative(s - df))/df;
     } else if (s < df*3) {
-      return (this.derivative(s+df) - this.derivative(s)) / df;
+      return (this.derivative(s + df) - this.derivative(s))/df;
     } else {
-      return (this.derivative(s+df) - this.derivative(s-df)) / (2 * df);
+      return (this.derivative(s + df) - this.derivative(s - df))/(2*df);
     }
   }
 
   inverse(y) {
     let steps = 9;
-    let ds = 1.0 / steps, s = 0.0;
+    let ds = 1.0/steps, s = 0.0;
     let best = undefined;
     let ret = undefined;
 
-    for (let i=0; i<steps; i++, s += ds) {
-      let s1 = s, s2 = s+ds;
+    for (let i = 0; i < steps; i++, s += ds) {
+      let s1 = s, s2 = s + ds;
 
       let mid;
 
-      for (let j=0; j<11; j++) {
+      for (let j = 0; j < 11; j++) {
         let y1 = this.evaluate(s1);
         let y2 = this.evaluate(s2);
-        mid = (s1+s2)*0.5;
+        mid = (s1 + s2)*0.5;
 
-        if (Math.abs(y1-y) < Math.abs(y2-y)) {
+        if (Math.abs(y1 - y) < Math.abs(y2 - y)) {
           s2 = mid;
         } else {
           s1 = mid;
@@ -229,6 +263,7 @@ class EquationCurve extends CurveTypeData {
     g.restore();
   }
 }
+
 EquationCurve.STRUCT = nstructjs.inherit(EquationCurve, CurveTypeData) + `
   equation : string;
 }
@@ -244,6 +279,18 @@ class GuassianCurve extends CurveTypeData {
     this.height = 1.0;
     this.offset = 1.0;
     this.deviation = 0.3; //standard deviation
+  }
+
+  get hasGUI() {
+    return this.uidata !== undefined;
+  }
+
+  static define() {
+    return {
+      uiname  : "Guassian",
+      name    : "guassian",
+      typeName: "GuassianCurve"
+    }
   }
 
   calcHashKey(digest = _udigest.reset()) {
@@ -268,18 +315,13 @@ class GuassianCurve extends CurveTypeData {
     return r;
   }
 
-  static define() {return {
-    uiname : "Guassian",
-    name   : "guassian"
-  }}
-
   toJSON() {
     let ret = super.toJSON();
 
     return Object.assign(ret, {
-      height    : this.height,
-      offset    : this.offset,
-      deviation : this.deviation
+      height   : this.height,
+      offset   : this.offset,
+      deviation: this.deviation
     });
   }
 
@@ -293,15 +335,11 @@ class GuassianCurve extends CurveTypeData {
     return this;
   }
 
-  get hasGUI() {
-    return this.uidata !== undefined;
-  }
-
   makeGUI(container, canvas, drawTransform) {
     this.uidata = {
-      canvas     : canvas,
-      g          : canvas.g,
-      draw_trans : drawTransform,
+      canvas    : canvas,
+      g         : canvas.g,
+      draw_trans: drawTransform,
     };
 
     this.uidata.hslider = container.slider(undefined, "Height", this.height, -10, 10, 0.0001);
@@ -342,7 +380,7 @@ class GuassianCurve extends CurveTypeData {
   }
 
   evaluate(s) {
-    let r = this.height * Math.exp(-((s-this.offset)*(s-this.offset)) / (2*this.deviation*this.deviation));
+    let r = this.height*Math.exp(-((s - this.offset)*(s - this.offset))/(2*this.deviation*this.deviation));
     return r;
   }
 
@@ -350,11 +388,11 @@ class GuassianCurve extends CurveTypeData {
     let df = 0.0001;
 
     if (s > 1.0 - df*3) {
-      return (this.evaluate(s) - this.evaluate(s - df)) / df;
+      return (this.evaluate(s) - this.evaluate(s - df))/df;
     } else if (s < df*3) {
-      return (this.evaluate(s+df) - this.evaluate(s)) / df;
+      return (this.evaluate(s + df) - this.evaluate(s))/df;
     } else {
-      return (this.evaluate(s+df) - this.evaluate(s-df)) / (2 * df);
+      return (this.evaluate(s + df) - this.evaluate(s - df))/(2*df);
     }
   }
 
@@ -362,31 +400,31 @@ class GuassianCurve extends CurveTypeData {
     let df = 0.0001;
 
     if (s > 1.0 - df*3) {
-      return (this.derivative(s) - this.derivative(s - df)) / df;
+      return (this.derivative(s) - this.derivative(s - df))/df;
     } else if (s < df*3) {
-      return (this.derivative(s+df) - this.derivative(s)) / df;
+      return (this.derivative(s + df) - this.derivative(s))/df;
     } else {
-      return (this.derivative(s+df) - this.derivative(s-df)) / (2 * df);
+      return (this.derivative(s + df) - this.derivative(s - df))/(2*df);
     }
   }
 
   inverse(y) {
     let steps = 9;
-    let ds = 1.0 / steps, s = 0.0;
+    let ds = 1.0/steps, s = 0.0;
     let best = undefined;
     let ret = undefined;
 
-    for (let i=0; i<steps; i++, s += ds) {
-      let s1 = s, s2 = s+ds;
+    for (let i = 0; i < steps; i++, s += ds) {
+      let s1 = s, s2 = s + ds;
 
       let mid;
 
-      for (let j=0; j<11; j++) {
+      for (let j = 0; j < 11; j++) {
         let y1 = this.evaluate(s1);
         let y2 = this.evaluate(s2);
-        mid = (s1+s2)*0.5;
+        mid = (s1 + s2)*0.5;
 
-        if (Math.abs(y1-y) < Math.abs(y2-y)) {
+        if (Math.abs(y1 - y) < Math.abs(y2 - y)) {
           s2 = mid;
         } else {
           s1 = mid;

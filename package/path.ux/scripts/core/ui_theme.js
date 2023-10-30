@@ -7,7 +7,7 @@ THEME REFACTOR:
 */
 import * as util from "../path-controller/util/util.js";
 import {Vector3, Vector4} from '../path-controller/util/vectormath.js';
-import * as nstructjs from "../path-controller/util/struct.js";
+import nstructjs from "../path-controller/util/struct.js";
 import cconst from '../config/const.js';
 
 export let compatMap = {
@@ -139,9 +139,12 @@ export function css2color(color) {
   }
 
   if (color in basic_colors) {
-    return ret.load(basic_colors[color]);
+    ret.load(basic_colors[color]);
+    ret[3] = 1.0;
+    return ret;
   }
 
+  const hasAlpha = color.startsWith("rgba(");
   color = color.replace("rgba", "").replace("rgb", "").replace(/[\(\)]/g, "").trim().split(",")
 
   for (let i=0; i<color.length; i++) {
@@ -151,8 +154,12 @@ export function css2color(color) {
     }
   }
 
-  if (color.length === 3) {
-    color.push(1.0);
+  if (ret.length === 3) {
+    ret.push(1.0);
+  }
+
+  if (!hasAlpha) {
+    ret[3] = 1.0;
   }
 
   return ret;
@@ -345,7 +352,7 @@ CSSFont {
 `;
 nstructjs.register(CSSFont);
 
-export function exportTheme(theme1=theme) {
+export function exportTheme(theme1=theme, addVarDecl=true) {
   let sortkeys = (obj) => {
     let keys = [];
     for (let k in obj) {
@@ -356,7 +363,7 @@ export function exportTheme(theme1=theme) {
     return keys;
   }
 
-  let s = "var theme = {\n";
+  let s = addVarDecl ? "var theme = {\n" : "{\n";
 
   function writekey(v, indent="") {
     if (typeof v === "string") {
@@ -403,7 +410,7 @@ ${indent}})`;
   for (let k of sortkeys(theme1)) {
     let k2 = k;
 
-    if (k.search("-") >= 0 || k.search(" ") >= 0) {
+    if (k.search(/[- \t.]/) >= 0) {
       k2 = "'" + k + "'";
     }
     s += "  " + k2 + ": ";

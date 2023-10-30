@@ -121,7 +121,7 @@ export class Overdraw extends ui_base.UIBase {
     this.zindex_base = 1000;
   }
 
-  startNode(node, screen) {
+  startNode(node, screen, cssPosition="relative") {
     if (screen) {
       this.screen = screen;
       this.ctx = screen.ctx;
@@ -131,12 +131,13 @@ export class Overdraw extends ui_base.UIBase {
       node.appendChild(this);
     }
 
-    this.style["display"] = "float";
     this.style["z-index"] = this.zindex_base;
 
-    this.style["position"] = "absolute";
-    this.style["left"] = "0px";
-    this.style["top"] = "0px";
+    this.style["position"] = cssPosition;
+
+    //this.style["left"] = "0px";
+    //this.style["top"] = "0px";
+    this.style["margin"] = this.style["padding"] = "0px";
 
     this.style["width"] = "100%" //screen.size[0] + "px";
     this.style["height"] = "100%" //screen.size[1] + "px";
@@ -181,7 +182,7 @@ export class Overdraw extends ui_base.UIBase {
   }
 
   clear() {
-    for (let child of list(this.svg.childNodes)) {
+    for (let child of util.list(this.svg.childNodes)) {
       child.remove();
     }
 
@@ -378,7 +379,7 @@ export class Overdraw extends ui_base.UIBase {
 
     box.setAttribute("class", "overdrawx");
 
-    box.style["position"] = "absolute";
+    box.style["position"] = "fixed";
     box.style["width"] = "min-contents";
     box.style["height"] = "min-contents";
     box.style["border-width"] = args["border-width"]

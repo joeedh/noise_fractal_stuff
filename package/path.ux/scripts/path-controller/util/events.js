@@ -138,57 +138,29 @@ function getDom(dom, eventtype) {
 
 export let modalStack = [];
 export function isModalHead(owner) {
-  return modalStack.length == 0 || 
+  return modalStack.length === 0 ||
          modalStack[modalStack.length-1] === owner;
 }
 
 export class EventHandler {
-  pushModal(dom, _is_root) {
-    this._modalstate = simple_events.pushModalLight(this);
-    return;
-    /*
-    if (!_is_root) {
-      console.trace("pushModal called");
-    }
-    
-    if (this.modal_pushed) {
-      console.trace("Error: pushModal called twice", this, dom);
+  constructor() {
+    this._modalstate = undefined;
+  }
+  pushPointerModal(dom, pointerId) {
+    if (this._modalstate) {
+      console.warn("pushPointerModal called twiced!");
       return;
     }
     
-    var this2 = this;
-    
-    this.modal_pushed = true;
-    modalStack.push(this);
-    
-    let stop_prop = (func) => {
-      return (e) => {
-        //XXX this isModalHead call really shouldn't be necassary.  argh!
-        if (!isModalHead(this))
-          return;
-        
-        if (!_is_root) {
-          e.stopPropagation();
-          e.preventDefault();
-        }
-        
-          func.call(this, e);
-      }
+    this._modalstate = simple_events.pushPointerModal(this, dom, pointerId);
+  }
+  pushModal(dom, _is_root) {
+    if (this._modalstate) {
+      console.warn("pushModal called twiced!");
+      return;
     }
     
-    for (var k in DomEventTypes) {
-      var type = DomEventTypes[k];
-      
-      if (this[k] === undefined)
-        continue;
-      
-      if (this["__"+k] === undefined) {
-        this["__"+k] = stop_prop(this[k]);
-      }
-      
-      getDom(dom, type).addEventListener(type, this["__"+k], true);
-    }
-    */
+    this._modalstate = simple_events.pushModalLight(this);
   }
   
   popModal() {

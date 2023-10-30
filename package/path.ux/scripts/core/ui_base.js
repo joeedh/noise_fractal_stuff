@@ -1,5 +1,13 @@
+import {contextWrangler} from '../screen/area_wrangler.js';
+
 let _ui_base = undefined;
 
+//avoid circular module references
+let TextBox = undefined;
+
+export function _setTextboxClass(cls) {
+  TextBox = cls;
+}
 
 //import * as ui_save from './ui_save.js';
 
@@ -11,16 +19,15 @@ if (window.document && document.body) {
 }
  */
 
-import * as cssutils from '../path-controller/util/cssutils.js';
 import {Animator} from "./anim.js";
 import './units.js';
 import * as util from '../path-controller/util/util.js';
 import * as vectormath from '../path-controller/util/vectormath.js';
 import * as math from '../path-controller/util/math.js';
 import * as toolprop from '../path-controller/toolsys/toolprop.js';
-import * as controller from '../path-controller/controller/controller.js';
 import {
-  pushModalLight, popModalLight, copyEvent, pathDebugEvent, haveModal
+  pushModalLight, popModalLight, copyEvent, pathDebugEvent,
+  haveModal, keymap, reverse_keymap, pushPointerModal
 } from '../path-controller/util/simple_events.js';
 import {getDataPathToolOp} from '../path-controller/controller/controller.js';
 import * as units from './units.js';
@@ -31,6 +38,10 @@ export * from './ui_theme.js';
 import {CSSFont, theme, parsepx, compatMap} from "./ui_theme.js";
 
 import {DefaultTheme} from './theme.js';
+
+//global list of elements to, hopefully, prevent minification tree shaking
+//of live elements
+export let ElementClasses = [];
 
 export {theme} from "./ui_theme.js";
 
@@ -66,6 +77,11 @@ window.__theme = theme;
 
 let registered_has_happened = false;
 let tagPrefix = "";
+const EventCBSymbol = Symbol("wrapped event callback");
+
+function calcElemCBKey(elem, type, options) {
+  return elem._id + ":" + type + ":" + JSON.stringify(options || {});
+}
 
 /**
  * Sets tag prefix for pathux html elements.
@@ -92,6 +108,12 @@ if (prefix) {
   prefix = prefix.innerText.trim();
   setTagPrefix(prefix);
 }
+
+import {ClassIdSymbol} from './ui_consts.js';
+
+export {ClassIdSymbol};
+
+let class_idgen = 1;
 
 export function setTheme(theme2) {
   //merge theme
@@ -172,10 +194,68 @@ class _IconManager {
     this.tilesize = tilesize;
     this.drawsize = drawsize;
 
+    this.customIcons = new Map();
+
     this.image = image;
+    this.promise = undefined;
+    this._accept = undefined;
+    this._reject = undefined;
+  }
+
+  get ready() {
+    return this.image && this.image.width;
+  }
+
+  onReady() {
+    if (this.ready) {
+      return new Promise((accept, reject) => {
+        accept(this);
+      });
+    }
+
+    if (this.promise) {
+      return this.promise;
+    }
+
+    let onload = this.image.onload;
+    this.image.onload = (e) => {
+      if (onload) {
+        onload.call(this.image, e);
+      }
+
+      if (!this._accept) {
+        return;
+      }
+
+      let accept = this._accept;
+      this._accept = this._reject = this.promise = undefined;
+
+      if (this.image.width) {
+        accept(this);
+      }
+    }
+
+    this.promise = new util.TimeoutPromise((accept, reject) => {
+      this._accept = accept;
+      this._reject = reject;
+    }, 15000, true); /* silently rejects on timeout */
+
+    this.promise.catch(error => {
+      util.print_stack(error);
+      this.promise = this._accept = this._reject = undefined;
+    });
+
+    return this.promise;
   }
 
   canvasDraw(elem, canvas, g, icon, x = 0, y = 0) {
+    let customIcon = this.customIcons.get(icon);
+
+    if (customIcon) {
+      g.drawImage(customIcon.canvas, x, y);
+      return;
+    }
+
     let tx = icon%this.tilex;
     let ty = ~~(icon/this.tilex);
 
@@ -191,7 +271,10 @@ class _IconManager {
     try {
       g.drawImage(this.image, tx*ts, ty*ts, ts, ts, x, y, ds*dpi, ds*dpi);
     } catch (error) {
-      console.log("failed to draw an icon");
+      console.log(this.image);
+      console.error(error.stack);
+      console.error(error.message);
+      console.error("failed to draw an icon");
     }
   }
 
@@ -205,7 +288,12 @@ class _IconManager {
     }
 
     dom.style["background"] = this.getCSS(icon, fitsize);
-    dom.style["background-size"] = (fitsize*this.tilex) + "px";
+    if (this.customIcons.has(icon)) {
+      dom.style["background-size"] = (fitsize) + "px";
+    } else {
+      dom.style["background-size"] = (fitsize*this.tilex) + "px";
+    }
+
     dom.style["background-clip"] = "content-box";
 
     if (!dom.style["width"]) {
@@ -228,6 +316,17 @@ class _IconManager {
 
     let ratio = fitsize/this.tilesize;
 
+    let customIcon = this.customIcons.get(icon);
+    if (customIcon !== undefined) {
+      //ratio = fitsize / this.drawsize;
+      //let d = this.drawsize*0.25;
+      let d = 0.0;
+
+      let css = `url("${customIcon.blobUrl}")`;
+
+      return css;
+    }
+
     let x = (-(icon%this.tilex)*this.tilesize)*ratio;
     let y = (-(~~(icon/this.tilex))*this.tilesize)*ratio;
 
@@ -235,9 +334,45 @@ class _IconManager {
     //y = ~~y;
 
     //console.log(this.tilesize, this.drawsize, x, y);
-
-    let ts = this.tilesize;
+    //let ts = this.tilesize;
+    //return `image('${this.image.src}#xywh=${x},${y},${ts},${ts}')`;
     return `url("${this.image.src}") ${x}px ${y}px`;
+  }
+}
+
+export class CustomIcon {
+  constructor(manager, key, id, baseImage) {
+    this.key = key;
+    this.baseImage = baseImage;
+    this.images = []
+    this.id = id;
+    this.manager = manager;
+  }
+
+  regenIcons() {
+    let manager = this.manager;
+
+    let doSheet = (sheet) => {
+      let size = sheet.drawsize;
+      let canvas = document.createElement("canvas");
+      let g = canvas.getContext("2d");
+
+      canvas.width = canvas.height = size;
+      g.drawImage(this.baseImage, 0, 0, size, size);
+
+      canvas.toBlob((blob) => {
+        let blobUrl = URL.createObjectURL(blob);
+
+        sheet.customIcons.set(this.id, {
+          blobUrl,
+          canvas
+        });
+      })
+    }
+
+    for (let sheet of manager.iconsheets) {
+      doSheet(sheet);
+    }
   }
 }
 
@@ -252,6 +387,9 @@ export class IconManager {
   constructor(images, sizes, horizontal_tile_count) {
     this.iconsheets = [];
     this.tilex = horizontal_tile_count;
+
+    this.customIcons = new Map();
+    this.customIconIDMap = new Map();
 
     for (let i = 0; i < images.length; i++) {
       let size, drawsize;
@@ -268,6 +406,38 @@ export class IconManager {
 
       this.iconsheets.push(new _IconManager(images[i], size, horizontal_tile_count, drawsize));
     }
+  }
+
+  isReady(sheet = 0) {
+    return this.iconsheets[sheet].ready;
+  }
+
+  addCustomIcon(key, image) {
+    let icon = this.customIcons.get(key);
+
+    if (!icon) {
+      let maxid = 0;
+
+      for (let k in Icons) {
+        maxid = Math.max(maxid, Icons[k] + 1);
+      }
+      for (let icon of this.customIcons.values()) {
+        maxid = Math.max(maxid, icon.id + 1);
+      }
+
+      maxid = Math.max(maxid, 1000); //just to be on the safe side
+
+      let id = maxid;
+      icon = new CustomIcon(this, key, id, image);
+
+      this.customIcons.set(key, icon);
+      this.customIconIDMap.set(id, icon);
+    }
+
+    icon.baseImage = image;
+    icon.regenIcons();
+
+    return icon.id;
   }
 
   load(manager2) {
@@ -401,7 +571,7 @@ export let IconSheets = {
 
 export function iconSheetFromPackFlag(flag) {
   if (flag & PackFlags.CUSTOM_ICON_SHEET) {
-    console.log("Custom Icon Sheet:", flag>>PackFlags.CUSTOM_ICON_SHEET_START);
+    //console.log("Custom Icon Sheet:", flag>>PackFlags.CUSTOM_ICON_SHEET_START);
     return flag>>PackFlags.CUSTOM_ICON_SHEET_START;
   }
 
@@ -428,6 +598,7 @@ export function setIconManager(manager, IconSheetsOverride) {
 
 export function makeIconDiv(icon, sheet = 0) {
   let size = iconmanager.getRealSize(sheet);
+
   let drawsize = iconmanager.getTileSize(sheet);
 
   let icontest = document.createElement("div");
@@ -435,7 +606,7 @@ export function makeIconDiv(icon, sheet = 0) {
   icontest.style["width"] = icontest.style["min-width"] = drawsize + "px";
   icontest.style["height"] = icontest.style["min-height"] = drawsize + "px";
 
-  icontest.style["background-color"] = "orange";
+  //icontest.style["background-color"] = "orange";
 
   icontest.style["margin"] = "0px";
   icontest.style["padding"] = "0px";
@@ -500,6 +671,8 @@ let first = (iter) => {
 }
 
 import {DataPathError} from '../path-controller/controller/controller.js';
+import {TimeoutPromise} from '../path-controller/util/util.js';
+import {IntProperty, NumberConstraints, PropFlags} from '../path-controller/toolsys/toolprop.js';
 
 let _mobile_theme_patterns = [
   /.*width.*/,
@@ -612,9 +785,61 @@ export function flagThemeUpdate() {
   _themeUpdateKey = calcThemeKey();
 }
 
+window._flagThemeUpdate = flagThemeUpdate;
+
+let setTimeoutQueue = new Set();
+let haveTimeout = false;
+
+function timeout_cb() {
+  if (setTimeoutQueue.size === 0) {
+    haveTimeout = false;
+    return;
+  }
+
+  for (let item of new Set(setTimeoutQueue)) {
+    let {cb, timeout, time} = item;
+    if (util.time_ms() - time < timeout) {
+      continue;
+    }
+
+    setTimeoutQueue.delete(item);
+
+    try {
+      cb();
+    } catch (error) {
+      console.error(error.stack);
+    }
+  }
+
+  window.setTimeout(timeout_cb, 0);
+}
+
+export function internalSetTimeout(cb, timeout) {
+  if (timeout > 100) { //call directly
+    window.setTimeout(cb, timeout);
+    return;
+  }
+
+  setTimeoutQueue.add({
+    cb, timeout, time: util.time_ms()
+  });
+
+  if (!haveTimeout) {
+    haveTimeout = true;
+    window.setTimeout(timeout_cb, 0);
+  }
+}
+
+window.setTimeoutQueue = setTimeoutQueue;
+
 export class UIBase extends HTMLElement {
   constructor() {
     super();
+
+    this._modalstack = [];
+
+    this._tool_tip_abort_delay = undefined;
+    this._tooltip_ref = undefined;
 
     this._textBoxEvents = false;
 
@@ -695,6 +920,7 @@ export class UIBase extends HTMLElement {
     this.class_default_overrides = {};
 
     this._last_description = undefined;
+    this._description_final = undefined;
 
     //getting css to flow down properly can be a pain, so
     //some packing settings are set as bitflags here,
@@ -724,8 +950,13 @@ export class UIBase extends HTMLElement {
     this.shadow.appendChild(style);
     this._init_done = false;
 
-    //make default touch handlers that send mouse events
+    /* Deprecated touch -> mouse event conversion,
+       use pointer events instead. */
     let do_touch = (e, type, button) => {
+      if (haveModal()) {
+        return;
+      }
+
       button = button === undefined ? 0 : button;
       let e2 = copyEvent(e);
 
@@ -761,13 +992,17 @@ export class UIBase extends HTMLElement {
     }, {passive: false});
     this.addEventListener("touchmove", (e) => {
       do_touch(e, "mousemove");
-    }, {passive: true});
+    }, {passive: false});
     this.addEventListener("touchcancel", (e) => {
       do_touch(e, "mouseup", 2);
     }, {passive: false});
     this.addEventListener("touchend", (e) => {
       do_touch(e, "mouseup", 0);
     }, {passive: false});
+
+    if (this.constructor.define().havePickClipboard) {
+      this._clipboardHotkeyInit();
+    }
   }
 
   /*
@@ -853,14 +1088,13 @@ export class UIBase extends HTMLElement {
         s += "\n    massSetPath: " + m;
       }
 
-      if (cconst.useNativeToolTips) {
-        this.title = s;
-      }
-
+      this._description_final = s;
     } else {
-      if (cconst.useNativeToolTips) {
-        this.title = "" + val;
-      }
+      this._description_final = this._description;
+    }
+
+    if (cconst.useNativeToolTips) {
+      this.title = "" + this._description_final;
     }
   }
 
@@ -916,6 +1150,10 @@ export class UIBase extends HTMLElement {
     return "" + this._id;
   }
 
+  get modalRunning() {
+    return this._modaldata !== undefined;
+  }
+
   static getIconEnum() {
     return Icons;
   }
@@ -945,10 +1183,16 @@ export class UIBase extends HTMLElement {
   }
 
   static internalRegister(cls) {
+    cls[ClassIdSymbol] = class_idgen++;
+
     registered_has_happened = true;
 
     internalElementNames[cls.define().tagname] = this.prefix(cls.define().tagname);
     customElements.define(this.prefix(cls.define().tagname), cls);
+  }
+
+  static getInternalName(name) {
+    return internalElementNames[name];
   }
 
   static createElement(name, internal = false) {
@@ -964,6 +1208,10 @@ export class UIBase extends HTMLElement {
   static register(cls) {
     registered_has_happened = true;
 
+    cls[ClassIdSymbol] = class_idgen++;
+
+    ElementClasses.push(cls);
+
     externalElementNames[cls.define().tagname] = cls.define().tagname;
     customElements.define(cls.define().tagname, cls);
   }
@@ -974,9 +1222,12 @@ export class UIBase extends HTMLElement {
    * @example
    *
    * static define() {return {
-   *   tagname : "custom-element-x",
-   *   style : "[style class in theme]"
+   *   tagname             : "custom-element-x",
+   *   style               : "[style class in theme]"
    *   subclassChecksTheme : boolean //set to true to disable base class invokation of checkTheme()
+   *   havePickClipboard   : boolean //whether element supports mouse hover copy/paste
+   *   pasteForAllChildren : boolean //mouse hover paste happens even over child widgets
+   *   copyForAllChildren  : boolean //mouse hover copy happens even over child widgets
    * }}
    */
   static define() {
@@ -1012,9 +1263,9 @@ export class UIBase extends HTMLElement {
         ret = n;
       }
 
-      if (n.constructor.name === "PanelFrame") {
+      if (n instanceof UIBase && n.constructor.define().tagname === "panelframe-x") {
         rec(n.contents);
-      } else if (n.constructor.name === "TabContainer") {
+      } else if (n instanceof UIBase && n.constructor.define().tagname === "tabcontainer-x") {
         for (let k in n.tabs) {
           let tab = n.tabs[k];
 
@@ -1066,6 +1317,8 @@ export class UIBase extends HTMLElement {
 
       p = p.parentWidget;
     }
+
+    return p;
   }
 
   addEventListener(type, cb, options) {
@@ -1106,14 +1359,18 @@ export class UIBase extends HTMLElement {
       }
     };
 
-    cb._cb = cb2;
+    if (!cb[EventCBSymbol]) {
+      cb[EventCBSymbol] = new Map();
+    }
+
+    let key = calcElemCBKey(this, type, options);
+    cb[EventCBSymbol].set(key, cb2);
 
     if (cconst.DEBUG.paranoidEvents) {
       this.__cbs.push([type, cb2, options]);
     }
 
-
-    return super.addEventListener(type, cb, options);
+    return super.addEventListener(type, cb2, options);
   }
 
   removeEventListener(type, cb, options) {
@@ -1130,10 +1387,17 @@ export class UIBase extends HTMLElement {
       console.log("removeEventListener", type, this._id, options);
     }
 
-    if (!cb._cb) {
+    let key = calcElemCBKey(this, type, options);
+
+    if (!cb[EventCBSymbol] || !cb[EventCBSymbol].has(key)) {
       return super.removeEventListener(type, cb, options);
     } else {
-      return super.removeEventListener(type, cb._cb, options);
+      let cb2 = cb[EventCBSymbol].get(key);
+
+      let ret = super.removeEventListener(type, cb2, options);
+
+      cb[EventCBSymbol].delete(key);
+      return ret;
     }
   }
 
@@ -1142,6 +1406,7 @@ export class UIBase extends HTMLElement {
   }
 
   noMarginsOrPadding() {
+    return;
     let keys = ["margin", "padding", "margin-block-start", "margin-block-end"];
     keys = keys.concat(["padding-block-start", "padding-block-end"]);
 
@@ -1406,6 +1671,81 @@ export class UIBase extends HTMLElement {
     });
   }
 
+  /* Why is the DOM API argument order swapped here?*/
+  replaceChild(newnode, node) {
+    for (let i = 0; i < this.childNodes.length; i++) {
+      if (this.childNodes[i] === node) {
+        super.replaceChild(newnode, node);
+        return true;
+      }
+    }
+
+    for (let i = 0; i < this.shadow.childNodes.length; i++) {
+      if (this.shadow.childNodes[i] === node) {
+        this.shadow.replaceChild(newnode, node);
+        return true;
+      }
+    }
+
+    console.error("Unknown child node", node);
+    return false;
+  }
+
+  swapWith(b) {
+    let p1 = this.parentNode;
+    let p2 = b.parentNode;
+
+    if (this.parentWidget && (p1 === this.parentWidget.shadow) || p1 === null) {
+      p1 = this.parentWidget;
+    }
+
+    if (b.parentWidget && (p2 === b.parentWidget.shadow) || p2 === null) {
+      p2 = b.parentWidget;
+    }
+
+    if (!p1 || !p2) {
+      console.error("Invalid call to UIBase.prototype.swapWith", this, b, p1, p2);
+      return false;
+    }
+
+    let getPos = (n, p) => {
+      let i = Array.prototype.indexOf.call(p.childNodes, n);
+
+      if (i < 0 && p.shadow) {
+        p = p.shadow;
+        i = Array.prototype.indexOf.call(p.childNodes, n);
+      }
+
+      return [i, p];
+    }
+
+    let [i1, n1] = getPos(this, p1);
+    let [i2, n2] = getPos(b, p2);
+
+    console.log("i1, i2, n1, n2", i1, i2, n1, n2);
+
+    let tmp1 = document.createElement("div");
+    let tmp2 = document.createElement("div");
+
+    n1.insertBefore(tmp1, this);
+    n2.insertBefore(tmp2, b);
+
+    //HTMLElement.prototype.remove.call(this);
+    //HTMLElement.prototype.remove.call(b);
+
+    n1.replaceChild(b, tmp1);
+    n2.replaceChild(this, tmp2);
+
+    let ptmp = this.parentWidget;
+    this.parentWidget = b.parentWidget;
+    b.parentWidget = ptmp;
+
+    tmp1.remove();
+    tmp2.remove();
+
+    return true;
+  }
+
   traverse(type_or_set) {
     let this2 = this;
 
@@ -1465,6 +1805,122 @@ export class UIBase extends HTMLElement {
     }
 
     return super.appendChild(child);
+  }
+
+  _clipboardHotkeyInit() {
+    this._clipboard_over = false;
+    this._last_clipboard_keyevt = undefined;
+
+    this._clipboard_keystart = () => {
+      if (this._clipboard_events) {
+        return;
+      }
+
+      this._clipboard_events = true;
+      window.addEventListener("keydown", this._clipboard_keydown, {capture: true, passive: false});
+    }
+
+    this._clipboard_keyend = () => {
+      if (!this._clipboard_events) {
+        return;
+      }
+
+      this._clipboard_events = false;
+      window.removeEventListener("keydown", this._clipboard_keydown, {capture: true, passive: false});
+    }
+
+    this._clipboard_keydown = (e, internal_mode) => {
+      if (!this.isConnected || !cconst.getClipboardData) {
+        this._clipboard_keyend();
+        return;
+      }
+
+      if (e === this._last_clipboard_keyevt || !this._clipboard_over) {
+        return;
+      }
+
+      /* the user's mouse cursor might not be over the element
+      *  if they've tabbed to it */
+
+      let is_copy = e.keyCode === keymap["C"] && (e.ctrlKey || e.commandKey) && !e.shiftKey && !e.altKey;
+      let is_paste = e.keyCode === keymap["V"] && (e.ctrlKey || e.commandKey) && !e.shiftKey && !e.altKey;
+
+      if (!is_copy && !is_paste) {
+        //early out, remember that pickElement is highly expensive to run
+        return;
+      }
+
+      //pasteForAllChildren
+      if (!internal_mode) {
+        let screen = this.ctx.screen;
+        let elem = screen.pickElement(screen.mpos[0], screen.mpos[1]);
+
+        let checkTree = is_paste && this.constructor.define().pasteForAllChildren;
+        checkTree = checkTree || (is_copy && this.constructor.define().copyForAllChildren);
+
+        while (checkTree && !(elem instanceof TextBox) && elem !== this && elem.parentWidget) {
+          console.log("  " + elem._id);
+
+          elem = elem.parentWidget;
+        }
+
+        console.warn("COLOR", this._id, elem._id);
+
+        if (elem !== this) {
+          //remove global keyhandler
+          this._clipboard_keyend();
+          return;
+        }
+      } else {
+        console.warn("COLOR", this._id);
+      }
+
+      this._last_clipboard_keyevt = e;
+
+      if (is_copy) {
+        this.clipboardCopy();
+        e.preventDefault();
+        e.stopPropagation();
+      }
+
+      if (is_paste) {
+        this.clipboardPaste();
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    }
+
+    let start = (e) => {
+      this._clipboard_over = true;
+      this._clipboard_keystart();
+    }
+
+    let stop = (e) => {
+      this._clipboard_over = false;
+      this._clipboard_keyend();
+    }
+
+    this.doOnce(() => {
+      this.tabIndex = 0; //enable self key events when element has focus
+    });
+
+    this.addEventListener("keydown", (e) => {
+      return this._clipboard_keydown(e, true);
+    });
+
+    this.addEventListener("pointerover", start, {capture: true, passive: true});
+    this.addEventListener("pointerout", stop, {capture: true, passive: true});
+    this.addEventListener("focus", stop, {capture: true, passive: true});
+  }
+
+  /** set havePickClipboard to true in define() to
+   *  enable mouseover pick clipboarding */
+  clipboardCopy() {
+    throw new Error("implement me!");
+  }
+
+  clipboardPaste() {
+    throw new Error("implement me!");
   }
 
   //delayed init
@@ -1531,15 +1987,19 @@ export class UIBase extends HTMLElement {
     }
   }
 
-  flushUpdate() {
+  flushUpdate(force = false) {
     //check init
     this._init();
 
     this.update();
 
     this._forEachChildWidget((c) => {
-      if (!(c.packflag & PackFlags.NO_UPDATE)) {
-        c.flushUpdate();
+      if (force || !(c.packflag & PackFlags.NO_UPDATE)) {
+        if (!c.ctx) {
+          c.ctx = this.ctx;
+        }
+
+        c.flushUpdate(force);
       }
     });
   }
@@ -1659,144 +2119,65 @@ export class UIBase extends HTMLElement {
       isMouseDown = mouseEvent.buttons || (mouseEvent.touches && mouseEvent.touches.length > 0);
     }
 
-    if (!clip) {
-      clip = {
-        pos : new Vector2([-10000, -10000]),
-        size: new Vector2([20000, 20000])
-      };
+    x -= window.scrollX;
+    y -= window.scrollY;
+
+    let elem = document.elementFromPoint(x, y);
+
+    if (!elem) {
+      return;
     }
 
-    let ret = undefined;
+    let path = [elem];
+    let lastelem = elem;
+    let i = 0;
 
-    let retzindex = undefined;
-
-    let testwidget = (n) => {
-      if (n instanceof nodeclass) {
-        let ok = true;
-        ok = n.visibleToPick;
-        ok = ok && !n.hidden;
-        ok = ok && !(excluded_classes !== undefined && excluded_classes.indexOf(n.constructor) >= 0);
-
-        return ok;
-      }
-    };
-
-    let rec = (n, widget, widget_zindex, zindex, clip, depth = 0) => {
-      if (n.style["z-index"]) {
-        if (!(n instanceof UIBase) || n.visibleToPick) {
-          zindex = parseInt(n.style["z-index"]);
-        }
+    while (elem && elem.shadow) {
+      if (i++ > 1000) {
+        console.error("Infinite loop error");
+        break;
       }
 
-      //let rects = n.getClientRects();
+      elem = elem.shadow.elementFromPoint(x, y);
 
-      let rect = n.getBoundingClientRect();
-
-      if (rect) {
-        if (n.style && n.style["overflow"] === "hidden" || n.style["overflow"] === "scroll") {
-          clip = math.aabb_intersect_2d(clip.pos, clip.size, [rect.x, rect.y], [rect.width, rect.height]);
-
-          if (!clip) {
-            return;
-          }
-        }
-
-        if (testwidget(n)) {
-          widget = n;
-          widget_zindex = zindex;
-        }
-
-        let ok = true;
-
-        if (n instanceof UIBase) {
-          ok = ok && n.visibleToPick;
-        }
-
-        if (!ok) {
-          return;
-        }
-
-        //to improve scrolling performance, don't check individual
-        //client rects in mousemove events if mouse button is down.
-
-        if (!isMouseMove || !isMouseDown) {
-          let rects = n.getClientRects() || [];
-
-          for (let rect of rects) {
-            ok = true;
-
-            let clip2 = math.aabb_intersect_2d(clip.pos, clip.size, [rect.x, rect.y], [rect.width, rect.height]);
-
-            if (!clip2) {
-              ok = false;
-              continue;
-            }
-
-            ok = ok && !n.hidden;
-            ok = ok && (retzindex === undefined || widget_zindex >= retzindex);
-            ok = ok && (retzindex === undefined || zindex >= retzindex);
-
-            ok = ok && x >= clip2.pos[0] - marginx && x <= clip2.pos[0] + clip2.size[0] + marginy;
-            ok = ok && y >= clip2.pos[1] - marginy && y <= clip2.pos[1] + clip2.size[1] + marginx;
-
-            if (n.visibleToPick !== undefined) {
-              ok = ok && n.visibleToPick;
-            }
-
-            if (ok) {
-              ret = widget;
-              retzindex = zindex;
-            }
-          }
-        }
+      if (elem === lastelem) {
+        break;
       }
 
-      let isleaf = n.childNodes.length === 0;
-
-      if (n.shadow !== undefined) {
-        isleaf = isleaf && (n.shadow.childNodes.length === 0);
+      if (elem) {
+        path.push(elem);
       }
 
-      if (typeof n === "object" && n instanceof UIBase && !n.visibleToPick) {
-        return;
-      }
-
-      if (!isleaf) {
-        if (n.shadow !== undefined) {
-          for (let i = 0; i < n.shadow.childNodes.length; i++) {
-            let i2 = i;
-            //i2 = n.shadow.childNodes.length - 1 - i;
-
-            let n2 = n.shadow.childNodes[i2];
-            if (n2 instanceof HTMLElement) {
-              rec(n2, widget, widget_zindex, zindex, clip, depth + 1);
-            }
-          }
-        }
-        for (let i = 0; i < n.childNodes.length; i++) {
-          let i2 = i;
-          //i2 = n.childNodes.length - 1 - i;
-
-          let n2 = n.childNodes[i2];
-          if (n2 instanceof HTMLElement) {
-            rec(n2, widget, widget_zindex, zindex, clip, depth + 1);
-          }
-        }
-      }
-    };
-
-    let p = this;
-
-    while (p && (p.style["z-index"] === null || p.style["z-index"] === undefined
-      || p.style["z-index"] === "initial" || p.style["z-index"] === '')) {
-      p = p.parentWidget;
+      lastelem = elem;
     }
 
-    let zindex = p !== undefined ? parseInt(p.style["z-index"]) : 0;
+    path.reverse();
 
-    rec(this, testwidget(this) ? this : undefined, zindex, zindex, clip, 0);
+    //console.warn(path);
 
-    return ret;
+    for (let i = 0; i < path.length; i++) {
+      let node = path[i];
+      let ok = node instanceof nodeclass;
+
+      if (excluded_classes) {
+        for (let cls of excluded_classes) {
+          ok = ok && !(node instanceof cls);
+        }
+      }
+
+      if (clip) {
+        let rect = node.getBoundingClientRect();
+        let clip2 = math.aabb_intersect_2d(clip.pos, clip.size, [rect.x, rect.y], [rect.width, rect.height]);
+
+        ok = ok && clip2;
+      }
+
+      if (ok) {
+        window.elem = node;
+        //console.log(node._id);
+        return node;
+      }
+    }
   }
 
   __updateDisable(val) {
@@ -1807,7 +2188,7 @@ export class UIBase extends HTMLElement {
     this.__disabledState = !!val;
 
     if (val && !this._disdata) {
-      let style = this.getDefault("internalDisabled") || {
+      let style = this.getDefault("disabled") || this.getDefault("internalDisabled") || {
         "background-color": this.getDefault("DisabledBG")
       };
 
@@ -1825,10 +2206,11 @@ export class UIBase extends HTMLElement {
 
         if (typeof v === "object" && v instanceof CSSFont) {
           this.style[k] = style[k].genCSS();
+        } else if (typeof v === "object") {
+          continue;
         } else {
           this.style[k] = style[k];
         }
-
         this.default_overrides[k] = style[k];
       }
 
@@ -1892,15 +2274,43 @@ export class UIBase extends HTMLElement {
 
   }
 
-  pushModal(handlers = this, autoStopPropagation = true) {
+  pushModal(handlers = this, autoStopPropagation = true, pointerId = undefined, pointerElem = this) {
     if (this._modaldata !== undefined) {
       console.warn("UIBase.prototype.pushModal called when already in modal mode");
-      //pop modal stack just to be safe
-      popModalLight(this._modaldata);
-      this._modaldata = undefined;
+      this.popModal();
     }
 
-    this._modaldata = pushModalLight(handlers, autoStopPropagation);
+    let _areaWrangler = contextWrangler.copy();
+
+    contextWrangler.copy(this.ctx);
+
+    function bindFunc(func) {
+      return function () {
+        _areaWrangler.copyTo(contextWrangler);
+
+        return func.apply(handlers, arguments);
+      }
+    }
+
+    let handlers2 = {};
+    for (let k in handlers) {
+      let func = handlers[k];
+
+      if (typeof func !== "function") {
+        continue;
+      }
+
+      handlers2[k] = bindFunc(func);
+    }
+    //this._modalstack.push(this.ctx);
+    //this.ctx = this.ctx.toLocked();
+
+    if (pointerId !== undefined && pointerElem) {
+      this._modaldata = pushPointerModal(handlers2, autoStopPropagation);
+    } else {
+      this._modaldata = pushModalLight(handlers2, autoStopPropagation);
+    }
+
     return this._modaldata;
   }
 
@@ -1910,6 +2320,7 @@ export class UIBase extends HTMLElement {
       return;
     }
 
+    //this.ctx = this._modalstack.pop();
     popModalLight(this._modaldata);
     this._modaldata = undefined;
   }
@@ -1919,7 +2330,7 @@ export class UIBase extends HTMLElement {
     this.focus();
   }
 
-  flash(color, rect_element = this, timems = 355, autoFocus= true) {
+  flash(color, rect_element = this, timems = 355, autoFocus = true) {
     if (typeof color != "object") {
       color = css2color(color);
     }
@@ -1976,7 +2387,7 @@ export class UIBase extends HTMLElement {
       tick++;
     };
 
-    setTimeout(cb, 5);
+    window.setTimeout(cb, 5);
     this._flashtimer = timer = window.setInterval(cb, 20);
 
     let div = document.createElement("div");
@@ -1985,7 +2396,7 @@ export class UIBase extends HTMLElement {
     div.tabIndex = undefined;
     div.style["z-index"] = "900";
     div.style["display"] = "float";
-    div.style["position"] = "absolute";
+    div.style["position"] = UIBase.PositionKey;
     div.style["margin"] = "0px";
     div.style["left"] = x + "px";
     div.style["top"] = y + "px";
@@ -2012,7 +2423,7 @@ export class UIBase extends HTMLElement {
     }
   }
 
-  destory() {
+  destroy() {
   }
 
   on_resize(newsize) {
@@ -2076,12 +2487,120 @@ export class UIBase extends HTMLElement {
       this._lastPathUndoGen = this.pathUndoGen;
 
       let toolop = getDataPathToolOp().create(ctx, path, val, this._id, mass_set_path);
+
+      /* getDataPathToolOp.create can return false in case of no-op paths. */
+      if (!toolop) {
+        return;
+      }
+
       ctx.toolstack.execTool(this.ctx, toolop);
       head = toolstack.head;
     }
 
     if (!head || head.hadError === true) {
       throw new Error("toolpath error");
+    }
+  }
+
+  loadNumConstraints(prop = undefined, dom = this, onModifiedCallback = undefined) {
+    let modified = false;
+
+    if (!prop) {
+      let path;
+
+      if (dom.hasAttribute("datapath")) {
+        path = dom.getAttribute("datapath");
+      }
+
+      if (path === undefined && this.hasAttribute("datapath")) {
+        path = this.getAttribute("datapath");
+      }
+
+      if (typeof path === "string") {
+        prop = this.getPathMeta(this.ctx, path);
+      }
+    }
+
+    let loadAttr = (propkey, domkey = key, thiskey = key) => {
+      let old = this[thiskey];
+
+      if (dom.hasAttribute(domkey)) {
+        this[thiskey] = parseFloat(dom.getAttribute(domkey));
+      } else if (prop) {
+        this[thiskey] = prop[propkey];
+      }
+
+      if (this[thiskey] !== old) {
+        modified = true;
+      }
+    }
+
+    for (let key of NumberConstraints) {
+      let thiskey = key, domkey = key;
+
+      if (key === "range") { //handled later
+        continue;
+      }
+
+      loadAttr(key, domkey, thiskey);
+    }
+
+    let oldmin = this.range[0];
+    let oldmax = this.range[1];
+
+    let range = prop ? prop.range : undefined;
+    if (range && !dom.hasAttribute("min")) {
+      this.range[0] = range[0];
+    } else if (dom.hasAttribute("min")) {
+      this.range[0] = parseFloat(dom.getAttribute("min"));
+    }
+
+    if (range && !dom.hasAttribute("max")) {
+      this.range[1] = range[1];
+    } else if (dom.hasAttribute("max")) {
+      this.range[1] = parseFloat(dom.getAttribute("max"));
+    }
+
+    if (this.range[0] !== oldmin || this.range[1] !== oldmax) {
+      modified = true;
+    }
+
+    let oldint = this.isInt;
+
+    if (dom.getAttribute("integer")) {
+      let val = dom.getAttribute("integer");
+      val = ("" + val).toLowerCase();
+
+      //handles anonymouse <numslider-x integer> case
+      this.isInt = val === "null" || val === "true" || val === "yes" || val === "1";
+    } else if (prop && prop instanceof IntProperty) {
+      this.isInt = true;
+    }
+
+    if (!this.isInt !== !oldint) {
+      modified = true;
+    }
+
+    let oldedit = this.editAsBaseUnit;
+
+    if (this.editAsBaseUnit === undefined) {
+      if (prop && (prop.flag & PropFlags.EDIT_AS_BASE_UNIT)) {
+        this.editAsBaseUnit = true;
+      } else {
+        this.editAsBaseUnit = false;
+      }
+    }
+
+    if (!this.editAsBaseUnit !== !oldedit) {
+      modified = true;
+    }
+
+    if (modified) {
+      this.setCSS();
+
+      if (onModifiedCallback) {
+        onModifiedCallback.call(this);
+      }
     }
   }
 
@@ -2243,7 +2762,7 @@ export class UIBase extends HTMLElement {
               console.warn("doOnce call is waiting for context...", thisvar._id, func);
             }
 
-            window.setTimeout(f, 0);
+            internalSetTimeout(f, 0);
             return;
           }
 
@@ -2251,7 +2770,7 @@ export class UIBase extends HTMLElement {
           func.call(thisvar);
         };
 
-        window.setTimeout(f, timeout);
+        internalSetTimeout(f, timeout);
       }
     }
 
@@ -2259,8 +2778,8 @@ export class UIBase extends HTMLElement {
     func._doOnce(this, trace);
   }
 
-  float(x = 0, y = 0, zindex = undefined) {
-    this.style.position = "absolute";
+  float(x = 0, y = 0, zindex = undefined, positionKey = UIBase.PositionKey) {
+    this.style.position = positionKey;
 
     this.style.left = x + "px";
     this.style.top = y + "px";
@@ -2300,6 +2819,21 @@ export class UIBase extends HTMLElement {
     }
 
     return false;
+  }
+
+  abortToolTips(delayMs = 500) {
+    if (this._has_own_tooltips) {
+      this._has_own_tooltips.stop_timer();
+    }
+
+    if (this._tooltip_ref) {
+      this._tooltip_ref.remove();
+      this._tooltip_ref = undefined;
+    }
+
+    this._tool_tip_abort_delay = util.time_ms() + delayMs;
+
+    return this;
   }
 
   updateToolTipHandlers() {
@@ -2342,6 +2876,11 @@ export class UIBase extends HTMLElement {
 
       let bind_handler = (type, etype) => {
         let handler = (e) => {
+          if (this._tool_tip_abort_delay !== undefined && util.time_ms() < this._tool_tip_abort_delay) {
+            this._tooltip_timer = undefined;
+            return;
+          }
+
           state[type](e);
         };
 
@@ -2359,7 +2898,7 @@ export class UIBase extends HTMLElement {
 
       for (let type of ["start_timer", "stop_timer", "reset_timer"]) {
         for (let etype of lists[i]) {
-          this.addEventListener(etype, bind_handler(type, etype));
+          this.addEventListener(etype, bind_handler(type, etype), {passive: true});
         }
 
         i++;
@@ -2379,8 +2918,8 @@ export class UIBase extends HTMLElement {
   }
 
   updateToolTips() {
-    if (this._description === undefined || this._description === null ||
-      this._description.trim().length === 0) {
+    if (this._description_final === undefined || this._description_final === null ||
+      this._description_final.trim().length === 0) {
       return;
     }
 
@@ -2394,12 +2933,16 @@ export class UIBase extends HTMLElement {
       return;
     }
 
+    if (this._tool_tip_abort_delay !== undefined && util.time_ms() < this._tool_tip_abort_delay) {
+      return;
+    }
+
+    this._tool_tip_abort_delay = undefined;
+
     let screen = this.ctx.screen;
 
     const timelimit = 500;
     let ok = util.time_ms() - this._tooltip_timer > timelimit;
-
-    let dpi = this.getDPI();
 
     let x = screen.mpos[0], y = screen.mpos[1];
 
@@ -2421,11 +2964,17 @@ export class UIBase extends HTMLElement {
 
     ok = ok && !haveModal();
     ok = ok && screen.pickElement(x, y) === this;
-    ok = ok && this._description;
+    ok = ok && this._description_final;
 
     if (ok) {
-      //console.warn(this._id, "tooltip!", this);
-      _ToolTip.show(this._description, this.ctx.screen, x, y);
+      //console.warn("Showing tooltop", this.id);
+      this._tooltip_ref = _ToolTip.show(this._description_final, this.ctx.screen, x, y);
+    } else {
+      if (this._tooltip_ref) {
+        this._tooltip_ref.remove();
+      }
+
+      this._tooltip_ref = undefined;
     }
 
     //console.warn(this._id, "tooltip timer end");
@@ -2538,9 +3087,14 @@ export class UIBase extends HTMLElement {
     this.class_default_overrides[style][key] = val;
   }
 
-  _doMobileDefault(key, val) {
+  _doMobileDefault(key, val, obj) {
     if (!util.isMobile())
       return val;
+
+    const mobilekey = key + "_mobile";
+    if (obj && mobilekey in obj) {
+      return obj[mobilekey];
+    }
 
     key = key.toLowerCase();
     let ok = false;
@@ -2552,7 +3106,7 @@ export class UIBase extends HTMLElement {
       }
     }
 
-    if (ok) {
+    if (ok && theme.base.mobileSizeMultiplier) {
       val *= theme.base.mobileSizeMultiplier;
     }
 
@@ -2573,28 +3127,86 @@ export class UIBase extends HTMLElement {
     return this.hasClassDefault(key);
   }
 
-  /** get a sub style from a theme style class.
-   *  note that if key is falsy then it just forwards to this.getDefault directly*/
-  getSubDefault(key, subkey, backupkey = subkey, defaultval = undefined) {
-    if (!key) {
-      return this.getDefault(subkey, undefined, defaultval);
+  hasSubDefault(key, subkey) {
+    return this._hasSubDefault(...arguments, theme)
+      || this._themeOverride && this._hasSubDefault(...arguments, this._themeOverride);
+  }
+
+  _hasSubDefault(key, subkey) {
+    let style = this.getStyleClass();
+
+    let obj = this.getDefault(key);
+
+    if (!obj || typeof obj !== "object") {
+      return false;
     }
 
-    let style = this.getDefault(key);
+    return subkey in obj;
+  }
+
+  hasClassSubDefault(key, subkey, inherit = true) {
+    return this._hasClassSubDefault(key, subkey, inherit, undefined, theme) ||
+      this._themeOverride && this._hasClassSubDefault(key, subkey, inherit, undefined, this._themeOverride);
+  }
+
+  _hasClassSubDefault(key, subkey, inherit = true, style = this.getStyleClass(), themeDef) {
+    let th = themeDef;
+    th = th[style];
+
+    if (inherit) {
+      if (this._hasClassSubDefault(key, subkey, false, themeDef)) {
+        return true;
+      }
+
+      let ret = false;
+      let def = this.constructor.define();
+
+      if (def.parentStyle) {
+        ret |= this._hasClassSubDefault(key, subkey, false, def.parentStyle, themeDef);
+      }
+      ret |= this._hasClassSubDefault(key, subkey, false, "base", themeDef);
+      return ret;
+    }
+
+    if (!th) {
+      return false;
+    }
+
+    let obj = th[key];
+    if (!obj || typeof obj !== "object") {
+      return false;
+    }
+
+    return subkey in obj;
+  }
+
+  /** get a sub style from a theme style class.
+   *  note that if key is falsy then it just forwards to this.getDefault directly*/
+  getSubDefault(key, subkey, backupkey = subkey, defaultval = undefined, inherit = true) {
+    /* Check if client code manually overrode a theme key for this instance. */
+    if (subkey && subkey in this.my_default_overrides) {
+      //return this.getDefault(subkey, undefined, defaultval);
+    }
+
+    if (!key) {
+      return this.getDefault(subkey, undefined, defaultval, inherit);
+    }
+
+    let style = this.getDefault(key, undefined, undefined, inherit);
 
     if (!style || typeof style !== "object" || !(subkey in style)) {
       if (defaultval !== undefined) {
         return defaultval;
-      } else if (backupkey !== undefined) {
-        return this.getDefault(backupkey);
+      } else if (backupkey) {
+        return this.getDefault(backupkey, undefined, undefined, inherit);
       }
     } else {
       return style[subkey];
     }
   }
 
-  getDefault(key, checkForMobile = true, defaultval = undefined) {
-    let ret = this.getDefault_intern(key, checkForMobile, defaultval);
+  getDefault(key, checkForMobile = true, defaultval = undefined, inherit = true) {
+    let ret = this.getDefault_intern(key, checkForMobile, defaultval, inherit);
 
     //convert pixel units straight to numbers
     if (typeof ret === "string" && ret.trim().toLowerCase().endsWith("px")) {
@@ -2610,23 +3222,23 @@ export class UIBase extends HTMLElement {
     return ret;
   }
 
-  getDefault_intern(key, checkForMobile = true, defaultval = undefined) {
+  getDefault_intern(key, checkForMobile = true, defaultval = undefined, inherit = true) {
     if (this.my_default_overrides[key] !== undefined) {
       let v = this.my_default_overrides[key];
-      return checkForMobile ? this._doMobileDefault(key, v) : v;
+      return checkForMobile ? this._doMobileDefault(key, v, this.my_default_overrides) : v;
     }
 
     let p = this;
     while (p) {
       if (p.default_overrides[key] !== undefined) {
         let v = p.default_overrides[key];
-        checkForMobile ? this._doMobileDefault(key, v) : v;
+        checkForMobile ? this._doMobileDefault(key, v, p.default_overrides) : v;
       }
 
       p = p.parentWidget;
     }
 
-    return this.getClassDefault(key, checkForMobile, defaultval);
+    return this.getClassDefault(key, checkForMobile, defaultval, inherit);
   }
 
   getStyleClass() {
@@ -2679,19 +3291,22 @@ export class UIBase extends HTMLElement {
     return key in theme.base;
   }
 
-  getClassDefault(key, checkForMobile = true, defaultval = undefined) {
+  getClassDefault(key, checkForMobile = true, defaultval = undefined, inherit = true) {
     let style = this.getStyleClass();
 
     if (style === "none") {
       return undefined;
     }
 
-    let val = undefined;
+    let themeobj;
+    let val;
     let p = this;
+
     while (p) {
       let def = p.class_default_overrides[style];
 
       if (def && (key in def)) {
+        themeobj = def;
         val = def[key];
         break;
       }
@@ -2713,21 +3328,25 @@ export class UIBase extends HTMLElement {
       }
 
       if (val === undefined && style in th && key in th[style]) {
+        themeobj = th[style];
         val = th[style][key];
       } else if (defaultval !== undefined) {
+        themeobj = undefined;
         val = defaultval;
-      } else if (val === undefined) {
+      } else if (val === undefined && inherit) {
         let def = this.constructor.define();
 
         if (def.parentStyle && key in th[def.parentStyle]) {
           val = th[def.parentStyle][key];
+          themeobj = th[def.parentStyle];
         } else {
           val = th.base[key];
+          themeobj = th.base;
         }
       }
     }
 
-    return checkForMobile ? this._doMobileDefault(key, val) : val;
+    return checkForMobile ? this._doMobileDefault(key, val, themeobj) : val;
   }
 
   overrideTheme(theme) {
@@ -2750,7 +3369,12 @@ export class UIBase extends HTMLElement {
     return this.getStyleClass();
   }
 
-  /** returns a new Animator instance */
+  /** returns a new Animator instance
+   *
+   * example:
+   *
+   * container.animate().goto("style.width", 500, 100, "ease");
+   * */
   animate(_extra_handlers = {}) {
     let transform = new DOMMatrix(this.style["transform"]);
 
@@ -2789,10 +3413,40 @@ export class UIBase extends HTMLElement {
       }
     }
 
+    let pixkeys = ["width", "height", "left", "top", "right", "bottom", "border-radius",
+                   "border-width", "margin", "padding", "margin-left", "margin-right",
+                   "margin-top", "margin-bottom", "padding-left", "padding-right", "padding-bottom",
+                   "padding-top"];
     handlers = Object.assign(handlers, _extra_handlers);
+
+    let makePixHandler = (k, k2) => {
+      handlers[k2 + "_get"] = () => {
+        let s = this.style[k];
+
+        if (s.endsWith("px")) {
+          return parsepx(s);
+        } else {
+          return 0.0;
+        }
+      }
+
+      handlers[k2 + "_set"] = (val) => {
+        this.style[k] = val + "px";
+      }
+    }
+
+    for (let k of pixkeys) {
+      if (!(k in handlers)) {
+        makePixHandler(k, `style.${k}`);
+        makePixHandler(k, `style["${k}"]`);
+        makePixHandler(k, `style['${k}']`);
+      }
+    }
 
     let handler = {
       get: (target, key, receiver) => {
+        console.log(key, handlers[key + "_get"], handlers);
+
         if ((key + "_get") in handlers) {
           return handlers[key + "_get"].call(target);
         } else {
@@ -2800,6 +3454,8 @@ export class UIBase extends HTMLElement {
         }
       },
       set: (target, key, val, receiver) => {
+        console.log(key);
+
         if ((key + "_set") in handlers) {
           handlers[key + "_set"].call(target, val);
         } else {
@@ -3020,24 +3676,6 @@ export function measureText(elem, text, canvas                    = undefined,
 
   let ret = g.measureText(text);
 
-  if (ret && util.isMobile()) {
-    let ret2 = {};
-    let dpi = UIBase.getDPI();
-
-    for (let k in ret) {
-      let v = ret[k];
-
-      if (typeof v === "number") {
-        v *= dpi;
-        //v *= window.devicePixelRatio;
-      }
-
-      ret2[k] = v;
-    }
-
-    ret = ret2;
-  }
-
   if (size !== undefined) {
     //clear custom font for next time
     g.font = undefined;
@@ -3210,6 +3848,8 @@ export function loadUIData(node, buf) {
     }
   }
 }
+
+UIBase.PositionKey = "fixed";
 
 window._loadUIData = loadUIData;
 

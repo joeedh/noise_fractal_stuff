@@ -364,7 +364,7 @@ export class Canvas {
       time = util.time_ms();
       while (util.time_ms() - time < 30) {
         if (idend >= this.paths.length) {
-          console.warn("clear task", idend, this.paths.length, time2.toFixed(4), (util.time_ms()-time0).toFixed(4));
+          //console.warn("clear task", idend, this.paths.length, time2.toFixed(4), (util.time_ms()-time0).toFixed(4));
           this.drawTask = undefined;
           return;
         }
@@ -393,7 +393,7 @@ export class Canvas {
     let docolor = this.drawflag & DrawFlags.COLOR;
 
     if (idstart === undefined) {
-      console.log("full canvas draw");
+      //console.log("full canvas draw");
       this.asyncFullDraw(g, canvas);
       return;
       g.save();

@@ -1,7 +1,9 @@
 import {ToolOp, ToolFlags} from "../toolsys/toolsys.js";
-import {PropTypes, PropFlags, BoolProperty, IntProperty, FloatProperty, FlagProperty,
+import {
+  PropTypes, PropFlags, BoolProperty, IntProperty, FloatProperty, FlagProperty,
   EnumProperty, StringProperty, Vec3Property, Vec2Property, Vec4Property,
-  QuatProperty, Mat4Property} from "../toolsys/toolprop.js";
+  QuatProperty, Mat4Property
+} from "../toolsys/toolprop.js";
 
 import * as util from '../util/util.js';
 import {isVecProperty, getVecClass} from "./controller_base.js";
@@ -18,8 +20,18 @@ export class DataPathSetOp extends ToolOp {
     let prop = this.inputs.prop;
     let path = this.inputs.dataPath.getValue();
 
-    if (prop.type & (PropTypes.ENUM|PropTypes.FLAG)) {
-      //let rdef = ctx.api.resolvePath(ctx, path);
+    if (prop.type & (PropTypes.ENUM | PropTypes.FLAG)) {
+      let rdef = ctx.api.resolvePath(ctx, path);
+      if (rdef.subkey !== undefined) {
+        let subkey = rdef.subkey;
+        if (typeof subkey === "string") {
+          subkey = rdef.prop.values[subkey];
+        }
+
+        this.inputs.flagBit.setValue(subkey);
+        this.inputs.useFlagBit.setValue(true);
+      }
+
       //if (rdef.subkey !== undefined) {
       //  val = rdef.value;
       //val = !!val;
@@ -51,26 +63,31 @@ export class DataPathSetOp extends ToolOp {
     let tool = new DataPathSetOp();
 
     tool.propType = prop.type;
+    tool.inputs.destType.setValue(prop.type);
 
     if (prop && (prop.flag & PropFlags.USE_BASE_UNDO)) {
       tool.inputs.fullSaveUndo.setValue(true);
     }
 
-    let mask = PropTypes.FLAG|PropTypes.ENUM;
-    mask |= PropTypes.VEC2|PropTypes.VEC3|PropTypes.VEC4|PropTypes.QUAT;
-
+    let mask = PropTypes.FLAG | PropTypes.ENUM;
+    mask |= PropTypes.VEC2 | PropTypes.VEC3 | PropTypes.VEC4 | PropTypes.QUAT;
 
     if (rdef.subkey !== undefined && (prop.type & mask)) {
-      if (prop.type & (PropTypes.ENUM|PropTypes.FLAG)) {
-        let i = datapath.length-1;
+      if (prop.type & (PropTypes.ENUM | PropTypes.FLAG)) {
+        let i = datapath.length - 1;
 
         //chope off enum selector
-        while (i >= 0 && datapath[i] !== '[') {
+        while (i >= 0 && datapath[i] !== '[' && datapath[i] !== '=') {
           i--;
         }
 
         if (i >= 0) {
-          datapath = datapath.slice(0, i);
+          if (!value && prop.type === PropTypes.ENUM) {
+            /* This is a no-op. */
+            return undefined;
+          }
+
+          datapath = datapath.slice(0, i).trim();
         }
 
         tool.inputs.prop = new IntProperty();
@@ -81,6 +98,11 @@ export class DataPathSetOp extends ToolOp {
       let subkey = rdef.subkey;
       if (typeof subkey !== "number") {
         subkey = rdef.prop.values[subkey];
+      }
+
+      if (prop.type === PropTypes.FLAG) {
+        tool.inputs.flagBit.setValue(subkey);
+        tool.inputs.useFlagBit.setValue(true);
       }
 
       if (prop.type === PropTypes.ENUM) {
@@ -125,7 +147,7 @@ export class DataPathSetOp extends ToolOp {
     massSetPath = massSetPath === undefined ? "" : massSetPath;
     massSetPath = massSetPath === null ? "" : massSetPath;
 
-    let ret = ""+massSetPath+":"+dataPath+":"+prop+":"+id;
+    let ret = "" + massSetPath + ":" + dataPath + ":" + prop + ":" + id;
 
     return ret;
   }
@@ -214,7 +236,7 @@ export class DataPathSetOp extends ToolOp {
     for (let path in this._undo) {
       let rdef = ctx.api.resolvePath(ctx, path);
 
-      if (rdef.prop !== undefined && (rdef.prop.type & (PropTypes.ENUM|PropTypes.FLAG))) {
+      if (rdef.prop !== undefined && (rdef.prop.type & (PropTypes.ENUM | PropTypes.FLAG))) {
         let old = rdef.obj[rdef.key];
 
         if (rdef.subkey) {
@@ -274,8 +296,16 @@ export class DataPathSetOp extends ToolOp {
     }
 
     if (massSetPath) {
+      let value = this.inputs.prop.getValue();
+      let useFlagBit = this.inputs.useFlagBit.getValue();
+
+      if (useFlagBit && this.inputs.destType.getValue() === PropTypes.FLAG) {
+        let bit = this.inputs.flagBit.getValue();
+
+        value = !!(value & bit);
+      }
       try {
-        ctx.api.massSetProp(ctx, massSetPath, this.inputs.prop.getValue());
+        ctx.api.massSetProp(ctx, massSetPath, value);
       } catch (error) {
         console.log(error.stack);
         console.log(error.message);
@@ -296,17 +326,23 @@ export class DataPathSetOp extends ToolOp {
     this.modalEnd(false);
   }
 
-  static tooldef() {return {
-    uiname : "Property Set",
-    toolpath : "app.prop_set",
-    icon : -1,
-    flag : ToolFlags.PRIVATE,
-    is_modal : true,
-    inputs : {
-      dataPath : new StringProperty(),
-      massSetPath : new StringProperty(),
-      fullSaveUndo : new BoolProperty(false)
+  static tooldef() {
+    return {
+      uiname  : "Property Set",
+      toolpath: "app.prop_set",
+      icon    : -1,
+      flag    : ToolFlags.PRIVATE,
+      is_modal: true,
+      inputs  : {
+        dataPath    : new StringProperty(),
+        massSetPath : new StringProperty(),
+        fullSaveUndo: new BoolProperty(false),
+        flagBit     : new IntProperty(),
+        useFlagBit  : new BoolProperty(),
+        destType    : new EnumProperty(PropTypes.INT, PropTypes),
+      }
     }
-  }}
+  }
 }
+
 ToolOp.register(DataPathSetOp);

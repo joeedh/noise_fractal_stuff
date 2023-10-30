@@ -2,10 +2,10 @@ if (typeof window === "undefined" && typeof global !== "undefined") {
   global.window = global;
 }
 
-(function() {
+(function () {
   let visitgen = 0;
 
-  window.destroyAllCSS = function() {
+  window.destroyAllCSS = function () {
     visitgen++;
 
     let visit = (n) => {
@@ -23,7 +23,7 @@ if (typeof window === "undefined" && typeof global !== "undefined") {
           try {
             n.style[k] = "";
           } catch (error) {
-            
+
           }
         }
       }
@@ -41,26 +41,25 @@ if (typeof window === "undefined" && typeof global !== "undefined") {
     visit(document.body);
 
     for (let sheet of document.styleSheets) {
-      for (let i=0; i<sheet.rules.length; i++) {
+      for (let i = 0; i < sheet.rules.length; i++) {
         sheet.removeRule(sheet.rules[0]);
       }
     }
   }
 })();
 
-window.eventDebugModule = (function() {
+window.eventDebugModule = (function () {
   "use strict";
 
   return {
     start() {
-      window.debugEventLists = {
-      }
+      window.debugEventLists = {}
       window.debugEventList = [];
 
       this._addEventListener = EventTarget.prototype.addEventListener;
       this._removeEventListener = EventTarget.prototype.removeEventListener;
       this._dispatchEvent = EventTarget.prototype.dispatchEvent;
-      
+
       EventTarget.prototype.addEventListener = this.onadd;
       EventTarget.prototype.removeEventListener = this.onrem;
       EventTarget.prototype.dispatchEvent = this.ondispatch;
@@ -76,14 +75,14 @@ window.eventDebugModule = (function() {
 
     ondispatch() {
       let a = arguments;
-      
+
       eventDebugModule.add("Dispatch", {
-        event : a[0],
-        thisvar : a[4],
-        line : a[5],
+        event    : a[0],
+        thisvar  : a[4],
+        line     : a[5],
         filename : a[6].replace(/\\/g, "/"),
         filepath : location.origin + a[6].replace(/\\/g, "/") + ":" + a[5],
-        ownerpath : a[7]
+        ownerpath: a[7]
       });
 
       return eventDebugModule._dispatchEvent.apply(this, arguments);
@@ -91,18 +90,18 @@ window.eventDebugModule = (function() {
 
     onadd() {
       let a = arguments;
-      
+
       eventDebugModule.add("Add", {
-        type : a[0],
-        cb : a[1],
-        args : a[2],
-        thisvar : a[4],
-        line : a[5],
+        type     : a[0],
+        cb       : a[1],
+        args     : a[2],
+        thisvar  : a[4],
+        line     : a[5],
         filename : a[6].replace(/\\/g, "/"),
         filepath : location.origin + a[6].replace(/\\/g, "/") + ":" + a[5],
-        ownerpath : a[7]
+        ownerpath: a[7]
       });
-      
+
 
       return eventDebugModule._addEventListener.apply(this, arguments);
     },
@@ -111,7 +110,7 @@ window.eventDebugModule = (function() {
       for (let k in debugEventLists) {
         let list = debugEventLists[k];
 
-        for (let i=0; i<list.length; i++) {
+        for (let i = 0; i < list.length; i++) {
           let e = list[i];
 
           if (!e.thisvar || !(e.thisvar instanceof Node)) {
@@ -119,30 +118,30 @@ window.eventDebugModule = (function() {
           }
 
           if (!e.thisvar.isConnected) {
-            list[i] = list[list.length-1];
-            list[list.length-1] = undefined;
+            list[i] = list[list.length - 1];
+            list[list.length - 1] = undefined;
             list.length--;
             i--;
           }
         }
       }
     },
-    
+
 
     onrem() {
       let a = arguments;
-      
+
       eventDebugModule.add("Rem", {
-        type : a[0],
-        cb : a[1],
-        args : a[2],
-        thisvar : a[4],
-        line : a[5],
+        type     : a[0],
+        cb       : a[1],
+        args     : a[2],
+        thisvar  : a[4],
+        line     : a[5],
         filename : a[6].replace(/\\/g, "/"),
         filepath : location.origin + a[6].replace(/\\/g, "/") + ":" + a[5],
-        ownerpath : a[7]
+        ownerpath: a[7]
       });
-      
+
 
       return eventDebugModule._removeEventListener.apply(this, arguments);
     }
@@ -190,16 +189,19 @@ if (navigator.userAgent.toLowerCase().search("chrome") >= 0) {
 
 if (window._disable_all_listeners) {
   console.warn("Disabling all event listeners");
-  EventTarget.prototype.addEventListener = () => {};
-  EventSource.prototype.addEventListener = () => {};
+  EventTarget.prototype.addEventListener = () => {
+  };
+  EventSource.prototype.addEventListener = () => {
+  };
 }
 
 if (typeof visualViewport === "undefined") {
-  (function() {
+  (function () {
     class MyVisualViewport {
       get width() {
         return window.innerWidth;
       }
+
       get height() {
         return window.innerHeight;
       }
@@ -207,15 +209,19 @@ if (typeof visualViewport === "undefined") {
       get offsetLeft() {
         return 0;
       }
+
       get offsetTop() {
         return 0;
       }
+
       get pageLeft() {
         return 0;
       }
+
       get pageTop() {
         return 0;
       }
+
       get scale() {
         return 1.0;
       }
@@ -226,70 +232,118 @@ if (typeof visualViewport === "undefined") {
 }
 
 if (Array.prototype.set === undefined) {
-    Array.prototype.set = function set(array, src, dst, count) {
-        src = src === undefined ? 0 : src;
-        dst = dst === undefined ? 0 : dst;
-        count = count === undefined ? array.length :  count;
-        
-        if (count < 0) {
-            throw new RangeError("Count must be >= zero");
-        }
-        
-        let len = Math.min(this.length-dst, array.length-src);
-        len = Math.min(len, count);
-        
-        for (let i=0; i<len; i++) {
-            this[dst+i] = array[src+i];
-        }
-        
-        return this;
+  /**
+   * A version of TypedArray.prototype.set for Array
+   * Unliked typed array version the array will be
+   * resized if the source array range extends past
+   * the array length.
+   *
+   * array.set(array) array.set(array, src_offset) array.set(array, src_offset, count)
+   * array.set(array, src_offset, dest_offset, count
+   * @param array
+   */
+  Array.prototype.set = function set(array) {
+    if (arguments.length === 0) {
+      //WASM somehow manages to call this
+      return;
     }
 
-    if (Float64Array.prototype.set === undefined) {
-      Float64Array.prototype.set = Array.prototype.set;
-      Float32Array.prototype.set = Array.prototype.set;
-      Uint8Array.prototype.set = Array.prototype.set;
-      Uint8ClampedArray.prototype.set = Array.prototype.set;
-      Int32Array.prototype.set = Array.prototype.set;
-      Int16Array.prototype.set = Array.prototype.set;
-      Int8Array.prototype.set = Array.prototype.set;
+    let src, dst, count;
+
+    if (arguments.length === 0) {
+      src = 0;
+      dst = 0;
+      count = array.length;
+    } else if (arguments.length === 1) {
+      count = array.length;
+      src = arguments[1];
+      dst = 0;
+    } else if (arguments.length === 2) {
+      src = arguments[1];
+      count = arguments[2];
+    } else if (arguments.length === 3) {
+      src = arguments[1];
+      dst = arguments[2];
+      count = arguments[3];
     }
+
+    src = src === undefined ? 0 : src;
+    dst = dst === undefined ? 0 : dst;
+    count = count === undefined ? array.length : count;
+
+    if (count < 0) {
+      throw new RangeError("Count must be >= zero");
+    }
+
+    let len = Math.min(src + count, array.length) - src;
+
+    if (dst + len > this.length) {
+      this.length = dst + len;
+    }
+
+    for (let i = 0; i < len; i++) {
+      this[dst + i] = array[src + i];
+    }
+
+    return this;
+  }
+
+  Object.defineProperty(Array.prototype, "set", {
+    enumerable  : false,
+    configurable: true,
+  });
+
+  if (Float64Array.prototype.set === undefined) {
+    Float64Array.prototype.set = Array.prototype.set;
+    Float32Array.prototype.set = Array.prototype.set;
+    Uint8Array.prototype.set = Array.prototype.set;
+    Uint8ClampedArray.prototype.set = Array.prototype.set;
+    Int32Array.prototype.set = Array.prototype.set;
+    Int16Array.prototype.set = Array.prototype.set;
+    Int8Array.prototype.set = Array.prototype.set;
+  }
 }
 
 if (Array.prototype.reject === undefined) {
-    Array.prototype.reject = function reject(func) {
-        return this.filter((item) => !func(item));
-    }
+  Array.prototype.reject = function reject(func) {
+    return this.filter((item) => !func(item));
+  }
+
+  Object.defineProperty(Array.prototype, "reject", {
+    enumerable  : false,
+    configurable: true,
+  });
 }
 
 if (window.Symbol == undefined) { //eek!
   window.Symbol = {
-    iterator : "$__iterator__$",
-    keystr   : "$__keystr__$"
+    iterator: "$__iterator__$",
+    keystr  : "$__keystr__$"
   }
 } else if (Symbol.keystr === undefined) {
   Symbol.keystr = Symbol("keystr");
 }
 
+/* use util.list
 window.list = function list(iter) {
   var ret = [];
-  
+
   if (typeof iter == "string") {
     iter = new String();
   }
-  
+
   if (Symbol.iterator in iter) {
     for (var item of iter) {
       ret.push(item);
     }
   } else {
-    iter.forEach(function(item) {
+    iter.forEach(function (item) {
       ret.push(item);
     }, this);
   }
-  
+
   return ret;
-};
+};*/
 
 //XXX surely browser vendors have fixed this by now. . .
 /*Override array iterator to not allocate too much*/
@@ -331,63 +385,73 @@ if (Math.fract === undefined) {
 
 if (Math.tent === undefined) {
   Math.tent = function tent(f) {
-    return 1.0 - Math.abs(Math.fract(f)-0.5)*2.0;
+    return 1.0 - Math.abs(Math.fract(f) - 0.5)*2.0;
   };
 }
 
 if (Math.sign === undefined) {
   Math.sign = function sign(f) {
-    return (f>0.0)*2.0-1.0;
+    return (f > 0.0)*2.0 - 1.0;
   };
 }
 
-if (Array.prototype.pop_i == undefined) {
-  Array.prototype.pop_i = function(idx) {
+if (Array.prototype.pop_i === undefined) {
+  Array.prototype.pop_i = function (idx) {
     if (idx < 0 || idx >= this.length) {
       throw new Error("Index out of range");
     }
-    
+
     while (idx < this.length) {
-      this[idx] = this[idx+1];
+      this[idx] = this[idx + 1];
       idx++;
     }
-    
+
     this.length -= 1;
   }
+
+  Object.defineProperty(Array.prototype, "pop_i", {
+    enumerable  : false,
+    configurable: true,
+  });
 }
 
 if (Array.prototype.remove === undefined) {
-  Array.prototype.remove = function(item, suppress_error) {
+  Array.prototype.remove = function (item, suppress_error) {
     var i = this.indexOf(item);
-    
+
     if (i < 0) {
       if (suppress_error)
         console.trace("Warning: item not in array", item);
       else
         throw new Error("Error: item not in array " + item);
-      
+
       return;
     }
-    
+
     this.pop_i(i);
   }
+
+  Object.defineProperty(Array.prototype, "remove", {
+    enumerable  : false,
+    configurable: true,
+  });
 }
 
 if (String.prototype.contains === undefined) {
-  String.prototype.contains = function(substr) {
+  String.prototype.contains = function (substr) {
     return String.search(substr) >= 0;
   }
 }
 
-String.prototype[Symbol.keystr] = function() {
+String.prototype[Symbol.keystr] = function () {
   return this;
 };
 
-Number.prototype[Symbol.keystr] = Boolean.prototype[Symbol.keystr] = function() {
-  return ""+this;
+Number.prototype[Symbol.keystr] = Boolean.prototype[Symbol.keystr] = function () {
+  return "" + this;
 };
 
-Array.prototype[Symbol.keystr] = function() {
+Array.prototype[Symbol.keystr] = function () {
   let key = "";
   for (let item of this) {
     key += item[Symbol.keystr]() + ":";

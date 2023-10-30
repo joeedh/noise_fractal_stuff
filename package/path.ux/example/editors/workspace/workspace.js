@@ -4,6 +4,7 @@ import {PanOp} from "./workspace_ops.js";
 import {DrawOp} from "../../draw/draw_ops.js";
 import {BrushSettings} from '../../draw/brush.js';
 import {Dynamics} from "../../core/dynamics.js";
+import {contextWrangler} from '../../../scripts/screen/ScreenArea.js';
 
 export class WorkspaceEditor extends Editor {
   constructor() {
@@ -25,7 +26,7 @@ export class WorkspaceEditor extends Editor {
     this.canvas = document.createElement("canvas");
     this.canvas.style["margin"] = this.canvas.style["padding"] = "0px";
 
-    this.canvas.style["position"] = "absolute";
+    this.canvas.style["position"] = UIBase.PositionKey;
     this.canvas.style["z-index"] = "-2";
 
     this.canvas.style["pointer-events"] = "none";
@@ -114,17 +115,17 @@ export class WorkspaceEditor extends Editor {
 
     let row2 = table.row();
 
-    row2._useDataPathUndo = true;
+    row2.useDataPathUndo = true;
     row2.prop("workspace.brush.size"); //, PackFlags.SIMPLE_NUMSLIDERS);
     row2.prop("workspace.brush.soft");
 
     row2 = table.row();
-    row2._useDataPathUndo = true;
+    row2.useDataPathUndo = true;
     row2.prop("workspace.brush.spacing")
     row2.prop("workspace.brush.color[3]").setAttribute("name", "Opacity");
 
     row2 = table.row()
-    row2._useDataPathUndo = true;
+    row2.useDataPathUndo = true;
     row2.prop("workspace.brush.color");
 
     this.setCSS();
@@ -211,7 +212,8 @@ export class WorkspaceEditor extends Editor {
   }
 
   draw() {
-    console.log("canvas draw");
+    this.push_ctx_active();
+
     let g = this.g;
 
     let scale = this.getFinalScale();
@@ -224,6 +226,9 @@ export class WorkspaceEditor extends Editor {
 
     canvas.draw(this.canvas, this.g, this._last_id);
     this._last_id = canvas.idgen-1;
+
+    this.pop_ctx_active();
+    contextWrangler.updateLastRef(this.constructor, this);
   }
 
   update() {

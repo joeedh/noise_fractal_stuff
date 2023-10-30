@@ -23,24 +23,14 @@ let PropSubTypes = toolprop.PropSubTypes;
 
 let EnumProperty = toolprop.EnumProperty;
 
-let Vector2 = vectormath.Vector2,
-    UIBase = ui_base.UIBase,
+let Vector2   = vectormath.Vector2,
+    UIBase    = ui_base.UIBase,
     PackFlags = ui_base.PackFlags,
     PropTypes = toolprop.PropTypes;
 
 import {DataPathError} from '../path-controller/controller/controller_base.js';
 
 import cconst from '../config/const.js';
-
-var list = function list(iter) {
-  let ret = [];
-
-  for (let item of iter) {
-    ret.push(item);
-  }
-
-  return ret;
-};
 
 export class Label extends ui_base.UIBase {
   constructor() {
@@ -69,10 +59,6 @@ export class Label extends ui_base.UIBase {
     this.font = "LabelText";
   }
 
-  init() {
-    this.dom.style["width"] = "max-content";
-  }
-
   get font() {
     return this._font;
   }
@@ -92,6 +78,30 @@ export class Label extends ui_base.UIBase {
     }
 
     this._updateFont();
+  }
+
+  get text() {
+    return this._label;
+    //return this.dom.innerText;
+  }
+
+  set text(text) {
+    this._label = text;
+
+    if (!this.hasAttribute("datapath")) {
+      this.dom.innerText = text;
+    }
+  }
+
+  static define() {
+    return {
+      tagname: "label-x",
+      style  : "label"
+    };
+  }
+
+  init() {
+    this.dom.style["width"] = "max-content";
   }
 
   setCSS() {
@@ -134,7 +144,7 @@ export class Label extends ui_base.UIBase {
     }
 
     //console.log(path);
-    if (prop.type & (PropTypes.INT|PropTypes.FLOAT)) {
+    if (prop.type & (PropTypes.INT | PropTypes.FLOAT)) {
       val = units.buildString(val, prop.baseUnit, prop.decimalPlaces, prop.displayUnit);
     }
 
@@ -164,26 +174,6 @@ export class Label extends ui_base.UIBase {
       this.updateDataPath();
     }
   }
-
-  get text() {
-    return this._label;
-    //return this.dom.innerText;
-  }
-
-  set text(text) {
-    this._label = text;
-
-    if (!this.hasAttribute("datapath")) {
-      this.dom.innerText = text;
-    }
-  }
-
-  static define() {
-    return {
-      tagname: "label-x",
-      style: "label"
-    };
-  }
 }
 
 ui_base.UIBase.internalRegister(Label);
@@ -206,6 +196,32 @@ export class Container extends ui_base.UIBase {
 
     this._prefixstack = [];
     this._mass_prefixstack = [];
+  }
+
+  set background(bg) {
+    this.__background = bg;
+
+    this.styletag.textContent = `div.containerx {
+        background-color : ${bg};
+      }
+    `;
+    this.style["background-color"] = bg;
+  }
+
+  get children() {
+    let list = [];
+
+    this._forEachChildWidget((n) => {
+      list.push(n);
+    });
+
+    return list
+  }
+
+  static define() {
+    return {
+      tagname: "container-x"
+    };
   }
 
   /** recursively change path prefix for all children*/
@@ -310,7 +326,7 @@ export class Container extends ui_base.UIBase {
   }
 
   /** Returns previous icon flags */
-  useIcons(enabled_or_sheet=true) {
+  useIcons(enabled_or_sheet = true) {
     let enabled = !!enabled_or_sheet;
 
     let mask = PackFlags.USE_ICONS | PackFlags.SMALL_ICON | PackFlags.LARGE_ICON;
@@ -338,7 +354,7 @@ export class Container extends ui_base.UIBase {
 
     //clear any existing sizing flags
     this.packflag &= ~(PackFlags.SMALL_ICON | PackFlags.LARGE_ICON | PackFlags.CUSTOM_ICON_SHEET);
-    this.packflag &= ~(255 << PackFlags.CUSTOM_ICON_SHEET_START);
+    this.packflag &= ~(255<<PackFlags.CUSTOM_ICON_SHEET_START);
 
     this.packflag |= PackFlags.USE_ICONS | sheet;
     this.inherit_packflag |= PackFlags.USE_ICONS | sheet;
@@ -351,7 +367,7 @@ export class Container extends ui_base.UIBase {
    * @param mode: flexbox wrap mode, can be wrap, nowrap, or wrap-reverse
    * @returns {Container}
    */
-  wrap(mode="wrap") {
+  wrap(mode = "wrap") {
     this.style["flex-wrap"] = mode;
     return this;
   }
@@ -411,7 +427,7 @@ export class Container extends ui_base.UIBase {
   *
   * .row().noMarginsOrPadding().oneAxisPadding()
   * */
-  strip(themeClass="strip", margin1 = this.getDefault("oneAxisPadding"), margin2 = 1, horiz=undefined) {
+  strip(themeClass = "strip", margin1 = this.getDefault("oneAxisPadding"), margin2 = 1, horiz = undefined) {
     if (horiz === undefined) {
       horiz = this instanceof RowFrame;
       horiz = horiz || this.style["flex-direction"] === "row";
@@ -440,7 +456,7 @@ export class Container extends ui_base.UIBase {
 
       let lastkey;
 
-      strip.update.after(function() {
+      strip.update.after(function () {
         let bradius = strip.getDefault("border-radius");
         let bline = strip.getDefault("border-width");
         let bstyle = strip.getDefault("border-style") || 'solid';
@@ -460,7 +476,7 @@ export class Container extends ui_base.UIBase {
         if (key !== lastkey) {
           lastkey = key;
 
-          strip.oneAxisPadding(margin1+padding, margin2+padding);
+          strip.oneAxisPadding(margin1 + padding, margin2 + padding);
           strip.setCSS();
 
           strip.background = bg;
@@ -537,22 +553,6 @@ export class Container extends ui_base.UIBase {
     return this;
   }
 
-  set background(bg) {
-    this.__background = bg;
-
-    this.styletag.textContent = `div.containerx {
-        background-color : ${bg};
-      }
-    `;
-    this.style["background-color"] = bg;
-  }
-
-  static define() {
-    return {
-      tagname: "container-x"
-    };
-  }
-
   save() {
   }
 
@@ -621,16 +621,6 @@ export class Container extends ui_base.UIBase {
     }, 150);
   }
 
-  get children() {
-    let list = [];
-
-    this._forEachChildWidget((n) => {
-      list.push(n);
-    });
-
-    return list
-  }
-
   update() {
     super.update();
   }
@@ -651,7 +641,7 @@ export class Container extends ui_base.UIBase {
     return super.appendChild(child);
   }
 
-  clear(trigger_on_destroy=true) {
+  clear(trigger_on_destroy = true) {
     for (let child of this.children) {
       if (child instanceof ui_base.UIBase) {
         child.remove(trigger_on_destroy);
@@ -659,7 +649,7 @@ export class Container extends ui_base.UIBase {
     }
   }
 
-  removeChild(child, trigger_on_destroy=true) {
+  removeChild(child, trigger_on_destroy = true) {
     let ret = super.removeChild(child);
 
     if (child.on_remove) {
@@ -699,7 +689,7 @@ export class Container extends ui_base.UIBase {
     if (i >= this.shadow.childNodes.length) {
       this.add(ch);
     } else {
-      this.shadow.insertBefore(ch, list(this.children)[i]);
+      this.shadow.insertBefore(ch, util.list(this.children)[i]);
     }
 
     if (ch.onadd) {
@@ -739,7 +729,7 @@ export class Container extends ui_base.UIBase {
   }
 
   //TODO: make sure this works on Electron?
-  dynamicMenu(title, list, packflag=0) {
+  dynamicMenu(title, list, packflag = 0) {
     //actually, .menu works for now
     return this.menu(title, list, packflag);
   }
@@ -750,6 +740,7 @@ export class Container extends ui_base.UIBase {
    "some_tool_path.tool()|CustomLabel",
    ui_widgets.Menu.SEP,
    "some_tool_path.another_tool()",
+   "some_tool_path.another_tool()|CustomLabel::Custom Hotkey String",
    ["Name", () => {console.log("do something")}]
    ])
 
@@ -762,12 +753,12 @@ export class Container extends ui_base.UIBase {
     dbox.setAttribute("name", title);
 
     if (list instanceof HTMLElement && list.constructor.name === "Menu") {
-      dbox._build_menu = function() {
+      dbox._build_menu = function () {
         if (this._menu !== undefined && this._menu.parentNode !== undefined) {
           this._menu.remove();
         }
 
-        this._menu = createMenu(this.ctx, title, templ);
+        this._menu = createMenu(this.ctx, title, list);
         return this._menu;
       }
     } else if (list) {
@@ -780,7 +771,7 @@ export class Container extends ui_base.UIBase {
     return dbox;
   }
 
-  toolPanel(path_or_cls, args={}) {
+  toolPanel(path_or_cls, args = {}) {
     let tdef;
     let cls;
 
@@ -825,7 +816,7 @@ export class Container extends ui_base.UIBase {
     return container;
   }
 
-  tool(path_or_cls, packflag_or_args = {}, createCb = undefined, label=undefined) {
+  tool(path_or_cls, packflag_or_args = {}, createCb = undefined, label = undefined) {
     let cls;
     let packflag;
 
@@ -910,6 +901,7 @@ export class Container extends ui_base.UIBase {
 
       ret.iconsheet = iconSheetFromPackFlag(packflag);
       ret.packflag |= packflag;
+      ret.description = tooltip;
     } else {
       label = label === undefined ? def.uiname : label;
 
@@ -922,11 +914,12 @@ export class Container extends ui_base.UIBase {
   }
 
   //supports number types
-  textbox(inpath, text, cb=undefined, packflag = 0) {
+  textbox(inpath, text, cb = undefined, packflag = 0) {
     let path;
 
-    if (inpath)
+    if (inpath) {
       path = this._joinPrefix(inpath);
+    }
 
     packflag |= this.inherit_packflag & ~PackFlags.NO_UPDATE;
 
@@ -939,6 +932,8 @@ export class Container extends ui_base.UIBase {
     ret.ctx = this.ctx;
     ret.parentWidget = this;
     ret._init();
+    this._add(ret);
+
     ret.setCSS();
     ret.update();
 
@@ -946,11 +941,10 @@ export class Container extends ui_base.UIBase {
     ret.onchange = cb;
     ret.text = text;
 
-    this._add(ret);
     return ret;
   }
 
-  pathlabel(inpath, label = "", packflag=0) {
+  pathlabel(inpath, label = "", packflag = 0) {
     let path;
 
     packflag |= this.inherit_packflag & ~PackFlags.NO_UPDATE;
@@ -1038,14 +1032,17 @@ export class Container extends ui_base.UIBase {
     return ret;
   }
 
-  _joinPrefix(path, prefix=this.dataPrefix.trim()) {
+  _joinPrefix(path, prefix = this.dataPrefix.trim()) {
     if (path === undefined) {
       return undefined;
     }
 
     path = path.trim();
+    if (path[0] === "/") {
+      return path;
+    }
 
-    if (prefix.length > 0 && !prefix.endsWith(".") && !path.startsWith(".")) {
+    if (prefix.length > 0 && path.length > 0 && !prefix.endsWith(".") && !path.startsWith(".")) {
       path = "." + path;
     }
 
@@ -1083,7 +1080,7 @@ export class Container extends ui_base.UIBase {
     return ret;
   }
 
-  curve1d(inpath, packflag=0, mass_set_path=undefined) {
+  curve1d(inpath, packflag = 0, mass_set_path = undefined) {
     packflag |= this.inherit_packflag & ~PackFlags.NO_UPDATE;
 
     mass_set_path = this._getMassPath(this.ctx, inpath, mass_set_path);
@@ -1106,7 +1103,7 @@ export class Container extends ui_base.UIBase {
     return ret;
   }
 
-  vecpopup(inpath, packflag=0, mass_set_path=undefined) {
+  vecpopup(inpath, packflag = 0, mass_set_path = undefined) {
     let button = UIBase.createElement("vector-popup-button-x");
 
     mass_set_path = this._getMassPath(this.ctx, inpath, mass_set_path);
@@ -1179,15 +1176,16 @@ export class Container extends ui_base.UIBase {
     let prop = rdef.prop;
 
     let useDataPathUndo = !(prop.flag & PropFlags.NO_UNDO);
+
     //console.log(prop, PropTypes, PropSubTypes);
 
     function makeUIName(name) {
       if (typeof name === "number" && isNaN(name)) {
         console.warn("Subkey error in data api", inpath);
-        return ""+name;
+        return "" + name;
       }
 
-      name = ""+name;
+      name = "" + name;
       name = name[0].toUpperCase() + name.slice(1, name.length).toLowerCase();
       name = name.replace(/_/g, " ");
       return name;
@@ -1227,9 +1225,9 @@ export class Container extends ui_base.UIBase {
     } else if (prop.type === PropTypes.INT || prop.type === PropTypes.FLOAT) {
       let ret;
       if (packflag & PackFlags.SIMPLE_NUMSLIDERS) {
-        ret = this.simpleslider(inpath, {packflag : packflag});
+        ret = this.simpleslider(inpath, {packflag: packflag});
       } else {
-        ret = this.slider(inpath, {packflag : packflag});
+        ret = this.slider(inpath, {packflag: packflag});
       }
 
       ret.useDataPathUndo = useDataPathUndo;
@@ -1264,7 +1262,7 @@ export class Container extends ui_base.UIBase {
         return check;
       }
 
-      if (!(packflag & PackFlags.USE_ICONS)) {
+      if (!(packflag & PackFlags.USE_ICONS) && !(prop.flag & (PropFlags.USE_ICONS | PropFlags.FORCE_ENUM_CHECKBOXES))) {
         if (packflag & PackFlags.FORCE_PROP_LABELS) {
           let strip = this.strip();
           strip.label(prop.uiname);
@@ -1275,8 +1273,14 @@ export class Container extends ui_base.UIBase {
         }
 
       } else {
+        if (prop.flag & PropFlags.USE_ICONS) {
+          packflag |= PackFlags.USE_ICONS;
+        } else if (prop.flag & PropFlags.FORCE_ENUM_CHECKBOXES) {
+          packflag &= ~PackFlags.USE_ICONS;
+        }
+
         if (packflag & PackFlags.FORCE_PROP_LABELS) {
-          let strip = thdis.strip();
+          let strip = this.strip();
           strip.label(prop.uiname);
 
           return strip.checkenum(inpath, undefined, packflag).setUndo(useDataPathUndo);
@@ -1284,14 +1288,14 @@ export class Container extends ui_base.UIBase {
           return this.checkenum(inpath, undefined, packflag).setUndo(useDataPathUndo);
         }
       }
-    } else if (prop.type & (PropTypes.VEC2|PropTypes.VEC3|PropTypes.VEC4)) {
+    } else if (prop.type & (PropTypes.VEC2 | PropTypes.VEC3 | PropTypes.VEC4)) {
       if (rdef.subkey !== undefined) {
         let ret;
 
         if (packflag & PackFlags.SIMPLE_NUMSLIDERS)
-          ret = this.simpleslider(inpath, {packflag : packflag});
+          ret = this.simpleslider(inpath, {packflag: packflag});
         else
-          ret = this.slider(inpath, {packflag : packflag});
+          ret = this.slider(inpath, {packflag: packflag});
 
         ret.packflag |= packflag;
         return ret.setUndo(useDataPathUndo);
@@ -1582,7 +1586,9 @@ export class Container extends ui_base.UIBase {
 
       if (packflag & PackFlags.USE_ICONS) {
         for (let key in prop.values) {
-          let check = frame.check(inpath + "["+key+"]", "", packflag);
+          let check = frame.check(inpath + "[" + key + "]", "", packflag);
+
+          check.packflag |= PackFlags.HIDE_CHECK_MARKS;
 
           check.icon = prop.iconmap[key];
           check.drawCheck = false;
@@ -1626,7 +1632,7 @@ export class Container extends ui_base.UIBase {
         }
 
         for (let key in prop.values) {
-          let check = frame.check(inpath + " = " + prop.values[key], prop.ui_value_names[key]);
+          let check = frame.check(`${inpath}[${key}]`, prop.ui_value_names[key]);
           checks[key] = check;
 
           if (mass_set_path) {
@@ -1636,10 +1642,9 @@ export class Container extends ui_base.UIBase {
 
           check.description = prop.descriptions[prop.keys[key]];
           if (!check.description) {
-            check.description = ""+prop.ui_value_names[key];
+            check.description = "" + prop.ui_value_names[key];
           }
           check.onchange = makecb(key);
-          //console.log("PATH", path);
         }
       }
     }
@@ -1647,7 +1652,7 @@ export class Container extends ui_base.UIBase {
     return frame;
   }
 
-  checkenum_panel(inpath, name, packflag=0, callback=undefined, mass_set_path=undefined, prop=undefined) {
+  checkenum_panel(inpath, name, packflag = 0, callback = undefined, mass_set_path = undefined, prop = undefined) {
     packflag = packflag === undefined ? 0 : packflag;
     packflag |= this.inherit_packflag & ~PackFlags.NO_UPDATE;
 
@@ -1734,7 +1739,7 @@ export class Container extends ui_base.UIBase {
 
           check.description = prop.descriptions[prop.keys[key]];
           if (!check.description) {
-            check.description = ""+prop.ui_value_names[key];
+            check.description = "" + prop.ui_value_names[key];
           }
           check.onchange = makecb(key);
           //console.log("PATH", path);
@@ -1916,34 +1921,6 @@ export class Container extends ui_base.UIBase {
 
     if (inpath) {
       ret.setAttribute("datapath", inpath);
-
-      let rdef;
-      try {
-        rdef = this.ctx.api.resolvePath(this.ctx, inpath, true);
-      } catch (error) {
-        if (error instanceof DataPathError) {
-          util.print_stack(error);
-          console.warn("Error resolving property", inpath);
-        } else {
-          throw error;
-        }
-      }
-      if (rdef && rdef.prop) {
-        let prop = rdef.prop;
-
-        let range = prop.uiRange !== undefined ? prop.uiRange : prop.range;
-        range = range === undefined ? [-100000, 100000] : range;
-
-        min = min === undefined ? range[0] : min;
-        max = max === undefined ? range[1] : max;
-        is_int = is_int === undefined ? prop.type === PropTypes.INT : is_int;
-        name = name === undefined ? prop.uiname : name;
-        step = step === undefined ? prop.step : step;
-        step = step === undefined ? (is_int ? 1 : 0.1) : step;
-        decimals = decimals === undefined ? prop.decimalPlaces : decimals;
-      } else {
-        console.warn("warning, failed to lookup property info for path", inpath);
-      }
     }
 
     if (name) {
@@ -1951,11 +1928,9 @@ export class Container extends ui_base.UIBase {
     }
 
     if (min !== undefined) {
-      //ret.range[0] = min;
       ret.setAttribute("min", min);
     }
     if (max !== undefined) {
-      //ret.range[1] = max;
       ret.setAttribute("max", max);
     }
 
@@ -1963,8 +1938,10 @@ export class Container extends ui_base.UIBase {
       ret.setValue(defaultval);
     }
 
-    if (is_int)
+    if (is_int) {
       ret.setAttribute("integer", is_int);
+    }
+
     if (decimals !== undefined) {
       ret.decimalPlaces = decimals;
     }
@@ -1975,10 +1952,15 @@ export class Container extends ui_base.UIBase {
 
     this._add(ret);
 
+    if (this.ctx) {
+      ret.setCSS();
+      ret.update();
+    }
+
     return ret;
   }
 
-  _container_inherit(elem, packflag=0) {
+  _container_inherit(elem, packflag = 0) {
     //don't inherit NO_UPDATE
 
     packflag |= this.inherit_packflag & ~PackFlags.NO_UPDATE;
@@ -1999,7 +1981,7 @@ export class Container extends ui_base.UIBase {
     return ret;
   }
 
-  panel(name, id, packflag = 0, tooltip=undefined) {
+  panel(name, id, packflag = 0, tooltip = undefined) {
     id = id === undefined ? name : id;
 
     let ret = UIBase.createElement("panelframe-x");
@@ -2060,7 +2042,7 @@ export class Container extends ui_base.UIBase {
     return ret;
   }
 
-  twocol(parentDepth=1, packflag = 0) {
+  twocol(parentDepth = 1, packflag = 0) {
     let ret = UIBase.createElement("two-column-x");
 
     ret.parentDepth = parentDepth;
@@ -2080,7 +2062,17 @@ export class Container extends ui_base.UIBase {
     return ret;
   }
 
-  colorPicker(inpath, packflag = 0, mass_set_path = undefined) {
+  colorPicker(inpath, packflag_or_args = 0, mass_set_path = undefined, themeOverride = undefined) {
+    let packflag;
+
+    if (typeof packflag_or_args === "object") {
+      let args = packflag_or_args;
+
+      packflag = args.packflag !== undefined ? args.packflag : 0;
+      mass_set_path = args.massSetPath;
+      themeOverride = args.themeOverride;
+    }
+
     let path;
 
     if (inpath) {
@@ -2088,6 +2080,10 @@ export class Container extends ui_base.UIBase {
     }
 
     let ret = UIBase.createElement("colorpicker-x");
+
+    if (themeOverride) {
+      ret.overrideClass(themeOverride);
+    }
 
     packflag |= PackFlags.SIMPLE_NUMSLIDERS;
 
@@ -2116,7 +2112,7 @@ export class Container extends ui_base.UIBase {
     return ret;
   }
 
-  textarea(datapath=undefined, value="", packflag=0, mass_set_path=undefined) {
+  textarea(datapath = undefined, value = "", packflag = 0, mass_set_path = undefined) {
     packflag |= this.inherit_packflag & ~PackFlags.NO_UPDATE;
 
     mass_set_path = this._getMassPath(this.ctx, datapath, mass_set_path);
@@ -2142,7 +2138,7 @@ export class Container extends ui_base.UIBase {
   /**
    * html5 viewer
    * */
-  viewer(datapath=undefined, value="", packflag=0, mass_set_path=undefined) {
+  viewer(datapath = undefined, value = "", packflag = 0, mass_set_path = undefined) {
     packflag |= this.inherit_packflag & ~PackFlags.NO_UPDATE;
 
     mass_set_path = this._getMassPath(this.ctx, datapath, mass_set_path);
@@ -2179,7 +2175,7 @@ export class Container extends ui_base.UIBase {
     return ret;
   }
 
-  asDialogFooter(){
+  asDialogFooter() {
     this.style['margin-top'] = '15px';
     this.style['justify-content'] = 'flex-end';
 
@@ -2194,6 +2190,12 @@ ui_base.UIBase.internalRegister(Container, "div");
 export class RowFrame extends Container {
   constructor() {
     super();
+  }
+
+  static define() {
+    return {
+      tagname: 'rowframe-x'
+    };
   }
 
   //try to set styling as early as possible
@@ -2237,12 +2239,6 @@ export class RowFrame extends Container {
   update() {
     super.update();
   }
-
-  static define() {
-    return {
-      tagname: 'rowframe-x'
-    };
-  }
 }
 
 UIBase.internalRegister(RowFrame);
@@ -2250,6 +2246,12 @@ UIBase.internalRegister(RowFrame);
 export class ColumnFrame extends Container {
   constructor() {
     super();
+  }
+
+  static define() {
+    return {
+      tagname: "colframe-x"
+    };
   }
 
   init() {
@@ -2264,7 +2266,6 @@ export class ColumnFrame extends Container {
     super.update();
   }
 
-
   oneAxisMargin(m = this.getDefault('oneAxisMargin'), m2 = 0) {
     this.style['margin-top'] = this.style['margin-bottom'] = '' + m + 'px';
     this.style['margin-left'] = this.style['margin-right'] = m2 + 'px';
@@ -2277,12 +2278,6 @@ export class ColumnFrame extends Container {
     this.style['padding-left'] = this.style['padding-right'] = '' + m2 + 'px';
 
     return this;
-  }
-
-  static define() {
-    return {
-      tagname: "colframe-x"
-    };
   }
 }
 
@@ -2313,6 +2308,12 @@ export class TwoColumnFrame extends Container {
     }
   }
 
+  static define() {
+    return {
+      tagname: "two-column-x"
+    }
+  }
+
   init() {
     super.init();
 
@@ -2325,7 +2326,7 @@ export class TwoColumnFrame extends Container {
 
     let p = this;
 
-    for (let i=0; i<this.parentDepth; i++) {
+    for (let i = 0; i < this.parentDepth; i++) {
       p = p.parentWidget ? p.parentWidget : p;
     }
 
@@ -2343,12 +2344,6 @@ export class TwoColumnFrame extends Container {
 
     if (this.style["flex-direction"] !== style) {
       this.style["flex-direction"] = style;
-    }
-  }
-
-  static define() {
-    return {
-      tagname: "two-column-x"
     }
   }
 }

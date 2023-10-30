@@ -34,18 +34,21 @@ export const PropSubTypes = {
 
 //flags
 export const PropFlags = {
-  SELECT             : 1,
-  PRIVATE            : 2,
-  LABEL              : 4,
-  USE_ICONS          : 64,
-  USE_CUSTOM_GETSET  : 128, //used by controller.js interface
-  SAVE_LAST_VALUE    : 256,
-  READ_ONLY          : 512,
-  SIMPLE_SLIDER      : 1<<10,
-  FORCE_ROLLER_SLIDER: 1<<11,
-  USE_BASE_UNDO      : 1<<12, //internal to simple_controller.js
-  EDIT_AS_BASE_UNIT  : 1<<13, //user textbox input should be interpreted in display unit
-  NO_UNDO            : 1<<14
+  SELECT                : 1,
+  PRIVATE               : 2,
+  LABEL                 : 4,
+  USE_ICONS             : 64, /* Implies FORCE_ENUM_CHECKBOXES (for enum/flag properties). */
+  USE_CUSTOM_GETSET     : 128, //used by controller.js interface
+  SAVE_LAST_VALUE       : 256,
+  READ_ONLY             : 512,
+  SIMPLE_SLIDER         : 1<<10,
+  FORCE_ROLLER_SLIDER   : 1<<11,
+  USE_BASE_UNDO         : 1<<12, //internal to simple_controller.js
+  EDIT_AS_BASE_UNIT     : 1<<13, //user textbox input should be interpreted in display unit
+  NO_UNDO               : 1<<14,
+  USE_CUSTOM_PROP_GETTER: 1<<15, //hrm, not sure I need this
+  FORCE_ENUM_CHECKBOXES : 1<<16,/* Use a strip of checkboxes, also applies to flag properties. */
+  NO_DEFAULT            : 1<<17,
 };
 
 export class ToolPropertyIF {

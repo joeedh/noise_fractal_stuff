@@ -8,7 +8,7 @@ import * as ui_noteframe from '../widgets/ui_noteframe.js';
 import {haveModal} from '../path-controller/util/simple_events.js';
 import cconst from '../config/const.js';
 
-import '../path-controller/util/struct.js';
+import nstructjs from '../path-controller/util/struct.js';
 
 let UIBase = ui_base.UIBase;
 
@@ -17,36 +17,30 @@ import {EnumProperty} from "../path-controller/toolsys/toolprop.js";
 let Vector2 = vectormath.Vector2;
 let Screen = undefined;
 
-import {snap, snapi} from './FrameManager_mesh.js';
+import {AreaFlags, BORDER_ZINDEX_BASE, ScreenBorder, snap, snapi} from './FrameManager_mesh.js';
 
-export const AreaFlags = {
-  HIDDEN          : 1,
-  FLOATING        : 2,
-  INDEPENDENT     : 4, //area is indpendent of the screen mesh
-  NO_SWITCHER     : 8
-};
-
+export {AreaFlags};
 
 export * from './area_wrangler.js';
-import {getAreaIntName, setAreaTypes, AreaWrangler, areaclasses} from './area_wrangler.js';
+import {getAreaIntName, setAreaTypes, contextWrangler, AreaWrangler, areaclasses} from './area_wrangler.js';
 
-export let contextWrangler = new AreaWrangler();
+export {contextWrangler};
 
 window._contextWrangler = contextWrangler;
 
 export const BorderMask = {
-  LEFT    : 1,
-  BOTTOM  : 2,
-  RIGHT   : 4,
-  TOP     : 8,
-  ALL     : 1|2|4|8
+  LEFT  : 1,
+  BOTTOM: 2,
+  RIGHT : 4,
+  TOP   : 8,
+  ALL   : 1 | 2 | 4 | 8
 };
 
 export const BorderSides = {
-  LEFT   : 0,
-  BOTTOM : 1,
-  RIGHT  : 2,
-  TOP    : 3
+  LEFT  : 0,
+  BOTTOM: 1,
+  RIGHT : 2,
+  TOP   : 3
 };
 
 /**
@@ -101,6 +95,10 @@ export class Area extends ui_base.UIBase {
     };
   }
 
+  get floating() {
+    return ~~(this.flag & AreaFlags.FLOATING);
+  }
+
   set floating(val) {
     if (val) {
       this.flag |= AreaFlags.FLOATING;
@@ -109,40 +107,25 @@ export class Area extends ui_base.UIBase {
     }
   }
 
-  get floating() {
-    return ~~(this.flag & AreaFlags.FLOATING);
+  /**
+   * Get active area as defined by push_ctx_active and pop_ctx_active.
+   *
+   * Type should be an Area subclass, if undefined the last accessed area
+   * will be returned.
+   * */
+  static getActiveArea(type) {
+    return contextWrangler.getLastArea(type);
   }
 
-  init() {
-    super.init();
+  static unregister(cls) {
+    let def = cls.define();
 
-    this.style["overflow"] = "hidden";
-    this.noMarginsOrPadding();
+    if (!def.areaname) {
+      throw new Error("Missing areaname key in define()");
+    }
 
-    let onover = (e) => {
-      //console.log(this._area_id, this.ctx.workspace._area_id);
-
-      //try to trigger correct entry in context area stacks
-      this.push_ctx_active();
-      this.pop_ctx_active();
-    };
-
-    //*
-    super.addEventListener("mouseover", onover, {passive : true});
-    super.addEventListener("mousemove", onover, {passive : true});
-    super.addEventListener("mousein", onover, {passive : true});
-    super.addEventListener("mouseenter", onover, {passive : true});
-    super.addEventListener("touchstart", onover, {passive : true});
-    super.addEventListener("focusin", onover, {passive : true});
-    super.addEventListener("focus", onover, {passive : true});
-    //*/
-  }
-
-  _get_v_suffix() {
-    if (this.flag & AreaFlags.INDEPENDENT) {
-      return this._id;
-    } else {
-      return "";
+    if (def.areaname in areaclasses) {
+      delete areaclasses[def.areaname];
     }
   }
 
@@ -189,6 +172,94 @@ export class Area extends ui_base.UIBase {
   }
   //*/
 
+  static register(cls) {
+    let def = cls.define();
+
+    if (!def.areaname) {
+      throw new Error("Missing areaname key in define()");
+    }
+
+    areaclasses[def.areaname] = cls;
+
+    ui_base.UIBase.internalRegister(cls);
+  }
+
+  static makeAreasEnum() {
+    let areas = {};
+    let icons = {};
+    let i = 0;
+
+    for (let k in areaclasses) {
+      let cls = areaclasses[k];
+      let def = cls.define();
+
+      if (def.flag & AreaFlags.HIDDEN)
+        continue;
+
+      let uiname = def.uiname;
+
+      if (uiname === undefined) {
+        uiname = k.replace("_", " ").toLowerCase();
+        uiname = uiname[0].toUpperCase() + uiname.slice(1, uiname.length);
+      }
+
+      areas[uiname] = k;
+      icons[uiname] = def.icon !== undefined ? def.icon : -1;
+    }
+
+    let prop = new EnumProperty(undefined, areas);
+    prop.addIcons(icons);
+
+    return prop;
+  }
+
+  static define() {
+    return {
+      tagname : "pathux-editor-x", // tag name, e.g. editor-x
+      areaname: undefined, //api name for area type
+      flag    : 0, //see AreaFlags
+      uiname  : undefined,
+      icon    : undefined //icon representing area in MakeHeader's area switching menu. Integer.
+    };
+  }
+
+  static newSTRUCT() {
+    return UIBase.createElement(this.define().tagname);
+  }
+
+  init() {
+    super.init();
+
+    this.style["overflow"] = "hidden";
+    this.noMarginsOrPadding();
+
+    let onover = (e) => {
+      //console.log(this._area_id, this.ctx.workspace._area_id);
+
+      //try to trigger correct entry in context area stacks
+      this.push_ctx_active();
+      this.pop_ctx_active();
+    };
+
+    //*
+    super.addEventListener("mouseover", onover, {passive: true});
+    super.addEventListener("mousemove", onover, {passive: true});
+    super.addEventListener("mousein", onover, {passive: true});
+    super.addEventListener("mouseenter", onover, {passive: true});
+    super.addEventListener("touchstart", onover, {passive: true});
+    super.addEventListener("focusin", onover, {passive: true});
+    super.addEventListener("focus", onover, {passive: true});
+    //*/
+  }
+
+  _get_v_suffix() {
+    if (this.flag & AreaFlags.INDEPENDENT) {
+      return this._id;
+    } else {
+      return "";
+    }
+  }
+
   /**
    * Return a list of keymaps used by this editor
    * @returns {Array<KeyMap>}
@@ -226,8 +297,8 @@ export class Area extends ui_base.UIBase {
 
   saveData() {
     return {
-      _area_id : this._area_id,
-      areaName : this.areaName
+      _area_id: this._area_id,
+      areaName: this.areaName
     };
   }
 
@@ -268,16 +339,6 @@ export class Area extends ui_base.UIBase {
   on_area_inactive() {
   }
 
-  /**
-   * Get active area as defined by push_ctx_active and pop_ctx_active.
-   *
-   * Type should be an Area subclass, if undefined the last accessed area
-   * will be returned.
-   * */
-  static getActiveArea(type) {
-    return contextWrangler.getLastArea(type);
-  }
-
   /*
   * This is needed so UI controls can know what their parent area is.
   * For example, a slider with data path "view2d.zoomfac" needs to know where
@@ -293,39 +354,16 @@ export class Area extends ui_base.UIBase {
   *
   * Make sure to wrap event callbacks in push_ctx_active and pop_ctx_active.
   * */
-  push_ctx_active(dontSetLastRef=false) {
+  push_ctx_active(dontSetLastRef = false) {
+    contextWrangler.updateLastRef(this.constructor, this);
     contextWrangler.push(this.constructor, this, !dontSetLastRef);
   }
 
   /**
    * see push_ctx_active
    * */
-  pop_ctx_active(dontSetLastRef=false) {
+  pop_ctx_active(dontSetLastRef = false) {
     contextWrangler.pop(this.constructor, this, !dontSetLastRef);
-  }
-
-  static unregister(cls) {
-    let def = cls.define();
-
-    if (!def.areaname) {
-      throw new Error("Missing areaname key in define()");
-    }
-
-    if (def.areaname in areaclasses) {
-      delete areaclasses[def.areaname];
-    }
-  }
-
-  static register(cls) {
-    let def = cls.define();
-
-    if (!def.areaname) {
-      throw new Error("Missing areaname key in define()");
-    }
-
-    areaclasses[def.areaname] = cls;
-
-    ui_base.UIBase.internalRegister(cls);
   }
 
   getScreen() {
@@ -336,8 +374,8 @@ export class Area extends ui_base.UIBase {
 
   toJSON() {
     return Object.assign(super.toJSON(), {
-      areaname : this.constructor.define().areaname,
-      _area_id : this._area_id
+      areaname: this.constructor.define().areaname,
+      _area_id: this._area_id
     });
   }
 
@@ -352,35 +390,6 @@ export class Area extends ui_base.UIBase {
     return this.header.getClientRects()[0].height;
   }
 
-  static makeAreasEnum() {
-    let areas = {};
-    let icons = {};
-    let i = 0;
-
-    for (let k in areaclasses) {
-      let cls = areaclasses[k];
-      let def = cls.define();
-
-      if (def.flag & AreaFlags.HIDDEN)
-        continue;
-
-      let uiname = def.uiname;
-
-      if (uiname === undefined) {
-        uiname = k.replace("_", " ").toLowerCase();
-        uiname = uiname[0].toUpperCase() + uiname.slice(1, uiname.length);
-      }
-
-      areas[uiname] = k;
-      icons[uiname] = def.icon !== undefined ? def.icon : -1;
-    }
-
-    let prop = new EnumProperty(undefined, areas);
-    prop.addIcons(icons);
-
-    return prop;
-  }
-
   makeAreaSwitcher(container) {
     if (cconst.useAreaTabSwitcher) {
       let ret = UIBase.createElement("area-docker-x");
@@ -391,9 +400,9 @@ export class Area extends ui_base.UIBase {
     let prop = Area.makeAreasEnum();
 
     let dropbox = container.listenum(undefined, {
-      name : this.constructor.define().uiname,
+      name    : this.constructor.define().uiname,
       enumDef : prop,
-      callback : (id) => {
+      callback: (id) => {
         let cls = areaclasses[id];
         this.owning_sarea.switch_editor(cls);
       }
@@ -406,7 +415,7 @@ export class Area extends ui_base.UIBase {
       if (dropbox.value !== val && val in prop.keys) {
         val = prop.keys[val];
       }
-      
+
       if (dropbox.value !== val) {
         dropbox.setValue(prop.values[name], true);
       }
@@ -415,11 +424,34 @@ export class Area extends ui_base.UIBase {
     return dropbox;
   }
 
-  makeHeader(container, add_note_area=true, make_draggable=true) {
-    let row = this.header = container.row();
+  makeHeader(container, add_note_area = true, make_draggable = true) {
+    let switcherRow;
+    let row;
+    let helpRow;
 
-    row.remove();
-    container._prepend(row);
+    if (!(this.flag & AreaFlags.NO_SWITCHER) && cconst.useAreaTabSwitcher) {
+      let col = this.header = container.col();
+
+      switcherRow = helpRow = col.row();
+      row = col.row();
+    } else {
+      row = helpRow = this.header = container.row();
+    }
+
+    if (!(this.flag & AreaFlags.NO_HEADER_CONTEXT_MENU)) {
+      let callmenu = ScreenBorder.bindBorderMenu(this.header, true);
+
+      this.addEventListener("mousedown", e => {
+        if (e.button !== 2 || this.header.pickElement(e.x, e.y) !== this.header) {
+          return;
+        }
+
+        callmenu(e);
+      });
+    }
+
+    this.header.remove();
+    container._prepend(this.header);
 
     row.setCSS.after(() => row.background = this.getDefault("AreaHeaderBG"));
 
@@ -436,12 +468,47 @@ export class Area extends ui_base.UIBase {
     row.style["margin"] = "0px";
     row.style["padding"] = "0px";
 
+    if (!(this.flag & AreaFlags.NO_SWITCHER)) {
+      if (this.switcher) {
+        //add back same switcher
+        switcherRow.add(this.switcher);
+      } else {
+        this.switcher = this.makeAreaSwitcher(cconst.useAreaTabSwitcher ? switcherRow : row);
+      }
+    }
+
+    if (util.isMobile() || cconst.addHelpPickers) {
+      if (this.helppicker) {
+        this.helppicker.remove();
+      }
+
+      this.helppicker = helpRow.helppicker();
+      this.helppicker.iconsheet = 0;
+    }
+
+    if (add_note_area) {
+      let notef = UIBase.createElement("noteframe-x");
+      notef.ctx = this.ctx;
+      row._add(notef);
+    }
+
+    /* don't do normal dragging for tab switchers */
+    if (cconst.useAreaTabSwitcher) {
+      return row;
+    }
+
+    let eventdom = this.header;
+
     let mdown = false;
     let mpos = new Vector2();
 
     let mpre = (e, pageX, pageY) => {
-      pageX = pageX === undefined ? e.pageX : pageX;
-      pageY = pageY === undefined ? e.pageY : pageY;
+      if (haveModal()) {
+        return;
+      }
+
+      pageX = pageX === undefined ? e.x : pageX;
+      pageY = pageY === undefined ? e.y : pageY;
 
       let node = this.getScreen().pickElement(pageX, pageY);
 
@@ -462,31 +529,43 @@ export class Area extends ui_base.UIBase {
       return true;
     }
 
-    row.addEventListener("mouseout", (e) => {
-      //console.log("mouse leave");
+    eventdom.addEventListener("pointerout", (e) => {
+      //console.log("pointerout", e);
       mdown = false;
     });
-    row.addEventListener("mouseleave", (e) => {
-      //console.log("mouse out");
+    eventdom.addEventListener("pointerleave", (e) => {
       mdown = false;
+      //console.log("pointerleave", e);
     });
 
-    row.addEventListener("mousedown", (e) => {
+    eventdom.addEventListener("pointerdown", (e) => {
+      //console.log("pointerdown", e, mpre(e));
+
       if (!mpre(e)) return;
 
       mpos[0] = e.pageX;
       mpos[1] = e.pageY;
       mdown = true;
-    }, false);
+    });
+
+    let last_time = util.time_ms();
 
     let do_mousemove = (e, pageX, pageY) => {
       if (haveModal() || !make_draggable) {
         return;
       }
 
-      let mdown2 = e.buttons != 0 || (e.touches && e.touches.length > 0);
+      let mdown2 = e.buttons !== 0 || (e.touches && e.touches.length > 0);
+      mdown2 = mdown2 && mdown;
 
       //console.log("area drag?", e, mdown2, e.pageX, e.pageY, mpre(e, pageX, pageY), e.was_touch);
+
+      //calls to pickElement in mpre are expensive
+      if (util.time_ms() - last_time < 250) {
+        return;
+      }
+
+      last_time = util.time_ms;
 
       if (!mdown2 || !mpre(e, pageX, pageY)) return;
 
@@ -530,7 +609,7 @@ export class Area extends ui_base.UIBase {
     //row.setAttribute("draggable", true);
     //row.draggable = true;
     /*
-    row.addEventListener("dragstart", (e) => {
+    eventdom.addEventListener("dragstart", (e) => {
       return;
       console.log("drag start!", e);
       e.dataTransfer.setData("text/json", "SplitAreaDrag");
@@ -548,79 +627,28 @@ export class Area extends ui_base.UIBase {
       this.getScreen().areaDragTool(this.owning_sarea);
     });
 
-    row.addEventListener("drag", (e) => {
+    eventdom.addEventListener("drag", (e) => {
       console.log("drag!", e);
     });*/
 
-    //*
-    row.addEventListener("mousemove", (e) => {
+    eventdom.addEventListener("pointermove", (e) => {
       return do_mousemove(e, e.pageX, e.pageY);
     }, false);
-    //*/
-    row.addEventListener("mouseup", (e) => {
-      if (!mpre(e)) return;
-
+    eventdom.addEventListener("pointerup", (e) => {
+      console.log("pointerup", e);
       mdown = false;
     }, false);
-
-    row.addEventListener("touchstart", (e) => {
-      console.log("touchstart", e);
-
-      if (!mpre(e, e.touches[0].pageX, e.touches[0].pageY)) return;
-
-      if (e.touches.length == 0)
-        return;
-
-      mpos[0] = e.touches[0].pageX;
-      mpos[1] = e.touches[0].pageY;
-      mdown = true;
-    }, false);
-
-    row.addEventListener("touchmove", (e) => {
-      return do_mousemove(e, e.touches[0].pageX, e.touches[0].pageY);
-    }, false);
-
-    let touchend = (e) => {
-      let node = this.getScreen().pickElement(e.pageX, e.pageY);
-      if (node !== row) {
-        return;
-      }
-      if (e.touches.length == 0)
-        return;
-
+    eventdom.addEventListener("pointercancel", (e) => {
+      console.log("pointercancel", e);
       mdown = false;
-    };
-
-    row.addEventListener("touchcancel", (e) => {
-      touchend(e);
     }, false);
-    row.addEventListener("touchend", (e) => {
-      touchend(e);
-    }, false);
-
-    if (!(this.flag & AreaFlags.NO_SWITCHER)) {
-      this.switcher = this.makeAreaSwitcher(row);
-    }
-
-    if (util.isMobile()||cconst.addHelpPickers) {
-      this.helppicker = row.helppicker();
-      this.helppicker.iconsheet = 0;
-    }
-
-    if (add_note_area) {
-      let notef = UIBase.createElement("noteframe-x");
-      notef.ctx = this.ctx;
-      row._add(notef);
-    }
-
-    this.header = row;
 
     return row;
   }
 
   setCSS() {
     if (this.size !== undefined) {
-      this.style["position"] = "absolute";
+      this.style["position"] = UIBase.PositionKey;
       //this.style["left"] = this.pos[0] + "px";
       //this.style["top"] = this.pos[1] + "px";
       this.style["width"] = this.size[0] + "px";
@@ -646,14 +674,6 @@ export class Area extends ui_base.UIBase {
   loadSTRUCT(reader) {
     reader(this);
   }
-
-  static define() {return {
-    tagname  : "pathux-editor-x", // tag name, e.g. editor-x
-    areaname : undefined, //api name for area type
-    flag     : 0, //see AreaFlags
-    uiname   : undefined,
-    icon     : undefined //icon representing area in MakeHeader's area switching menu. Integer.
-  };}
 
   _isDead() {
     if (this.dead) {
@@ -692,10 +712,6 @@ export class Area extends ui_base.UIBase {
     this.doOnce(f);
   }
 
-  static newSTRUCT() {
-    return UIBase.createElement(this.define().tagname);
-  }
-
   loadSTRUCT(reader) {
     reader(this);
   }
@@ -712,12 +728,16 @@ pathux.Area {
 }
 `
 
-nstructjs.register(Area);
+nstructjs.register(Area, "pathux.Area");
 ui_base.UIBase.internalRegister(Area);
 
 export class ScreenArea extends ui_base.UIBase {
   constructor() {
     super();
+
+    this._flag = undefined;
+
+    this.flag = 0; /** holds AreaFlags.FLOATING and AreaFlags.INDEPENDENT */
 
     this._borders = [];
     this._verts = [];
@@ -763,7 +783,7 @@ export class ScreenArea extends ui_base.UIBase {
         screen.sareas.active.area.on_area_blur();
       }
 
-      if (screen.sareas.active !== this) {
+      if (this.area && screen.sareas.active !== this) {
         this.area.on_area_focus();
       }
 
@@ -807,21 +827,34 @@ export class ScreenArea extends ui_base.UIBase {
   }//*/
 
   get floating() {
-    return this.area ? this.area.floating : undefined;
+    return this.flag & AreaFlags.FLOATING;
   }
 
   set floating(val) {
-    if (this.area) {
-      this.area.floating = val;
+    if (val) {
+      this.flag |= AreaFlags.FLOATING;
+    } else {
+      this.flag &= ~AreaFlags.FLOATING;
     }
   }
 
   get flag() {
-    return this.area ? this.area.flag : 0;
+    let flag = this._flag & (AreaFlags.FLOATING | AreaFlags.INDEPENDENT);
+
+    if (this.area) {
+      flag |= this.area.flag;
+    }
+
+    return flag;
   }
 
-  _get_v_suffix() {
-    return this.area ? this.area._get_v_suffix() : "";
+  set flag(v) {
+    this._flag &= ~(AreaFlags.FLOATING | AreaFlags.INDEPENDENT);
+    this._flag |= v & (AreaFlags.FLOATING | AreaFlags.INDEPENDENT);
+
+    if (this.area) {
+      this.area.flag |= v & ~(AreaFlags.FLOATING | AreaFlags.INDEPENDENT);
+    }
   }
 
   get borderLock() {
@@ -829,22 +862,58 @@ export class ScreenArea extends ui_base.UIBase {
   }
 
   get minSize() {
-    return this.area !== undefined ? this.area.minSize : [5, 5];
+    return this.area !== undefined ? this.area.minSize : this.size;
   }
 
   get maxSize() {
-    return this.area !== undefined ? this.area.maxSize : [undefined, undefined];
+    return this.area !== undefined ? this.area.maxSize : this.size;
+  }
+
+  get pos() {
+    return this._pos;
+  }
+
+  set pos(val) {
+    if (cconst.DEBUG.screenAreaPosSizeAccesses) {
+      console.log("ScreenArea set pos", val);
+    }
+    this._pos.load(val);
+  }
+
+  get size() {
+    return this._size;
+  }
+
+  set size(val) {
+    if (cconst.DEBUG.screenAreaPosSizeAccesses) {
+      console.log("ScreenArea set size", val);
+    }
+    this._size.load(val);
+  }
+
+  static newSTRUCT() {
+    return UIBase.createElement("screenarea-x");
+  }
+
+  static define() {
+    return {
+      tagname: "screenarea-x"
+    };
+  }
+
+  _get_v_suffix() {
+    return this.area ? this.area._get_v_suffix() : "";
   }
 
   bringToFront() {
     let screen = this.getScreen();
 
-    this.remove(false);
+    HTMLElement.prototype.remove.call(this);
     screen.sareas.remove(this);
 
     screen.appendChild(this);
 
-    let zindex = 0;
+    let zindex = BORDER_ZINDEX_BASE + 1;
 
     if (screen.style["z-index"]) {
       zindex = parseInt(screen.style["z-index"]) + 1;
@@ -876,7 +945,7 @@ export class ScreenArea extends ui_base.UIBase {
   }
 
   draw() {
-    if (this.area.draw) {
+    if (this.area && this.area.draw) {
       this.area.push_ctx_active();
       this.area.draw();
       this.area.pop_ctx_active();
@@ -899,11 +968,11 @@ export class ScreenArea extends ui_base.UIBase {
 
   toJSON() {
     let ret = {
-      editors : this.editors,
-      _sarea_id : this._sarea_id,
-      area : this.area.constructor.define().areaname,
-      pos : this.pos,
-      size : this.size
+      editors  : this.editors,
+      _sarea_id: this._sarea_id,
+      area     : this.area.constructor.define().areaname,
+      pos      : this.pos,
+      size     : this.size
     };
 
     return Object.assign(super.toJSON(), ret);
@@ -1024,6 +1093,7 @@ export class ScreenArea extends ui_base.UIBase {
 
       cpy.parentWidget = ret;
       ret.editors.push(cpy);
+      ret.editormap[cpy.constructor.define().areaname] = cpy;
 
       if (area === this.area) {
         ret.area = cpy;
@@ -1087,12 +1157,27 @@ export class ScreenArea extends ui_base.UIBase {
     }
   }
 
-
   /**
    *
    * Sets screen verts from pos/size
    * */
   loadFromPosSize() {
+    if (this.floating && this._verts.length > 0) {
+      let p = this.pos, s = this.size;
+
+      this._verts[0].loadXY(p[0], p[1]);
+      this._verts[1].loadXY(p[0], p[1] + s[1]);
+      this._verts[2].loadXY(p[0] + s[0], p[1] + s[1]);
+      this._verts[3].loadXY(p[0] + s[0], p[1]);
+
+      for (let border of this._borders) {
+        border.setCSS();
+      }
+
+      this.setCSS();
+      return;
+    }
+
     let screen = this.getScreen();
     if (!screen) return;
 
@@ -1126,8 +1211,8 @@ export class ScreenArea extends ui_base.UIBase {
     this.pos[0] = min[0];
     this.pos[1] = min[1];
 
-    this.size[0] = max[0]-min[0];
-    this.size[1] = max[1]-min[1];
+    this.size[0] = max[0] - min[0];
+    this.size[1] = max[1] - min[1];
 
     this.setCSS();
     return this;
@@ -1150,25 +1235,27 @@ export class ScreenArea extends ui_base.UIBase {
     //s = snapi(new Vector2(s));
 
     let vs = [
-      new Vector2([p[0],      p[1]]),
-      new Vector2([p[0],      p[1]+s[1]]),
-      new Vector2([p[0]+s[0], p[1]+s[1]]),
-      new Vector2([p[0]+s[0], p[1]])
+      new Vector2([p[0], p[1]]),
+      new Vector2([p[0], p[1] + s[1]]),
+      new Vector2([p[0] + s[0], p[1] + s[1]]),
+      new Vector2([p[0] + s[0], p[1]])
     ];
 
-    for (let i=0; i<vs.length; i++) {
+    let floating = this.floating;
+
+    for (let i = 0; i < vs.length; i++) {
       vs[i] = snap(vs[i]);
-      vs[i] = screen.getScreenVert(vs[i], i);
+      vs[i] = screen.getScreenVert(vs[i], i, floating);
       this._verts.push(vs[i]);
     }
 
-    for (let i=0; i<vs.length; i++) {
-      let v1 = vs[i], v2 = vs[(i + 1) % vs.length];
+    for (let i = 0; i < vs.length; i++) {
+      let v1 = vs[i], v2 = vs[(i + 1)%vs.length];
 
       let b = screen.getScreenBorder(this, v1, v2, i);
 
 
-      for (let j=0; j<2; j++) {
+      for (let j = 0; j < 2; j++) {
         let v = j ? b.v2 : b.v1;
 
         if (v.sareas.indexOf(this) < 0) {
@@ -1189,7 +1276,7 @@ export class ScreenArea extends ui_base.UIBase {
   }
 
   setCSS() {
-    this.style["position"] = "fixed";
+    this.style["position"] = UIBase.PositionKey;
 
     this.style["left"] = this.pos[0] + "px";
     this.style["top"] = this.pos[1] + "px";
@@ -1197,28 +1284,30 @@ export class ScreenArea extends ui_base.UIBase {
     this.style["width"] = this.size[0] + "px";
     this.style["height"] = this.size[1] + "px";
 
+    this.style["overflow"] = "hidden";
+    this.style["contain"] = "layout"; //ensure we have a new positioning stack
 
     if (this.area !== undefined) {
       this.area.setCSS();
-      //this.style["overflow"] = this.area.style["overflow"];
-
-      //this.area.style["width"] = this.size[0] + "px";
-      //this.area.style["height"] = this.size[1] + "px";
     }
-
-    /*
-    if (this.area) {
-      let area = this.area;
-      area.style["position"] = "absolute";
-      
-      area.style["width"] = this.size[0] + "px";
-      area.style["height"] = this.size[1] + "px";
-    }
-    //*/
   }
 
   appendChild(child) {
     if (child instanceof Area) {
+      let def = child.constructor.define();
+      let existing = this.editormap[def.areaname];
+
+      if (existing && existing !== child) {
+        console.warn("Warning, replacing an exising editor instance", child, existing);
+
+        if (this.area === existing) {
+          this.area = child;
+        }
+
+        existing.remove();
+        this.editormap[def.areaname] = child;
+      }
+
       child.ctx = this.ctx;
       child.pos = this.pos;
       child.size = this.size;
@@ -1261,7 +1350,7 @@ export class ScreenArea extends ui_base.UIBase {
     }
 
     //var finish = () => {
-    if (this.area !== undefined) {
+    if (this.area) {
       //break direct pos/size references for old active area
       this.area.pos = new Vector2(this.area.pos);
       this.area.size = new Vector2(this.area.size);
@@ -1274,6 +1363,8 @@ export class ScreenArea extends ui_base.UIBase {
       this.area.pop_ctx_active();
 
       this.area.remove();
+    } else {
+      this.area = undefined;
     }
 
     this.area = this.editormap[name];
@@ -1369,7 +1460,7 @@ export class ScreenArea extends ui_base.UIBase {
       ch.size = undefined;
 
       if (this.area === ch && this.editors.length > 1) {
-        let i = (this.editors.indexOf(ch) + 1) % this.editors.length;
+        let i = (this.editors.indexOf(ch) + 1)%this.editors.length;
         this.switchEditor(this.editors[i].constructor);
       } else if (this.area === ch) {
         this.editors = [];
@@ -1391,10 +1482,6 @@ export class ScreenArea extends ui_base.UIBase {
     }
   }
 
-  static newSTRUCT() {
-    return UIBase.createElement("screenarea-x");
-  }
-
   afterSTRUCT() {
     for (let area of this.editors) {
       area.pos = this.pos;
@@ -1406,28 +1493,6 @@ export class ScreenArea extends ui_base.UIBase {
       area.afterSTRUCT();
       area.pop_ctx_active();
     }
-  }
-
-  get pos() {
-    return this._pos;
-  }
-
-  set pos(val) {
-    if (cconst.DEBUG.screenAreaPosSizeAccesses) {
-      console.log("ScreenArea set pos", val);
-    }
-    this._pos.load(val);
-  }
-
-  get size() {
-    return this._size;
-  }
-
-  set size(val) {
-    if (cconst.DEBUG.screenAreaPosSizeAccesses) {
-      console.log("ScreenArea set size", val);
-    }
-    this._size.load(val);
   }
 
   loadSTRUCT(reader) {
@@ -1532,10 +1597,6 @@ export class ScreenArea extends ui_base.UIBase {
     }
 
   }
-
-  static define() {return {
-    tagname : "screenarea-x"
-  };}
 }
 
 ScreenArea.STRUCT = `
@@ -1545,11 +1606,15 @@ pathux.ScreenArea {
   type     : string;
   hidden   : bool;
   editors  : array(abstract(pathux.Area));
-  area     : string | obj.area.constructor.define().areaname;
+  area     : string | this.area ? this.area.constructor.define().areaname : "";
 }
 `;
 
-nstructjs.manager.add_class(ScreenArea);
+nstructjs.register(ScreenArea, "pathux.ScreenArea");
 ui_base.UIBase.internalRegister(ScreenArea);
 
 ui_base._setAreaClass(Area);
+
+export function setScreenClass(cls) {
+  Screen = cls;
+}

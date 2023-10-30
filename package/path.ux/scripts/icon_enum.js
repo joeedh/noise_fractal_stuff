@@ -57,6 +57,11 @@ export let Icons = {
   TREE_EXPAND  : a++,
   TREE_COLLAPSE: a++,
   ZOOM_OUT     : a++,
-  ZOOM_IN      : a++
+  ZOOM_IN      : a++,
+  LARGE_X      : a++, /* Used for curve widget delete button. */
 };
+/* used for icon checkboxes with overlayed check marks */
+Icons.ENUM_CHECKED = Icons.CHECKED;
+Icons.ENUM_UNCHECKED = Icons.UNCHECKED;
+
 

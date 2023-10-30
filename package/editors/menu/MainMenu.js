@@ -1,7 +1,7 @@
 import {
   UIBase, nstructjs, util, vectormath, math,
   Vector2, Vector3, Vector4, Matrix4, Quat, AreaFlags,
-  platform, electron_api, Icons
+  platform, electron_api, Icons, Menu
 } from '../../path.ux/pathux.js';
 
 import {Editor} from '../editor_base.js';
@@ -48,19 +48,25 @@ export class MainMenu extends Editor {
     //this.container.noMarginsOrPadding();
 
     row.menu("File", [
-      "app.exit()"
+      "app.new",
+      Menu.SEP,
+      "app.open",
+      "app.save",
+      "app.save(saveAsMode=true)|Save As",
+      Menu.SEP,
+      "app.exit",
     ]);
 
     row.menu("Edit", [
-      "app.undo()",
-      "app.redo()"
+      "app.undo",
+      "app.redo"
     ]);
 
     row.menu("Session", [
       //"app.save_startup_file()",
       //"app.clear_startup_file()",
-      "app.reset_pattern()",
-      "app.export_presets()"
+      "app.reset_pattern",
+      "app.export_presets"
     ]);
 
     let info = this.infoSpan = UIBase.createElement("span");

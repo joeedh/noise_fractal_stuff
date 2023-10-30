@@ -61,6 +61,9 @@ export class Solver {
     this.gk = 0.99;
     this.simple = false;
     this.randCons = false;
+
+    /** stop when average constraint error falls below this */
+    this.threshold = 0.01;
   }
 
   add(con) {
@@ -169,7 +172,7 @@ export class Solver {
       if (printError) {
         console.warn("average error:", (err/this.constraints.length).toFixed(4));
       }
-      if (err < 0.01 / this.constraints.length) {
+      if (err < this.threshold / this.constraints.length) {
         break;
       }
     }

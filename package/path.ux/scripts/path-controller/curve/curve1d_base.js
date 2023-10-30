@@ -1,20 +1,21 @@
-import {nstructjs} from "../util/struct.js";
+import nstructjs from "../util/struct.js";
 import * as util from '../util/util.js';
 
 export const CurveConstructors = [];
-export const CURVE_VERSION = 1.0;
+export const CURVE_VERSION = 1.1;
 
 export const CurveFlags = {
-  SELECT : 1
+  SELECT   : 1,
+  TRANSFORM: 2,
 };
 
 
 export const TangentModes = {
-  SMOOTH : 1,
-  BREAK  : 2
+  SMOOTH: 1,
+  BREAK : 2
 };
 
-export function getCurve(type, throw_on_error=true) {
+export function getCurve(type, throw_on_error = true) {
   for (let cls of CurveConstructors) {
     if (cls.name === type)
       return cls;
@@ -34,7 +35,12 @@ let _udigest = new util.HashDigest();
 
 export class CurveTypeData {
   constructor() {
-    this.type = this.constructor.name;
+    this.type = this.constructor.define().typeName;
+    this.parent = undefined;
+  }
+
+  get hasGUI() {
+    throw new Error("get hasGUI(): implement me!");
   }
 
   static register(cls) {
@@ -43,15 +49,27 @@ export class CurveTypeData {
     }
 
     let def = cls.define();
+
     if (!def.name) {
       throw new Error(cls.name + ".define() result is missing 'name' field");
     }
 
+    if (!def.typeName) {
+      throw new Error(cls.name + ".define() is missing .typeName, which should equal class name; needed for minificaiton");
+    }
 
     CurveConstructors.push(cls);
   }
 
-  calcHashKey(digest=_udigest.reset()) {
+  static define() {
+    return {
+      uiname  : "Some Curve",
+      name    : "somecurve",
+      typeName: CurveTypeData
+    }
+  }
+
+  calcHashKey(digest = _udigest.reset()) {
     let d = digest;
 
     d.add(this.type);
@@ -80,10 +98,6 @@ export class CurveTypeData {
       this.parent.redraw();
   }
 
-  get hasGUI() {
-    throw new Error("get hasGUI(): implement me!");
-  }
-
   makeGUI(container) {
 
   }
@@ -96,10 +110,10 @@ export class CurveTypeData {
     throw new Error("implement me!");
   }
 
-  integrate(s1, quadSteps=64) {
-    let ret = 0.0, ds = s1 / quadSteps;
+  integrate(s1, quadSteps = 64) {
+    let ret = 0.0, ds = s1/quadSteps;
 
-    for (let i=0, s=0; i<quadSteps; i++, s += ds) {
+    for (let i = 0, s = 0; i < quadSteps; i++, s += ds) {
       ret += this.evaluate(s)*ds;
     }
 
@@ -109,30 +123,30 @@ export class CurveTypeData {
   derivative(s) {
     let df = 0.0001;
 
-    if (s > 1.0 - df * 3) {
-      return (this.evaluate(s) - this.evaluate(s - df)) / df;
-    } else if (s < df * 3) {
-      return (this.evaluate(s + df) - this.evaluate(s)) / df;
+    if (s > 1.0 - df*3) {
+      return (this.evaluate(s) - this.evaluate(s - df))/df;
+    } else if (s < df*3) {
+      return (this.evaluate(s + df) - this.evaluate(s))/df;
     } else {
-      return (this.evaluate(s + df) - this.evaluate(s - df)) / (2 * df);
+      return (this.evaluate(s + df) - this.evaluate(s - df))/(2*df);
     }
   }
 
   derivative2(s) {
     let df = 0.0001;
 
-    if (s > 1.0 - df * 3) {
-      return (this.derivative(s) - this.derivative(s - df)) / df;
-    } else if (s < df * 3) {
-      return (this.derivative(s + df) - this.derivative(s)) / df;
+    if (s > 1.0 - df*3) {
+      return (this.derivative(s) - this.derivative(s - df))/df;
+    } else if (s < df*3) {
+      return (this.derivative(s + df) - this.derivative(s))/df;
     } else {
-      return (this.derivative(s + df) - this.derivative(s - df)) / (2 * df);
+      return (this.derivative(s + df) - this.derivative(s - df))/(2*df);
     }
   }
 
   inverse(y) {
     let steps = 9;
-    let ds = 1.0 / steps, s = 0.0;
+    let ds = 1.0/steps, s = 0.0;
     let best = undefined;
     let ret = undefined;
 
@@ -144,7 +158,7 @@ export class CurveTypeData {
       for (let j = 0; j < 11; j++) {
         let y1 = this.evaluate(s1);
         let y2 = this.evaluate(s2);
-        mid = (s1 + s2) * 0.5;
+        mid = (s1 + s2)*0.5;
 
         if (Math.abs(y1 - y) < Math.abs(y2 - y)) {
           s2 = mid;
@@ -163,11 +177,6 @@ export class CurveTypeData {
 
     return ret === undefined ? 0.0 : ret;
   }
-
-  static define() {return {
-    uiname : "Some Curve",
-    name   : "somecurve"
-  }}
 
   onActive(parent, draw_transform) {
   }
@@ -203,30 +212,34 @@ CurveTypeData {
 nstructjs.register(CurveTypeData);
 
 
+const unitRange = [0, 1];
 
-export function evalHermiteTable(table, t) {
+export function evalHermiteTable(table, t, range = unitRange) {
+  t = (t - range[0])/(range[1] - range[0]);
+
   let s = t*(table.length/4);
-
   let i = Math.floor(s);
-  s -= i;
 
+  s -= i;
   i *= 4;
 
-  let a = table[i] + (table[i+1] - table[i]) * s;
-  let b = table[i+2] + (table[i+3] - table[i+2]) * s;
+  let a = table[i] + (table[i + 1] - table[i])*s;
+  let b = table[i + 2] + (table[i + 3] - table[i + 2])*s;
 
   return a + (b - a)*s;
   //return table[i] + (table[i + 3] - table[i])*s;
 }
 
-export function genHermiteTable(evaluate, steps) {
+export function genHermiteTable(evaluate, steps, range = [0, 1]) {
   //console.log("building spline approx");
 
   let table = new Array(steps);
 
-  let eps = 0.00001;
-  let dt = (1.0 - eps*4.001)/(steps - 1);
-  let t = eps*4;
+  let [min, max] = range;
+
+  let eps = 0.0001;
+  let dt = ((max - min) - eps*4.001)/(steps - 1);
+  let t = min + eps*4;
   let lastdv1, lastf3;
 
   for (let j = 0; j < steps; j++, t += dt) {

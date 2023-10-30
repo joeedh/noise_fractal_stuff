@@ -37,8 +37,11 @@ export function add_preset(sliders, options, fixScale = true, hide = false) {
 
   /* we don't want to use normal defaults, stick with zero--
      except for hoff*/
+  let sdef = NewtonPattern.getPatternDef().sliderDef;
+
   while (sliders.length < preset.sliders.length) {
-    sliders.push(sliders.length === 9 ? 0.32 : 0.0);
+    let val = sdef[sliders.length].value || 0.0;
+    sliders.push(sliders.length === 9 ? 0.32 : val);
   }
 
   let tot = Math.min(sliders.length, preset.sliders.length);
@@ -60,44 +63,23 @@ export function add_preset_new(sliders, options, hide = false) {
   return add_preset(sliders, options, false, hide);
 }
 
+const shaderPre = ``;
+
 const shader = `
 //uniform vec2 iRes;
 //uniform vec2 iInvRes;
 //uniform float T;
 //uniform float SLIDERS[MAX_SLIDERS];
 
-
-#define M_PI 3.141592654
-
-vec2 cmul(vec2 a, vec2 b) {
-    return vec2(
-        a[0]*b[0] - a[1]*b[1],
-        a[0]*b[1] + b[0]*a[1]
-    );
-}
-
-vec2 fsample(vec2 z, vec2 p) {
-    const float d = 1.0;
+//$ is replaced with pattern.id
+vec2 fsample$(vec2 z, vec2 p) {
+    float d = SLIDERS[15];
+    
     //(z-1)(z+1)(z-p)
     vec2 a = z - vec2(d, 0.0+SLIDERS[12]);
     vec2 b = z + vec2(d, 0.0-SLIDERS[12]);
     vec2 c = z - p;
     return cmul(cmul(a, b), c);
-}
-
-
-float length2(vec2 p) {
-  float sf = dot(p, p), f = sf < 1.0 ? sf*10.5 : sf*0.25;
-  
-  if (isnan(sf)) {
-    return 0.01;
-  }
-  
-  f = (f*f + 3.0*sf) / (3.0*f + sf/f);
-  f = (f*f + 3.0*sf) / (3.0*f + sf/f);
-  //f = (f + sf/f)*0.5;
- 
-  return f;
 }
 
 float pattern(float ix, float iy) {
@@ -139,13 +121,13 @@ float pattern(float ix, float iy) {
         //toff = 0.75;
         z = cmul(uv, vec2(0.333333 + tm*0.5, 0.0 + tm)); //0.85*toff));
         
-        vec2 a = fsample(z, seed);
+        vec2 a = fsample$(z, seed);
 
 #if 0 //finite differences
         float df = 0.0002;
 
-        vec2 b = fsample(z+vec2(df, 0.0), seed);
-        vec2 c = fsample(z+vec2(0.0, df), seed);
+        vec2 b = fsample$(z+vec2(df, 0.0), seed);
+        vec2 c = fsample$(z+vec2(0.0, df), seed);
         
         dr = (b - a) / df;
         di = (c - a) / df;
@@ -273,7 +255,7 @@ float pattern(float ix, float iy) {
     //f = dfract*dfract*(3.0-2.0*dfract);
     
     //f = f*f*(3.0-2.0*f);
-    //f = fract(length(fsample(z, uv)));    
+    //f = fract(length(fsample$(z, uv)));    
     //f = fract(length(uv - startuv));
     
     return f;
@@ -304,32 +286,37 @@ export class NewtonPattern extends Pattern {
       presets      : NewtonPresets,
       sliderDef    : [
         {
-          name : "steps", integer: true,
+          name : "steps",
+          type : "int",
           range: [5, 955],
           value: 100,
           speed: 7.0,
           exp  : 1.5,
         }, //0
         {name: "offset", value: 0.54, range: [-5.0, 5.0], speed: 0.1}, //1
-        {name: "gain", value: 0.19, range: [0.001, 1000], speed: 4.0, exp: 2.0, noReset : true},  //2
-        {name: "color", value: 0.75, range: [-50, 50], speed: 0.25, exp: 1.0, noReset : true}, //3
+        {name: "gain", value: 0.19, range: [0.001, 1000], speed: 4.0, exp: 2.0, noReset: true},  //2
+        {name: "color", value: 0.75, range: [-50, 50], speed: 0.25, exp: 1.0, noReset: true}, //3
         {name: "scale", value: 4.75, range: [0.001, 1000000.0]}, //4
         "x",  //5
         "y",  //6
-        {name: "colorscale", value: 5.9, noReset : true},//7
-        {name: "brightness", value: 1.0, range: [0.001, 10.0], noReset : true}, //8
+        {name: "colorscale", value: 5.9, noReset: true},//7
+        {name: "brightness", value: 1.0, range: [0.001, 10.0], noReset: true}, //8
         {name: "hoff", value: 0.1, range: [0.0001, 10.0]}, //9
         {name: "poff", value: 0.39, range: [-8.0, 8.0], speed: 0.1, exp: 1.0}, //10
         {name: "simple", value: 0.5, range: [-44.0, 44.0]}, //11
-        {name: "offset2", value: 0.0, range : [-5, 5], speed : 0.2},//12
-        {name: "valueoff", value: 0.0, range : [-15.0, 45.0], speed : 0.15, exp : 1.35, noReset: true}, //13
+        {name: "offset2", value: 0.0, range: [-5, 5], speed: 0.2},//12
+        {name: "valueoff", value: 0.0, range: [-15.0, 45.0], speed: 0.15, exp: 1.35, noReset: true}, //13
         {name: "offset3", value: 0.0, range: [-2.0, 10.0], speed: 0.025}, //14
+        {name: "d", value: 1.0, range: [-25.0, 25.0]}, //15
       ],
-      shader
+      shader,
+      shaderPre
     }
   }
 
   setup(ctx, gl, uniforms, defines) {
+    defines.STEPS = ~~this.sliders[0];
+
     defines.VALUE_OFFSET = "SLIDERS[13]";
     defines.GAIN = "SLIDERS[2]";
     defines.COLOR_SHIFT = "SLIDERS[3]";
@@ -337,7 +324,7 @@ export class NewtonPattern extends Pattern {
     defines.BRIGHTNESS = "SLIDERS[8]";
   }
 
-  savePresetText(opt={}) {
+  savePresetText(opt = {}) {
     opt.sharpness = opt.sharpness ?? this.sharpness;
     opt.filter_width = opt.filter_width ?? this.filter_width;
     //opt.max_samples = opt.max_samples ?? this.max_samples;
@@ -355,6 +342,7 @@ export class NewtonPattern extends Pattern {
 add_preset_new(${sliders}, ${opt});
     `.trim();
   }
+
   viewportDraw(ctx, gl, uniforms, defines) {
     defines.STEPS = ~~this.sliders[0];
 

@@ -20,750 +20,205 @@ let nexports = (function () {
   
 'use strict';
 
-if (Array.prototype.pop_i === undefined) {
-  Array.prototype.pop_i = function (idx) {
-    if (idx < 0 || idx >= this.length) {
-      throw new Error("Index out of range");
-    }
+Object.defineProperty(exports, '__esModule', { value: true });
 
-    while (idx < this.length) {
-      this[idx] = this[idx + 1];
-      idx++;
-    }
+let colormap = {
+  "black"   : 30,
+  "red"     : 31,
+  "green"   : 32,
+  "yellow"  : 33,
+  "blue"    : 34,
+  "magenta" : 35,
+  "cyan"    : 36,
+  "white"   : 37,
+  "reset"   : 0,
+  "grey"    : 2,
+  "orange"  : 202,
+  "pink"    : 198,
+  "brown"   : 314,
+  "lightred": 91,
+  "peach"   : 210
+};
 
-    this.length -= 1;
-  };
+let termColorMap = {};
+for (let k in colormap) {
+  termColorMap[k] = colormap[k];
+  termColorMap[colormap[k]] = k;
 }
 
-if (Array.prototype.remove === undefined) {
-  Array.prototype.remove = function (item, suppress_error) {
-    var i = this.indexOf(item);
+function termColor(s, c) {
+  if (typeof s === "symbol") {
+    s = s.toString();
+  } else {
+    s = "" + s;
+  }
 
-    if (i < 0) {
-      if (suppress_error)
-        console.trace("Warning: item not in array", item);
-      else
-        throw new Error("Error: item not in array " + item);
+  if (c in colormap)
+    c = colormap[c];
 
-      return;
+  if (c > 107) {
+    let s2 = '\u001b[38;5;' + c + "m";
+    return s2 + s + '\u001b[0m'
+  }
+
+  return '\u001b[' + c + 'm' + s + '\u001b[0m'
+};
+
+function termPrint() {
+  //let console = window.console;
+
+  let s = '';
+  for (let i = 0; i < arguments.length; i++) {
+    if (i > 0) {
+      s += ' ';
+    }
+    s += arguments[i];
+  }
+
+  let re1a = /\u001b\[[1-9][0-9]?m/;
+  let re1b = /\u001b\[[1-9][0-9];[0-9][0-9]?;[0-9]+m/;
+  let re2 = /\u001b\[0m/;
+
+  let endtag = '\u001b[0m';
+
+  function tok(s, type) {
+    return {
+      type : type,
+      value: s
+    }
+  }
+
+  let tokdef = [
+    [re1a, "start"],
+    [re1b, "start"],
+    [re2, "end"]
+  ];
+
+  let s2 = s;
+
+  let i = 0;
+  let tokens = [];
+
+  while (s2.length > 0) {
+    let ok = false;
+
+    let mintk = undefined, mini = undefined;
+    let minslice = undefined, mintype = undefined;
+
+    for (let tk of tokdef) {
+      let i = s2.search(tk[0]);
+
+      if (i >= 0 && (mini === undefined || i < mini)) {
+        minslice = s2.slice(i, s2.length).match(tk[0])[0];
+        mini = i;
+        mintype = tk[1];
+        mintk = tk;
+        ok = true;
+      }
     }
 
-    this.pop_i(i);
-  };
+    if (!ok) {
+      break;
+    }
+
+    if (mini > 0) {
+      let chunk = s2.slice(0, mini);
+      tokens.push(tok(chunk, "chunk"));
+    }
+
+    s2 = s2.slice(mini+minslice.length, s2.length);
+    let t = tok(minslice, mintype);
+
+    tokens.push(t);
+  }
+
+  if (s2.length > 0) {
+    tokens.push(tok(s2, "chunk"));
+  }
+
+  let stack = [];
+  let cur;
+
+  let out = '';
+
+  for (let t of tokens) {
+    if (t.type === "chunk") {
+      out += t.value;
+    } else if (t.type === "start") {
+      stack.push(cur);
+      cur = t.value;
+
+      out += t.value;
+    } else if (t.type === "end") {
+      cur = stack.pop();
+      if (cur) {
+        out += cur;
+      } else {
+        out += endtag;
+      }
+    }
+  }
+
+  return out;
 }
-
-if (String.prototype.contains === undefined) {
-  String.prototype.contains = function (substr) {
-    return String.search(substr) != null;
-  };
-}
-
-Symbol["_struct_keystr"] = Symbol("_struct_keystr");
-
-String.prototype[Symbol._struct_keystr] = function () {
-  return this;
-};
-
-Number.prototype[Symbol._struct_keystr] = Boolean.prototype[Symbol._struct_keystr] = function () {
-  return "" + this;
-};
-
-var _o_basic_types = {"String": 0, "Number": 0, "Array": 0, "Function": 0};
-
-const _export_truncateDollarSign_ = function(s) {
-  let i = s.search("$");
-
-  if (i > 0) {
-    return s.slice(0, i).trim();
-  }
-
-  return s;
-};
-
-const _export_cachering_ = class cachering extends Array {
-  constructor(cb, tot) {
-    super();
-    this.length = tot;
-    this.cur = 0;
-    
-    for (let i=0; i<tot; i++) {
-      this[i] = cb();
-    }
-  }
-  
-  next() {
-    let ret = this[this.cur];
-    
-    this.cur = (this.cur + 1) % this.length;
-    
-    return ret;
-  }
-  
-  static fromConstructor(cls, tot) {
-    return new _export_cachering_(() => new cls(), tot);
-  }
-};
-
-function isNodeJS() {
-  ret = typeof process !== "undefined";
-  ret = ret && process.release;
-  ret = ret && process.release.name === "node";
-  ret = ret && process.version;
-
-  return !!ret;
-}
-
-let is_obj_lit = function is_obj_lit(obj) {
-  if (typeof obj !== "object") {
-    return false;
-  }
-  
-  let good = obj.__proto__ && obj.__proto__.constructor && obj.__proto__.constructor === Object;
-
-  if (good) {
-    return true;
-  }
-
-  let bad = typeof obj !== "object";
-  bad = bad || obj.constructor.name in _o_basic_types;
-  bad = bad || obj instanceof String;
-  bad = bad || obj instanceof Number;
-  bad = bad || obj instanceof Boolean;
-  bad = bad || obj instanceof Function;
-  bad = bad || obj instanceof Array;
-  bad = bad || obj instanceof Set;
-  bad = bad || (obj.__proto__.constructor && obj.__proto__.constructor !== Object);
-
-  return !bad;
-};
-_nGlobal.is_obj_lit = is_obj_lit;
-
-function set_getkey(obj) {
-  if (typeof obj == "number" || typeof obj == "boolean")
-    return "" + obj;
-  else if (typeof obj == "string")
-    return obj;
-  else
-    return obj[Symbol._struct_keystr]();
-}
-
-const _export_get_callstack_ = function get_callstack(err) {
-  var callstack = [];
-  var isCallstackPopulated = false;
-
-  var err_was_undefined = err == undefined;
-
-  if (err == undefined) {
-    try {
-      _idontexist.idontexist += 0; //doesn't exist- that's the point
-    } catch (err1) {
-      err = err1;
-    }
-  }
-
-  if (err != undefined) {
-    if (err.stack) { //Firefox
-      var lines = err.stack.split('\n');
-      var len = lines.length;
-      for (var i = 0; i < len; i++) {
-        if (1) {
-          lines[i] = lines[i].replace(/@http\:\/\/.*\//, "|");
-          var l = lines[i].split("|");
-          lines[i] = l[1] + ": " + l[0];
-          lines[i] = lines[i].trim();
-          callstack.push(lines[i]);
-        }
-      }
-
-      //Remove call to printStackTrace()
-      if (err_was_undefined) {
-        //callstack.shift();
-      }
-      isCallstackPopulated = true;
-    }
-    else if (window.opera && e.message) { //Opera
-      var lines = err.message.split('\n');
-      var len = lines.length;
-      for (var i = 0; i < len; i++) {
-        if (lines[i].match(/^\s*[A-Za-z0-9\-_\$]+\(/)) {
-          var entry = lines[i];
-          //Append next line also since it has the file info
-          if (lines[i + 1]) {
-            entry += ' at ' + lines[i + 1];
-            i++;
-          }
-          callstack.push(entry);
-        }
-      }
-      //Remove call to printStackTrace()
-      if (err_was_undefined) {
-        callstack.shift();
-      }
-      isCallstackPopulated = true;
-    }
-  }
-
-  var limit = 24;
-  if (!isCallstackPopulated) { //IE and Safari
-    var currentFunction = arguments.callee.caller;
-    var i = 0;
-    while (currentFunction && i < 24) {
-      var fn = currentFunction.toString();
-      var fname = fn.substring(fn.indexOf("function") + 8, fn.indexOf('')) || 'anonymous';
-      callstack.push(fname);
-      currentFunction = currentFunction.caller;
-
-      i++;
-    }
-  }
-
-  return callstack;
-};
-
-const _export_print_stack_ = function print_stack(err) {
-  try {
-    var cs = _export_get_callstack_(err);
-  } catch (err2) {
-    console.log("Could not fetch call stack.");
-    return;
-  }
-
-  console.log("Callstack:");
-  for (var i = 0; i < cs.length; i++) {
-    console.log(cs[i]);
-  }
-};
-
-const EmptySlot = Symbol("emptyslot");
-
-/**
- Set
-
- Stores objects in a set; each object is converted to a value via
- a [Symbol._struct_keystr] method, and if that value already exists in the set
- then the object is not added.
-
-
- * */
-var set$1 =  class set {
-  constructor(input) {
-    this.items = [];
-    this.keys = {};
-    this.freelist = [];
-
-    this.length = 0;
-
-    if (typeof input == "string") {
-      input = new String(input);
-    }
-
-    if (input !== undefined) {
-      if (Symbol.iterator in input) {
-        for (var item of input) {
-          this.add(item);
-        }
-      } else if ("forEach" in input) {
-        input.forEach(function(item) {
-          this.add(item);
-        }, this);
-      } else if (input instanceof Array) {
-        for (var i=0; i<input.length; i++) {
-          this.add(input[i]);
-        }
-      }
-    }
-  }
-
-  [Symbol.iterator] () {
-    return new SetIter(this);
-  }
-
-  equals(setb) {
-    for (let item of this) {
-      if (!setb.has(item)) {
-        return false;
-      }
-    }
-
-    for (let item of setb) {
-      if (!this.has(item)) {
-        return false;
-      }
-    }
-
-    return true;
-  }
-
-  clear() {
-    this.items.length = 0;
-    this.keys = {};
-    this.freelist.length = 0;
-    this.length = 0;
-
-    return this;
-  }
-
-  filter(f, thisvar) {
-    let i = 0;
-    let ret = new set();
-
-    for (let item of this) {
-      if (f.call(thisvar, item, i++, this)) {
-        ret.add(item);
-      }
-    }
-
-    return ret;
-
-  }
-
-  map(f, thisvar) {
-    let ret = new set();
-
-    let i = 0;
-
-    for (let item of this) {
-      ret.add(f.call(thisvar, item, i++, this));
-    }
-
-    return ret;
-  }
-
-  reduce(f, initial) {
-    if (initial === undefined) {
-      for (let item of this) {
-        initial = item;
-        break;
-      }
-    }
-
-    let i = 0;
-    for (let item of this) {
-      initial = f(initial, item, i++, this);
-    }
-
-    return initial;
-  }
-
-  copy() {
-    let ret = new set();
-    for (let item of this) {
-      ret.add(item);
-    }
-
-    return ret;
-  }
-
-  add(item) {
-    var key = item[Symbol._struct_keystr]();
-
-    if (key in this.keys) return;
-
-    if (this.freelist.length > 0) {
-      var i = this.freelist.pop();
-
-      this.keys[key] = i;
-      this.items[i] = item;
-    } else {
-      var i = this.items.length;
-
-      this.keys[key] = i;
-      this.items.push(item);
-    }
-
-    this.length++;
-  }
-
-  remove(item, ignore_existence) {
-    var key = item[Symbol._struct_keystr]();
-
-    if (!(key in this.keys)) {
-      if (!ignore_existence) {
-        console.warn("Warning, item", item, "is not in set");
-      }
-      return;
-    }
-
-    var i = this.keys[key];
-    this.freelist.push(i);
-    this.items[i] = EmptySlot;
-
-    delete this.keys[key];
-
-    this.length--;
-  }
-
-  has(item) {
-    return item[Symbol._struct_keystr]() in this.keys;
-  }
-
-  forEach(func, thisvar) {
-    for (var i=0; i<this.items.length; i++) {
-      var item = this.items[i];
-
-      if (item === EmptySlot)
-        continue;
-
-      thisvar !== undefined ? func.call(thisvar, item) : func(item);
-    }
-  }
-};
-
-var IDGen = class IDGen {
-  constructor() {
-    this.cur_id = 1;
-  }
-
-  gen_id() {
-    return this.cur_id++;
-  }
-
-  static fromSTRUCT(reader) {
-    var ret = new IDGen();
-    reader(ret);
-    return ret;
-  }
-};
-
-IDGen.STRUCT = `
-struct_util.IDGen {
-  cur_id : int;
-}
-`;
-
-var struct_util = /*#__PURE__*/Object.freeze({
-  __proto__: null,
-  truncateDollarSign: _export_truncateDollarSign_,
-  cachering: _export_cachering_,
-  is_obj_lit: is_obj_lit,
-  get_callstack: _export_get_callstack_,
-  print_stack: _export_print_stack_,
-  set: set$1,
-  IDGen: IDGen
-});
 
 "use strict";
 
-const _module_exports_ = {};
-_module_exports_.STRUCT_ENDIAN = true; //little endian
+function print_lines(ld, lineno, col, printColors, token) {
+  let buf = '';
+  let lines = ld.split("\n");
+  let istart = Math.max(lineno - 5, 0);
+  let iend  = Math.min(lineno + 3, lines.length);
 
-let temp_dataview = new DataView(new ArrayBuffer(16));
-let uint8_view = new Uint8Array(temp_dataview.buffer);
+  let color = printColors ? (c) => c : termColor;
 
-let unpack_context = _module_exports_.unpack_context = class unpack_context {
-  constructor() {
-    this.i = 0;
-  }
-};
-
-let pack_byte = _module_exports_.pack_byte = function (array, val) {
-  array.push(val);
-};
-
-let pack_sbyte = _module_exports_.pack_sbyte = function (array, val) {
-  if (val < 0) {
-    val = 256 + val;
-  }
-
-  array.push(val);
-};
-
-let pack_bytes = _module_exports_.pack_bytes = function (array, bytes) {
-  for (let i = 0; i < bytes.length; i++) {
-    array.push(bytes[i]);
-  }
-};
-
-let pack_int = _module_exports_.pack_int = function (array, val) {
-  temp_dataview.setInt32(0, val, _module_exports_.STRUCT_ENDIAN);
-
-  array.push(uint8_view[0]);
-  array.push(uint8_view[1]);
-  array.push(uint8_view[2]);
-  array.push(uint8_view[3]);
-};
-
-let pack_uint = _module_exports_.pack_uint = function (array, val) {
-  temp_dataview.setUint32(0, val, _module_exports_.STRUCT_ENDIAN);
-
-  array.push(uint8_view[0]);
-  array.push(uint8_view[1]);
-  array.push(uint8_view[2]);
-  array.push(uint8_view[3]);
-};
-
-let pack_ushort = _module_exports_.pack_ushort = function (array, val) {
-  temp_dataview.setUint16(0, val, _module_exports_.STRUCT_ENDIAN);
-
-  array.push(uint8_view[0]);
-  array.push(uint8_view[1]);
-};
-
-_module_exports_.pack_float = function (array, val) {
-  temp_dataview.setFloat32(0, val, _module_exports_.STRUCT_ENDIAN);
-
-  array.push(uint8_view[0]);
-  array.push(uint8_view[1]);
-  array.push(uint8_view[2]);
-  array.push(uint8_view[3]);
-};
-
-_module_exports_.pack_double = function (array, val) {
-  temp_dataview.setFloat64(0, val, _module_exports_.STRUCT_ENDIAN);
-
-  array.push(uint8_view[0]);
-  array.push(uint8_view[1]);
-  array.push(uint8_view[2]);
-  array.push(uint8_view[3]);
-  array.push(uint8_view[4]);
-  array.push(uint8_view[5]);
-  array.push(uint8_view[6]);
-  array.push(uint8_view[7]);
-};
-
-_module_exports_.pack_short = function (array, val) {
-  temp_dataview.setInt16(0, val, _module_exports_.STRUCT_ENDIAN);
-
-  array.push(uint8_view[0]);
-  array.push(uint8_view[1]);
-};
-
-let encode_utf8 = _module_exports_.encode_utf8 = function encode_utf8(arr, str) {
-  for (let i = 0; i < str.length; i++) {
-    let c = str.charCodeAt(i);
-
-    while (c != 0) {
-      let uc = c & 127;
-      c = c >> 7;
-
-      if (c != 0)
-        uc |= 128;
-
-      arr.push(uc);
-    }
-  }
-};
-
-let decode_utf8 = _module_exports_.decode_utf8 = function decode_utf8(arr) {
-  let str = "";
-  let i = 0;
-
-  while (i < arr.length) {
-    let c = arr[i];
-    let sum = c & 127;
-    let j = 0;
-    let lasti = i;
-
-    while (i < arr.length && (c & 128)) {
-      j += 7;
-      i++;
-      c = arr[i];
-
-      c = (c & 127) << j;
-      sum |= c;
+  for (let i=istart; i<iend; i++) {
+    let l = "" + (i + 1);
+    while (l.length < 3) {
+      l = " " + l;
     }
 
-    if (sum === 0) break;
+    l += `: ${lines[i]}\n`;
 
-    str += String.fromCharCode(sum);
-    i++;
-  }
-
-  return str;
-};
-
-let test_utf8 = _module_exports_.test_utf8 = function test_utf8() {
-  let s = "a" + String.fromCharCode(8800) + "b";
-  let arr = [];
-
-  encode_utf8(arr, s);
-  let s2 = decode_utf8(arr);
-
-  if (s != s2) {
-    throw new Error("UTF-8 encoding/decoding test failed");
-  }
-
-  return true;
-};
-
-function truncate_utf8(arr, maxlen) {
-  let len = Math.min(arr.length, maxlen);
-
-  let last_codepoint = 0;
-  let last2 = 0;
-
-  let incode = false;
-  let i = 0;
-  let code = 0;
-  while (i < len) {
-    incode = arr[i] & 128;
-
-    if (!incode) {
-      last2 = last_codepoint + 1;
-      last_codepoint = i + 1;
+    if (i === lineno && token && token.value.length === 1) {
+      l = l.slice(0, col+5) + color(l[col+5], "yellow") + l.slice(col+6, l.length);
     }
+    buf += l;
+    if (i === lineno) {
+      let colstr = '     ';
+      for (let i=0; i<col; i++) {
+        colstr += ' ';
+      }
+      colstr += color("^", "red");
 
-    i++;
+      buf += colstr + "\n";
+    }
   }
 
-  if (last_codepoint < maxlen)
-    arr.length = last_codepoint;
-  else
-    arr.length = last2;
-
-  return arr;
+  buf = "------------------\n" + buf + "\n==================\n";
+  return buf;
 }
 
-let _static_sbuf_ss = new Array(2048);
-let pack_static_string = _module_exports_.pack_static_string = function pack_static_string(data, str, length) {
-  if (length == undefined)
-    throw new Error("'length' paremter is not optional for pack_static_string()");
-
-  let arr = length < 2048 ? _static_sbuf_ss : new Array();
-  arr.length = 0;
-
-  encode_utf8(arr, str);
-  truncate_utf8(arr, length);
-
-  for (let i = 0; i < length; i++) {
-    if (i >= arr.length) {
-      data.push(0);
-    } else {
-      data.push(arr[i]);
-    }
-  }
-};
-
-let _static_sbuf = new Array(32);
-
-/*strings are packed as 32-bit unicode codepoints*/
-let pack_string = _module_exports_.pack_string = function pack_string(data, str) {
-  _static_sbuf.length = 0;
-  encode_utf8(_static_sbuf, str);
-
-  pack_int(data, _static_sbuf.length);
-
-  for (let i = 0; i < _static_sbuf.length; i++) {
-    data.push(_static_sbuf[i]);
-  }
-};
-
-let unpack_bytes = _module_exports_.unpack_bytes = function unpack_bytes(dview, uctx, len) {
-  let ret = new DataView(dview.buffer.slice(uctx.i, uctx.i + len));
-  uctx.i += len;
-
-  return ret;
-};
-
-let unpack_byte = _module_exports_.unpack_byte = function (dview, uctx) {
-  return dview.getUint8(uctx.i++);
-};
-
-let unpack_sbyte = _module_exports_.unpack_sbyte = function (dview, uctx) {
-  return dview.getInt8(uctx.i++);
-};
-
-let unpack_int = _module_exports_.unpack_int = function (dview, uctx) {
-  uctx.i += 4;
-  return dview.getInt32(uctx.i - 4, _module_exports_.STRUCT_ENDIAN);
-};
-
-let unpack_uint = _module_exports_.unpack_uint = function (dview, uctx) {
-  uctx.i += 4;
-  return dview.getUint32(uctx.i - 4, _module_exports_.STRUCT_ENDIAN);
-};
-
-let unpack_ushort = _module_exports_.unpack_ushort = function (dview, uctx) {
-  uctx.i += 2;
-  return dview.getUint16(uctx.i - 2, _module_exports_.STRUCT_ENDIAN);
-};
-
-_module_exports_.unpack_float = function (dview, uctx) {
-  uctx.i += 4;
-  return dview.getFloat32(uctx.i - 4, _module_exports_.STRUCT_ENDIAN);
-};
-
-_module_exports_.unpack_double = function (dview, uctx) {
-  uctx.i += 8;
-  return dview.getFloat64(uctx.i - 8, _module_exports_.STRUCT_ENDIAN);
-};
-
-_module_exports_.unpack_short = function (dview, uctx) {
-  uctx.i += 2;
-  return dview.getInt16(uctx.i - 2, _module_exports_.STRUCT_ENDIAN);
-};
-
-let _static_arr_us = new Array(32);
-_module_exports_.unpack_string = function (data, uctx) {
-  let slen = unpack_int(data, uctx);
-
-  if (!slen) {
-    return "";
-  }
-
-  let str = "";
-  let arr = slen < 2048 ? _static_arr_us : new Array(slen);
-
-  arr.length = slen;
-  for (let i = 0; i < slen; i++) {
-    arr[i] = unpack_byte(data, uctx);
-  }
-
-  return decode_utf8(arr);
-};
-
-let _static_arr_uss = new Array(2048);
-_module_exports_.unpack_static_string = function unpack_static_string(data, uctx, length) {
-  let str = "";
-
-  if (length == undefined)
-    throw new Error("'length' cannot be undefined in unpack_static_string()");
-
-  let arr = length < 2048 ? _static_arr_uss : new Array(length);
-  arr.length = 0;
-
-  let done = false;
-  for (let i = 0; i < length; i++) {
-    let c = unpack_byte(data, uctx);
-
-    if (c == 0) {
-      done = true;
-    }
-
-    if (!done && c != 0) {
-      arr.push(c);
-      //arr.length++;
-    }
-  }
-
-  truncate_utf8(arr, length);
-  return decode_utf8(arr);
-};
-
-let _export_parser_;
-"use strict";
-
-var t;
-
-const _export_token_ = class token {
-  constructor(type, val, lexpos, lineno, lexer, parser) {
+class token {
+  constructor(type, val, lexpos, lineno, lexer, parser, col) {
     this.type = type;
     this.value = val;
     this.lexpos = lexpos;
     this.lineno = lineno;
+    this.col = col;
     this.lexer = lexer;
     this.parser = parser;
   }
 
   toString() {
-    if (this.value != undefined)
+    if (this.value !== undefined)
       return "token(type=" + this.type + ", value='" + this.value + "')";
     else
       return "token(type=" + this.type + ")";
   }
-};
+}
 
-const _export_tokdef_ = class tokdef {
+class tokdef {
   constructor(name, regexpr, func, example) {
     this.name = name;
     this.re = regexpr;
@@ -786,33 +241,41 @@ const _export_tokdef_ = class tokdef {
       }
     }
   }
-};
+}
 
-var PUTIL_ParseError = class PUTIL_ParseError extends Error {
+class PUTIL_ParseError extends Error {
   constructor(msg) {
     super();
   }
-};
+}
 
-const _export_lexer_ = class lexer {
+class lexer {
   constructor(tokdef, errfunc) {
     this.tokdef = tokdef;
     this.tokens = new Array();
     this.lexpos = 0;
     this.lexdata = "";
+    this.colmap = undefined;
     this.lineno = 0;
+    this.printTokens = false;
+    this.linestart = 0;
     this.errfunc = errfunc;
+    this.linemap = undefined;
     this.tokints = {};
-    for (var i = 0; i < tokdef.length; i++) {
+    for (let i = 0; i < tokdef.length; i++) {
       this.tokints[tokdef[i].name] = i;
     }
     this.statestack = [["__main__", 0]];
     this.states = {"__main__": [tokdef, errfunc]};
     this.statedata = 0;
+
+    this.logger = function() {
+      console.log(...arguments);
+    };
   }
 
   add_state(name, tokdef, errfunc) {
-    if (errfunc == undefined) {
+    if (errfunc === undefined) {
       errfunc = function (lexer) {
         return true;
       };
@@ -832,14 +295,31 @@ const _export_lexer_ = class lexer {
   }
 
   pop_state() {
-    var item = this.statestack[this.statestack.length - 1];
-    var state = this.states[item[0]];
+    let item = this.statestack[this.statestack.length - 1];
+    let state = this.states[item[0]];
     this.tokdef = state[0];
     this.errfunc = state[1];
     this.statedata = item[1];
   }
 
   input(str) {
+    let linemap = this.linemap = new Array(str.length);
+    let lineno = 0;
+    let col = 0;
+    let colmap = this.colmap = new Array(str.length);
+
+    for (let i=0; i<str.length; i++, col++) {
+      let c = str[i];
+
+      linemap[i] = lineno;
+      colmap[i] = col;
+
+      if (c === "\n") {
+        lineno++;
+        col = 0;
+      }
+    }
+
     while (this.statestack.length > 1) {
       this.pop_state();
     }
@@ -851,20 +331,26 @@ const _export_lexer_ = class lexer {
   }
 
   error() {
-    if (this.errfunc != undefined && !this.errfunc(this))
+    if (this.errfunc !== undefined && !this.errfunc(this))
       return;
 
-    console.log("Syntax error near line " + this.lineno);
+    let safepos = Math.min(this.lexpos, this.lexdata.length-1);
+    let line = this.linemap[safepos];
+    let col = this.colmap[safepos];
 
-    var next = Math.min(this.lexpos + 8, this.lexdata.length);
-    console.log("  " + this.lexdata.slice(this.lexpos, next));
+    let s = print_lines(this.lexdata, line, col, true);
+
+    this.logger("  " + s);
+    this.logger("Syntax error near line " + (this.lineno + 1));
+
+    let next = Math.min(this.lexpos + 8, this.lexdata.length);
 
     throw new PUTIL_ParseError("Parse error");
   }
 
   peek() {
-    var tok = this.next(true);
-    if (tok == undefined)
+    let tok = this.next(true);
+    if (tok === undefined)
       return undefined;
     this.peeked_tokens.push(tok);
     return tok;
@@ -879,82 +365,100 @@ const _export_lexer_ = class lexer {
   }
 
   at_end() {
-    return this.lexpos >= this.lexdata.length && this.peeked_tokens.length == 0;
+    return this.lexpos >= this.lexdata.length && this.peeked_tokens.length === 0;
   }
 
   //ignore_peek is optional, false
   next(ignore_peek) {
     if (!ignore_peek && this.peeked_tokens.length > 0) {
-      var tok = this.peeked_tokens[0];
+      let tok = this.peeked_tokens[0];
       this.peeked_tokens.shift();
+
+      if (!ignore_peek && this.printTokens) {
+        this.logger(""+tok);
+      }
+
       return tok;
     }
 
     if (this.lexpos >= this.lexdata.length)
       return undefined;
 
-    var ts = this.tokdef;
-    var tlen = ts.length;
-    var lexdata = this.lexdata.slice(this.lexpos, this.lexdata.length);
-    var results = [];
+    let ts = this.tokdef;
+    let tlen = ts.length;
+    let lexdata = this.lexdata.slice(this.lexpos, this.lexdata.length);
+    let results = [];
 
     for (var i = 0; i < tlen; i++) {
-      var t = ts[i];
-      if (t.re == undefined)
+      let t = ts[i];
+      if (t.re === undefined)
         continue;
-      var res = t.re.exec(lexdata);
-      if (res != null && res != undefined && res.index == 0) {
+      let res = t.re.exec(lexdata);
+      if (res !== null && res !== undefined && res.index === 0) {
         results.push([t, res]);
       }
     }
 
-    var max_res = 0;
-    var theres = undefined;
+    let max_res = 0;
+    let theres = undefined;
     for (var i = 0; i < results.length; i++) {
-      var res = results[i];
+      let res = results[i];
       if (res[1][0].length > max_res) {
         theres = res;
         max_res = res[1][0].length;
       }
     }
 
-    if (theres == undefined) {
+    if (theres === undefined) {
       this.error();
       return;
     }
 
-    var def = theres[0];
-    var token = new _export_token_(def.name, theres[1][0], this.lexpos, this.lineno, this, undefined);
-    this.lexpos += token.value.length;
+    let def = theres[0];
+    let col = this.colmap[Math.min(this.lexpos, this.lexdata.length-1)];
+
+    if (this.lexpos < this.lexdata.length) {
+      this.lineno = this.linemap[this.lexpos];
+    }
+
+    let tok = new token(def.name, theres[1][0], this.lexpos, this.lineno, this, undefined, col);
+    this.lexpos += tok.value.length;
 
     if (def.func) {
-      token = def.func(token);
-      if (token == undefined) {
+      tok = def.func(tok);
+      if (tok === undefined) {
         return this.next();
       }
     }
 
-    return token;
+    if (!ignore_peek && this.printTokens) {
+      this.logger(""+tok);
+    }
+    return tok;
   }
-};
+}
 
-const parser = _export_parser_ = class parser {
+class parser {
   constructor(lexer, errfunc) {
     this.lexer = lexer;
     this.errfunc = errfunc;
     this.start = undefined;
+
+    this.logger = function() {
+      console.log(...arguments);
+    };
   }
 
   parse(data, err_on_unconsumed) {
-    if (err_on_unconsumed == undefined)
+    if (err_on_unconsumed === undefined)
       err_on_unconsumed = true;
 
-    if (data != undefined)
+    if (data !== undefined)
       this.lexer.input(data);
 
-    var ret = this.start(this);
+    let ret = this.start(this);
 
-    if (err_on_unconsumed && !this.lexer.at_end() && this.lexer.next() != undefined) {
+    if (err_on_unconsumed && !this.lexer.at_end() && this.lexer.next() !== undefined) {
       this.error(undefined, "parser did not consume entire input");
     }
     return ret;
@@ -965,29 +469,25 @@ const parser = _export_parser_ = class parser {
   }
 
   error(token, msg) {
-    if (msg == undefined)
+    let estr;
+
+    if (msg === undefined)
       msg = "";
-    if (token == undefined)
-      var estr = "Parse error at end of input: " + msg;
+    if (token === undefined)
+      estr = "Parse error at end of input: " + msg;
     else
-      estr = "Parse error at line " + (token.lineno + 1) + ": " + msg;
-    var buf = "1| ";
-    var ld = this.lexer.lexdata;
-    var l = 1;
-    for (var i = 0; i < ld.length; i++) {
-      var c = ld[i];
-      if (c == '\n') {
-        l++;
-        buf += "\n" + l + "| ";
-      }
-      else {
-        buf += c;
-      }
-    }
-    console.log("------------------");
-    console.log(buf);
-    console.log("==================");
-    console.log(estr);
+      estr = `Parse error at line ${token.lineno + 1}:${token.col+1}: ${msg}`;
+
+    let buf = "";
+    let ld = this.lexer.lexdata;
+    let lineno = token ? token.lineno : this.lexer.linemap[this.lexer.linemap.length-1];
+    let col = token ? token.col : 0;
+
+    ld = ld.replace(/\r/g, '');
+
+    this.logger(print_lines(ld, lineno, col, true, token));
+    this.logger(estr);
+
     if (this.errfunc && !this.errfunc(token)) {
       return;
     }
@@ -995,31 +495,31 @@ const parser = _export_parser_ = class parser {
   }
 
   peek() {
-    var tok = this.lexer.peek();
-    if (tok != undefined)
+    let tok = this.lexer.peek();
+    if (tok !== undefined)
       tok.parser = this;
     return tok;
   }
 
   peeknext() {
-    var tok = this.lexer.peeknext();
-    if (tok != undefined)
+    let tok = this.lexer.peeknext();
+    if (tok !== undefined)
       tok.parser = this;
     return tok;
   }
 
   next() {
-    var tok = this.lexer.next();
-    if (tok != undefined)
+    let tok = this.lexer.next();
+    if (tok !== undefined)
       tok.parser = this;
     return tok;
   }
 
   optional(type) {
-    var tok = this.peek();
-    if (tok == undefined)
+    let tok = this.peek();
+    if (tok === undefined)
       return false;
-    if (tok.type == type) {
+    if (tok.type === type) {
       this.next();
       return true;
     }
@@ -1031,9 +531,9 @@ const parser = _export_parser_ = class parser {
   }
 
   expect(type, msg) {
-    var tok = this.next();
+    let tok = this.next();
     
-    if (msg == undefined) {
+    if (msg === undefined) {
       msg = type;
       
       for (let tk of this.lexer.tokdef) {
@@ -1043,32 +543,32 @@ const parser = _export_parser_ = class parser {
       }
     }
     
-    if (tok == undefined || tok.type != type) {
+    if (tok === undefined || tok.type !== type) {
       this.error(tok, "Expected " + msg);
     }
     return tok.value;
   }
-};
+}
 
 function test_parser() {
-  var basic_types = new set(["int", "float", "double", "vec2", "vec3", "vec4", "mat4", "string"]);
-  var reserved_tokens = new set(["int", "float", "double", "vec2", "vec3", "vec4", "mat4", "string", "static_string", "array"]);
+  let basic_types = new Set(["int", "float", "double", "vec2", "vec3", "vec4", "mat4", "string"]);
+  let reserved_tokens = new Set(["int", "float", "double", "vec2", "vec3", "vec4", "mat4", "string", "static_string", "array"]);
 
   function tk(name, re, func) {
-    return new _export_tokdef_(name, re, func);
+    return new tokdef(name, re, func);
   }
 
-  var tokens = [tk("ID", /[a-zA-Z]+[a-zA-Z0-9_]*/, function (t) {
+  let tokens = [tk("ID", /[a-zA-Z]+[a-zA-Z0-9_]*/, function (t) {
     if (reserved_tokens.has(t.value)) {
       t.type = t.value.toUpperCase();
     }
     return t;
   }), tk("OPEN", /\{/), tk("CLOSE", /}/), tk("COLON", /:/), tk("JSCRIPT", /\|/, function (t) {
-    var js = "";
-    var lexer = t.lexer;
+    let js = "";
+    let lexer = t.lexer;
     while (lexer.lexpos < lexer.lexdata.length) {
-      var c = lexer.lexdata[lexer.lexpos];
-      if (c == "\n")
+      let c = lexer.lexdata[lexer.lexpos];
+      if (c === "\n")
         break;
       js += c;
       lexer.lexpos++;
@@ -1083,37 +583,47 @@ function test_parser() {
     t.lexer.lineno += 1;
   }), tk("SPACE", / |\t/, function (t) {
   })];
-  var __iter_rt = __get_iter(reserved_tokens);
-  var rt;
-  while (1) {
-    var __ival_rt = __iter_rt.next();
-    if (__ival_rt.done) {
-      break;
-    }
-    rt = __ival_rt.value;
+
+  for (let rt of reserved_tokens) {
     tokens.push(tk(rt.toUpperCase()));
   }
-  var a = "\n  Loop {\n    eid : int;\n    flag : int;\n    index : int;\n    type : int;\n\n    co : vec3;\n    no : vec3;\n    loop : int | eid(loop);\n    edges : array(e, int) | e.eid;\n\n    loops : array(Loop);\n  }\n  ";
+
+  let a = `
+  Loop {
+    eid : int;
+    flag : int;
+    index : int;
+    type : int;
+
+    co : vec3;
+    no : vec3;
+    loop : int | eid(loop);
+    edges : array(e, int) | e.eid;
+
+    loops :, array(Loop);
+  }
+  `;
+
 
   function errfunc(lexer) {
     return true;
   }
 
-  var lex = new _export_lexer_(tokens, errfunc);
+  let lex = new lexer(tokens, errfunc);
   console.log("Testing lexical scanner...");
   lex.input(a);
-  var token;
+  let token;
   while (token = lex.next()) {
     console.log(token.toString());
   }
-  var parser = new _export_parser_(lex);
-  parser.input(a);
+  let parse = new parser(lex);
+  parse.input(a);
 
   function p_Array(p) {
     p.expect("ARRAY");
     p.expect("LPARAM");
-    var arraytype = p_Type(p);
-    var itername = "";
+    let arraytype = p_Type(p);
+    let itername = "";
     if (p.optional("COMMA")) {
       itername = arraytype;
       arraytype = p_Type(p);
@@ -1123,8 +633,8 @@ function test_parser() {
   }
 
   function p_Type(p) {
-    var tok = p.peek();
-    if (tok.type == "ID") {
+    let tok = p.peek();
+    if (tok.type === "ID") {
       p.next();
       return {type: "struct", data: "\"" + tok.value + "\""}
     }
@@ -1132,7 +642,7 @@ function test_parser() {
       p.next();
       return {type: tok.type.toLowerCase()}
     }
-    else if (tok.type == "ARRAY") {
+    else if (tok.type === "ARRAY") {
       return p_Array(p);
     }
     else {
@@ -1141,20 +651,20 @@ function test_parser() {
   }
 
   function p_Field(p) {
-    var field = {};
+    let field = {};
     console.log("-----", p.peek().type);
     field.name = p.expect("ID", "struct field name");
     p.expect("COLON");
     field.type = p_Type(p);
     field.set = undefined;
     field.get = undefined;
-    var tok = p.peek();
-    if (tok.type == "JSCRIPT") {
+    let tok = p.peek();
+    if (tok.type === "JSCRIPT") {
       field.get = tok.value;
       p.next();
     }
     tok = p.peek();
-    if (tok.type == "JSCRIPT") {
+    if (tok.type === "JSCRIPT") {
       field.set = tok.value;
       p.next();
     }
@@ -1163,7 +673,7 @@ function test_parser() {
   }
 
   function p_Struct(p) {
-    var st = {};
+    let st = {};
     st.name = p.expect("ID", "struct name");
     st.fields = [];
     p.expect("OPEN");
@@ -1181,84 +691,86 @@ function test_parser() {
     return st;
   }
 
-  var ret = p_Struct(parser);
+  let ret = p_Struct(parse);
   console.log(JSON.stringify(ret));
 }
 
+//test_parser();
+
 var struct_parseutil = /*#__PURE__*/Object.freeze({
   __proto__: null,
-  get parser () { return _export_parser_; },
-  token: _export_token_,
-  tokdef: _export_tokdef_,
+  token: token,
+  tokdef: tokdef,
   PUTIL_ParseError: PUTIL_ParseError,
-  lexer: _export_lexer_
+  lexer: lexer,
+  parser: parser
 });
 
 "use strict";
 
-let NStruct = class NStruct {
+class NStruct {
   constructor(name) {
     this.fields = [];
     this.id = -1;
     this.name = name;
   }
-};
+}
 
 //the discontinuous id's are to make sure
 //the version I originally wrote (which had a few application-specific types)
 //and this one do not become totally incompatible.
-let StructEnum = {
-  T_INT          : 0,
-  T_FLOAT        : 1,
-  T_DOUBLE       : 2,
-  T_STRING       : 7,
-  T_STATIC_STRING: 8, //fixed-length string
-  T_STRUCT       : 9,
-  T_TSTRUCT      : 10,
-  T_ARRAY        : 11,
-  T_ITER         : 12,
-  T_SHORT        : 13,
-  T_BYTE         : 14,
-  T_BOOL         : 15,
-  T_ITERKEYS     : 16,
-  T_UINT         : 17,
-  T_USHORT       : 18,
-  T_STATIC_ARRAY : 19,
-  T_SIGNED_BYTE  : 20
+const StructEnum = {
+  INT          : 0,
+  FLOAT        : 1,
+  DOUBLE       : 2,
+  STRING       : 7,
+  STATIC_STRING: 8, //fixed-length string
+  STRUCT       : 9,
+  TSTRUCT      : 10,
+  ARRAY        : 11,
+  ITER         : 12,
+  SHORT        : 13,
+  BYTE         : 14,
+  BOOL         : 15,
+  ITERKEYS     : 16,
+  UINT         : 17,
+  USHORT       : 18,
+  STATIC_ARRAY : 19,
+  SIGNED_BYTE  : 20
 };
 
-let ValueTypes = new Set([
-  StructEnum.T_INT,
-  StructEnum.T_FLOAT,
-  StructEnum.T_DOUBLE,
-  StructEnum.T_STRING,
-  StructEnum.T_STATIC_STRING,
-  StructEnum.T_SHORT,
-  StructEnum.T_BYTE,
-  StructEnum.T_BOOL,
-  StructEnum.T_UINT,
-  StructEnum.T_USHORT,
-  StructEnum.T_SIGNED_BYTE
+const ValueTypes = new Set([
+  StructEnum.INT,
+  StructEnum.FLOAT,
+  StructEnum.DOUBLE,
+  StructEnum.STRING,
+  StructEnum.STATIC_STRING,
+  StructEnum.SHORT,
+  StructEnum.BYTE,
+  StructEnum.BOOL,
+  StructEnum.UINT,
+  StructEnum.USHORT,
+  StructEnum.SIGNED_BYTE
 
 ]);
 
 let StructTypes = {
-  "int"          : StructEnum.T_INT,
-  "uint"         : StructEnum.T_UINT,
-  "ushort"       : StructEnum.T_USHORT,
-  "float"        : StructEnum.T_FLOAT,
-  "double"       : StructEnum.T_DOUBLE,
-  "string"       : StructEnum.T_STRING,
-  "static_string": StructEnum.T_STATIC_STRING,
-  "struct"       : StructEnum.T_STRUCT,
-  "abstract"     : StructEnum.T_TSTRUCT,
-  "array"        : StructEnum.T_ARRAY,
-  "iter"         : StructEnum.T_ITER,
-  "short"        : StructEnum.T_SHORT,
-  "byte"         : StructEnum.T_BYTE,
-  "bool"         : StructEnum.T_BOOL,
-  "iterkeys"     : StructEnum.T_ITERKEYS,
-  "sbyte"        : StructEnum.T_SIGNED_BYTE
+  "int"          : StructEnum.INT,
+  "uint"         : StructEnum.UINT,
+  "ushort"       : StructEnum.USHORT,
+  "float"        : StructEnum.FLOAT,
+  "double"       : StructEnum.DOUBLE,
+  "string"       : StructEnum.STRING,
+  "static_string": StructEnum.STATIC_STRING,
+  "struct"       : StructEnum.STRUCT,
+  "abstract"     : StructEnum.TSTRUCT,
+  "array"        : StructEnum.ARRAY,
+  "iter"         : StructEnum.ITER,
+  "short"        : StructEnum.SHORT,
+  "byte"         : StructEnum.BYTE,
+  "bool"         : StructEnum.BOOL,
+  "iterkeys"     : StructEnum.ITERKEYS,
+  "sbyte"        : StructEnum.SIGNED_BYTE
 };
 
 let StructTypeMap = {};
@@ -1275,19 +787,74 @@ function gen_tabstr(t) {
   return s;
 }
 
+function stripComments(buf) {
+  let s = '';
+
+  const MAIN = 0, COMMENT = 1, STR = 2;
+
+  let p, n;
+  let strs = new Set(["'", '"', "`"]);
+  let mode = MAIN;
+  let strlit;
+  let escape = false;
+
+  for (let i = 0; i < buf.length; i++) {
+    let p = i > 0 ? buf[i - 1] : undefined;
+    let c = buf[i];
+    let n = i < buf.length - 1 ? buf[i + 1] : undefined;
+
+    switch (mode) {
+      case MAIN:
+        if (c === "/" && n === "/") {
+          mode = COMMENT;
+          continue;
+        }
+
+        if (strs.has(c)) {
+          strlit = c;
+          mode = STR;
+        }
+
+        s += c;
+
+        break;
+      case COMMENT:
+        if (n === "\n") {
+          mode = MAIN;
+        }
+        break;
+      case STR:
+        if (c === strlit && !escape) {
+          mode = MAIN;
+        }
+
+        s += c;
+        break;
+    }
+
+    if (c === "\\") {
+      escape ^= true;
+    } else {
+      escape = false;
+    }
+  }
+
+  return s;
+}
+
 function StructParser() {
-  let basic_types = new set$1([
+  let basic_types = new Set([
     "int", "float", "double", "string", "short", "byte", "sbyte", "bool", "uint", "ushort"
   ]);
 
-  let reserved_tokens = new set$1([
+  let reserved_tokens = new Set([
     "int", "float", "double", "string", "static_string", "array",
     "iter", "abstract", "short", "byte", "sbyte", "bool", "iterkeys", "uint", "ushort",
     "static_array"
   ]);
 
   function tk(name, re, func) {
-    return new _export_tokdef_(name, re, func);
+    return new tokdef(name, re, func);
   }
 
   let tokens = [
@@ -1301,6 +868,14 @@ function StructParser() {
     tk("OPEN", /\{/),
     tk("EQUALS", /=/),
     tk("CLOSE", /}/),
+    tk("STRLIT", /\"[^"]*\"/, t => {
+      t.value = t.value.slice(1, t.value.length - 1);
+      return t;
+    }),
+    tk("STRLIT", /\'[^']*\'/, t => {
+      t.value = t.value.slice(1, t.value.length - 1);
+      return t;
+    }),
     tk("COLON", /:/),
     tk("SOPEN", /\[/),
     tk("SCLOSE", /\]/),
@@ -1342,15 +917,22 @@ function StructParser() {
     return true;
   }
 
-  let lex = new _export_lexer_(tokens, errfunc);
-  let parser = new _export_parser_(lex);
+  class Lexer extends lexer {
+    input(str) {
+      str = stripComments(str);
+      return super.input(str);
+    }
+  }
+
+  let lex = new Lexer(tokens, errfunc);
+  let parser$1 = new parser(lex);
 
   function p_Static_String(p) {
     p.expect("STATIC_STRING");
     p.expect("SOPEN");
     let num = p.expect("NUM");
     p.expect("SCLOSE");
-    return {type: StructEnum.T_STATIC_STRING, data: {maxlength: num}}
+    return {type: StructEnum.STATIC_STRING, data: {maxlength: num}}
   }
 
   function p_DataRef(p) {
@@ -1358,7 +940,7 @@ function StructParser() {
     p.expect("LPARAM");
     let tname = p.expect("ID");
     p.expect("RPARAM");
-    return {type: StructEnum.T_DATAREF, data: tname}
+    return {type: StructEnum.DATAREF, data: tname}
   }
 
   function p_Array(p) {
@@ -1373,12 +955,13 @@ function StructParser() {
     }
 
     p.expect("RPARAM");
-    return {type: StructEnum.T_ARRAY, data: {type: arraytype, iname: itername}}
+    return {type: StructEnum.ARRAY, data: {type: arraytype, iname: itername}}
   }
 
   function p_Iter(p) {
     p.expect("ITER");
     p.expect("LPARAM");
+
     let arraytype = p_Type(p);
     let itername = "";
 
@@ -1388,7 +971,7 @@ function StructParser() {
     }
 
     p.expect("RPARAM");
-    return {type: StructEnum.T_ITER, data: {type: arraytype, iname: itername}}
+    return {type: StructEnum.ITER, data: {type: arraytype, iname: itername}}
   }
 
   function p_StaticArray(p) {
@@ -1412,7 +995,7 @@ function StructParser() {
     }
 
     p.expect("SCLOSE");
-    return {type: StructEnum.T_STATIC_ARRAY, data: {type: arraytype, size: size, iname: itername}}
+    return {type: StructEnum.STATIC_ARRAY, data: {type: arraytype, size: size, iname: itername}}
   }
 
   function p_IterKeys(p) {
@@ -1428,15 +1011,27 @@ function StructParser() {
     }
 
     p.expect("RPARAM");
-    return {type: StructEnum.T_ITERKEYS, data: {type: arraytype, iname: itername}}
+    return {type: StructEnum.ITERKEYS, data: {type: arraytype, iname: itername}}
   }
 
   function p_Abstract(p) {
     p.expect("ABSTRACT");
     p.expect("LPARAM");
     let type = p.expect("ID");
+
+    let jsonKeyword = "_structName";
+
+    if (p.optional("COMMA")) {
+      jsonKeyword = p.expect("STRLIT");
+    }
+
     p.expect("RPARAM");
-    return {type: StructEnum.T_TSTRUCT, data: type}
+
+    return {
+      type: StructEnum.TSTRUCT,
+      data: type,
+      jsonKeyword
+    }
   }
 
   function p_Type(p) {
@@ -1444,7 +1039,7 @@ function StructParser() {
 
     if (tok.type === "ID") {
       p.next();
-      return {type: StructEnum.T_STRUCT, data: tok.value}
+      return {type: StructEnum.STRUCT, data: tok.value}
     } else if (basic_types.has(tok.type.toLowerCase())) {
       p.next();
       return {type: StructTypes[tok.type.toLowerCase()]}
@@ -1537,11 +1132,11 @@ function StructParser() {
     return st;
   }
 
-  parser.start = p_Struct;
-  return parser;
+  parser$1.start = p_Struct;
+  return parser$1;
 }
 
-const _export_struct_parse_ = StructParser();
+const struct_parse = StructParser();
 
 var struct_parser = /*#__PURE__*/Object.freeze({
   __proto__: null,
@@ -1550,41 +1145,391 @@ var struct_parser = /*#__PURE__*/Object.freeze({
   ValueTypes: ValueTypes,
   StructTypes: StructTypes,
   StructTypeMap: StructTypeMap,
-  struct_parse: _export_struct_parse_
+  stripComments: stripComments,
+  struct_parse: struct_parse
 });
 
-let _export_StructFieldTypeMap_;
-let warninglvl = 1;
+/** dead file */
+
+var struct_typesystem = /*#__PURE__*/Object.freeze({
+  __proto__: null
+});
+
+"use strict";
+
+var STRUCT_ENDIAN = true; //little endian
+
+function setBinaryEndian(mode) {
+  STRUCT_ENDIAN = !!mode;
+}
+
+let temp_dataview = new DataView(new ArrayBuffer(16));
+let uint8_view = new Uint8Array(temp_dataview.buffer);
+
+class unpack_context {
+  constructor() {
+    this.i = 0;
+  }
+}
+
+function pack_byte(array, val) {
+  array.push(val);
+}
+
+function pack_sbyte(array, val) {
+  if (val < 0) {
+    val = 256 + val;
+  }
+
+  array.push(val);
+}
+
+function pack_bytes(array, bytes) {
+  for (let i = 0; i < bytes.length; i++) {
+    array.push(bytes[i]);
+  }
+}
+
+function pack_int(array, val) {
+  temp_dataview.setInt32(0, val, STRUCT_ENDIAN);
+
+  array.push(uint8_view[0]);
+  array.push(uint8_view[1]);
+  array.push(uint8_view[2]);
+  array.push(uint8_view[3]);
+}
+
+function pack_uint(array, val) {
+  temp_dataview.setUint32(0, val, STRUCT_ENDIAN);
+
+  array.push(uint8_view[0]);
+  array.push(uint8_view[1]);
+  array.push(uint8_view[2]);
+  array.push(uint8_view[3]);
+}
+
+function pack_ushort(array, val) {
+  temp_dataview.setUint16(0, val, STRUCT_ENDIAN);
+
+  array.push(uint8_view[0]);
+  array.push(uint8_view[1]);
+}
+
+function pack_float(array, val) {
+  temp_dataview.setFloat32(0, val, STRUCT_ENDIAN);
+
+  array.push(uint8_view[0]);
+  array.push(uint8_view[1]);
+  array.push(uint8_view[2]);
+  array.push(uint8_view[3]);
+}
+
+function pack_double(array, val) {
+  temp_dataview.setFloat64(0, val, STRUCT_ENDIAN);
+
+  array.push(uint8_view[0]);
+  array.push(uint8_view[1]);
+  array.push(uint8_view[2]);
+  array.push(uint8_view[3]);
+  array.push(uint8_view[4]);
+  array.push(uint8_view[5]);
+  array.push(uint8_view[6]);
+  array.push(uint8_view[7]);
+}
+
+function pack_short(array, val) {
+  temp_dataview.setInt16(0, val, STRUCT_ENDIAN);
+
+  array.push(uint8_view[0]);
+  array.push(uint8_view[1]);
+}
+
+function encode_utf8(arr, str) {
+  for (let i = 0; i < str.length; i++) {
+    let c = str.charCodeAt(i);
+
+    while (c !== 0) {
+      let uc = c & 127;
+      c = c >> 7;
+
+      if (c !== 0)
+        uc |= 128;
+
+      arr.push(uc);
+    }
+  }
+}
+
+function decode_utf8(arr) {
+  let str = "";
+  let i = 0;
+
+  while (i < arr.length) {
+    let c = arr[i];
+    let sum = c & 127;
+    let j = 0;
+    let lasti = i;
+
+    while (i < arr.length && (c & 128)) {
+      j += 7;
+      i++;
+      c = arr[i];
+
+      c = (c & 127) << j;
+      sum |= c;
+    }
+
+    if (sum === 0) break;
+
+    str += String.fromCharCode(sum);
+    i++;
+  }
+
+  return str;
+}
+
+function test_utf8() {
+  let s = "a" + String.fromCharCode(8800) + "b";
+  let arr = [];
+
+  encode_utf8(arr, s);
+  let s2 = decode_utf8(arr);
+
+  if (s !== s2) {
+    throw new Error("UTF-8 encoding/decoding test failed");
+  }
+
+  return true;
+}
+
+function truncate_utf8(arr, maxlen) {
+  let len = Math.min(arr.length, maxlen);
+
+  let last_codepoint = 0;
+  let last2 = 0;
+
+  let incode = false;
+  let i = 0;
+  let code = 0;
+  while (i < len) {
+    incode = arr[i] & 128;
+
+    if (!incode) {
+      last2 = last_codepoint + 1;
+      last_codepoint = i + 1;
+    }
+
+    i++;
+  }
+
+  if (last_codepoint < maxlen)
+    arr.length = last_codepoint;
+  else
+    arr.length = last2;
+
+  return arr;
+}
+
+let _static_sbuf_ss = new Array(2048);
+
+function pack_static_string(data, str, length) {
+  if (length === undefined)
+    throw new Error("'length' paremter is not optional for pack_static_string()");
+
+  let arr = length < 2048 ? _static_sbuf_ss : new Array();
+  arr.length = 0;
+
+  encode_utf8(arr, str);
+  truncate_utf8(arr, length);
+
+  for (let i = 0; i < length; i++) {
+    if (i >= arr.length) {
+      data.push(0);
+    } else {
+      data.push(arr[i]);
+    }
+  }
+}
+
+let _static_sbuf = new Array(32);
+
+/*strings are packed as 32-bit unicode codepoints*/
+function pack_string(data, str) {
+  _static_sbuf.length = 0;
+  encode_utf8(_static_sbuf, str);
+
+  pack_int(data, _static_sbuf.length);
+
+  for (let i = 0; i < _static_sbuf.length; i++) {
+    data.push(_static_sbuf[i]);
+  }
+}
+
+function unpack_bytes(dview, uctx, len) {
+  let ret = new DataView(dview.buffer.slice(uctx.i, uctx.i + len));
+  uctx.i += len;
+
+  return ret;
+}
+
+function unpack_byte(dview, uctx) {
+  return dview.getUint8(uctx.i++);
+}
+
+function unpack_sbyte(dview, uctx) {
+  return dview.getInt8(uctx.i++);
+}
+
+function unpack_int(dview, uctx) {
+  uctx.i += 4;
+  return dview.getInt32(uctx.i - 4, STRUCT_ENDIAN);
+}
+
+function unpack_uint(dview, uctx) {
+  uctx.i += 4;
+  return dview.getUint32(uctx.i - 4, STRUCT_ENDIAN);
+}
+
+function unpack_ushort(dview, uctx) {
+  uctx.i += 2;
+  return dview.getUint16(uctx.i - 2, STRUCT_ENDIAN);
+}
+
+function unpack_float(dview, uctx) {
+  uctx.i += 4;
+  return dview.getFloat32(uctx.i - 4, STRUCT_ENDIAN);
+}
+
+function unpack_double(dview, uctx) {
+  uctx.i += 8;
+  return dview.getFloat64(uctx.i - 8, STRUCT_ENDIAN);
+}
+
+function unpack_short(dview, uctx) {
+  uctx.i += 2;
+  return dview.getInt16(uctx.i - 2, STRUCT_ENDIAN);
+}
+
+let _static_arr_us = new Array(32);
+
+function unpack_string(data, uctx) {
+  let slen = unpack_int(data, uctx);
+
+  if (!slen) {
+    return "";
+  }
+
+  let str = "";
+  let arr = slen < 2048 ? _static_arr_us : new Array(slen);
+
+  arr.length = slen;
+  for (let i = 0; i < slen; i++) {
+    arr[i] = unpack_byte(data, uctx);
+  }
+
+  return decode_utf8(arr);
+}
+
+let _static_arr_uss = new Array(2048);
+
+function unpack_static_string(data, uctx, length) {
+  let str = "";
+
+  if (length === undefined)
+    throw new Error("'length' cannot be undefined in unpack_static_string()");
+
+  let arr = length < 2048 ? _static_arr_uss : new Array(length);
+  arr.length = 0;
+
+  let done = false;
+  for (let i = 0; i < length; i++) {
+    let c = unpack_byte(data, uctx);
+
+    if (c === 0) {
+      done = true;
+    }
+
+    if (!done && c !== 0) {
+      arr.push(c);
+      //arr.length++;
+    }
+  }
+
+  truncate_utf8(arr, length);
+  return decode_utf8(arr);
+}
+
+var struct_binpack = /*#__PURE__*/Object.freeze({
+  __proto__: null,
+  get STRUCT_ENDIAN () { return STRUCT_ENDIAN; },
+  setBinaryEndian: setBinaryEndian,
+  temp_dataview: temp_dataview,
+  uint8_view: uint8_view,
+  unpack_context: unpack_context,
+  pack_byte: pack_byte,
+  pack_sbyte: pack_sbyte,
+  pack_bytes: pack_bytes,
+  pack_int: pack_int,
+  pack_uint: pack_uint,
+  pack_ushort: pack_ushort,
+  pack_float: pack_float,
+  pack_double: pack_double,
+  pack_short: pack_short,
+  encode_utf8: encode_utf8,
+  decode_utf8: decode_utf8,
+  test_utf8: test_utf8,
+  pack_static_string: pack_static_string,
+  pack_string: pack_string,
+  unpack_bytes: unpack_bytes,
+  unpack_byte: unpack_byte,
+  unpack_sbyte: unpack_sbyte,
+  unpack_int: unpack_int,
+  unpack_uint: unpack_uint,
+  unpack_ushort: unpack_ushort,
+  unpack_float: unpack_float,
+  unpack_double: unpack_double,
+  unpack_short: unpack_short,
+  unpack_string: unpack_string,
+  unpack_static_string: unpack_static_string
+});
+
+let warninglvl = 2;
 let debug = 0;
 
-let pack_int$1 = _module_exports_.pack_int;
-let pack_uint$1 = _module_exports_.pack_uint;
-let pack_ushort$1 = _module_exports_.pack_ushort;
-
-let pack_float = _module_exports_.pack_float;
-let pack_string$1 = _module_exports_.pack_string;
-let pack_byte$1 = _module_exports_.pack_byte;
-let pack_sbyte$1 = _module_exports_.pack_sbyte;
-let pack_double = _module_exports_.pack_double;
-let pack_static_string$1 = _module_exports_.pack_static_string;
-let pack_short = _module_exports_.pack_short;
-
-let unpack_int$1 = _module_exports_.unpack_int;
-let unpack_float = _module_exports_.unpack_float;
-let unpack_uint$1 = _module_exports_.unpack_uint;
-let unpack_ushort$1 = _module_exports_.unpack_ushort;
-let unpack_string = _module_exports_.unpack_string;
-let unpack_byte$1 = _module_exports_.unpack_byte;
-let unpack_sbyte$1 = _module_exports_.unpack_sbyte;
-let unpack_double = _module_exports_.unpack_double;
-let unpack_static_string = _module_exports_.unpack_static_string;
-let unpack_short = _module_exports_.unpack_short;
-
 let _static_envcode_null = "";
-
 let packer_debug, packer_debug_start, packer_debug_end;
-
 let packdebug_tablevel = 0;
+
+function _get_pack_debug() {
+  return {
+    packer_debug, packer_debug_start, packer_debug_end,
+    debug, warninglvl
+  }
+}
+
+class cachering extends Array {
+  constructor(cb, tot) {
+    super();
+    this.length = tot;
+    this.cur = 0;
+
+    for (let i = 0; i < tot; i++) {
+      this[i] = cb();
+    }
+  }
+
+  static fromConstructor(cls, tot) {
+    return new cachering(() => new cls(), tot);
+  }
+
+  next() {
+    let ret = this[this.cur];
+
+    this.cur = (this.cur + 1)%this.length;
+
+    return ret;
+  }
+}
 
 function gen_tabstr$1(tot) {
   let ret = "";
@@ -1596,24 +1541,25 @@ function gen_tabstr$1(tot) {
   return ret;
 }
 
-const _export_setWarningMode_ = (t) => {
+function setWarningMode2(t) {
   if (typeof t !== "number" || isNaN(t)) {
     throw new Error("Expected a single number (>= 0) argument to setWarningMode");
   }
 
   warninglvl = t;
-};
+}
 
-const _export_setDebugMode_ = (t) => {
+function setDebugMode2(t) {
   debug = t;
 
   if (debug) {
-    packer_debug = function (msg) {
-      if (msg !== undefined) {
-        let t = gen_tabstr$1(packdebug_tablevel);
-        console.log(t + msg);
+    packer_debug = function () {
+      let tab = gen_tabstr$1(packdebug_tablevel);
+
+      if (arguments.length > 0) {
+        console.warn(tab, ...arguments);
       } else {
-        console.log("Warning: undefined msg");
+        console.warn("Warning: undefined msg");
       }
     };
     packer_debug_start = function (funcname) {
@@ -1623,10 +1569,12 @@ const _export_setDebugMode_ = (t) => {
 
     packer_debug_end = function (funcname) {
       packdebug_tablevel--;
-      packer_debug("Leave " + funcname);
+
+      if (funcname) {
+        packer_debug("Leave " + funcname);
+      }
     };
-  }
-  else {
+  } else {
     packer_debug = function () {
     };
     packer_debug_start = function () {
@@ -1634,54 +1582,61 @@ const _export_setDebugMode_ = (t) => {
     packer_debug_end = function () {
     };
   }
-};
+}
 
-_export_setDebugMode_(debug);
+setDebugMode2(debug);
 
-const _export_StructFieldTypes_ = [];
-let StructFieldTypeMap = _export_StructFieldTypeMap_ = {};
+const StructFieldTypes = [];
+const StructFieldTypeMap = {};
 
-let packNull = function(manager, data, field, type) {
+function packNull(manager, data, field, type) {
   StructFieldTypeMap[type.type].packNull(manager, data, field, type);
-};
+}
 
-let toJSON = function(manager, val, obj, field, type) {
-  return _export_StructFieldTypeMap_[type.type].toJSON(manager, val, obj, field, type);
-};
+function toJSON(manager, val, obj, field, type) {
+  return StructFieldTypeMap[type.type].toJSON(manager, val, obj, field, type);
+}
 
-let fromJSON = function(manager, val, obj, field, type, instance) {
-  return _export_StructFieldTypeMap_[type.type].fromJSON(manager, val, obj, field, type, instance);
-};
+function fromJSON(manager, val, obj, field, type, instance) {
+  return StructFieldTypeMap[type.type].fromJSON(manager, val, obj, field, type, instance);
+}
+
+function validateJSON(manager, val, obj, field, type, instance, _abstractKey) {
+  return StructFieldTypeMap[type.type].validateJSON(manager, val, obj, field, type, instance, _abstractKey);
+}
+
 
 function unpack_field(manager, data, type, uctx) {
   let name;
 
   if (debug) {
-    name = _export_StructFieldTypeMap_[type.type].define().name;
-    packer_debug_start("R start " + name);
+    name = StructFieldTypeMap[type.type].define().name;
+    packer_debug_start("R " + name);
   }
 
-  let ret = _export_StructFieldTypeMap_[type.type].unpack(manager, data, type, uctx);
+  let ret = StructFieldTypeMap[type.type].unpack(manager, data, type, uctx);
 
   if (debug) {
-    packer_debug_end("R end " + name);
+    packer_debug_end();
   }
 
   return ret;
 }
 
-let fakeFields = new _export_cachering_(() => {return {type : undefined, get : undefined, set : undefined}}, 256);
+let fakeFields = new cachering(() => {
+  return {type: undefined, get: undefined, set: undefined}
+}, 256);
 
 function fmt_type(type) {
-  return _export_StructFieldTypeMap_[type.type].format(type);
+  return StructFieldTypeMap[type.type].format(type);
 }
 
 function do_pack(manager, data, val, obj, field, type) {
   let name;
 
   if (debug) {
-    name = _export_StructFieldTypeMap_[type.type].define().name;
-    packer_debug_start("W start " + name);
+    name = StructFieldTypeMap[type.type].define().name;
+    packer_debug_start("W " + name);
   }
 
   let typeid = type;
@@ -1689,20 +1644,18 @@ function do_pack(manager, data, val, obj, field, type) {
     typeid = typeid.type;
   }
 
-  let ret = _export_StructFieldTypeMap_[typeid].pack(manager, data, val, obj, field, type);
+  let ret = StructFieldTypeMap[typeid].pack(manager, data, val, obj, field, type);
 
   if (debug) {
-    packer_debug_end("W end " + name);
+    packer_debug_end();
   }
 
   return ret;
 }
 
-let StructEnum$1 = StructEnum;
-
 let _ws_env = [[undefined, undefined]];
 
-let StructFieldType = class StructFieldType {
+class StructFieldType {
   static pack(manager, data, val, obj, field, type) {
   }
 
@@ -1725,6 +1678,10 @@ let StructFieldType = class StructFieldType {
     return val;
   }
 
+  static validateJSON(manager, val, obj, field, type, instance, _abstractKey) {
+    return true;
+  }
+
   /**
    return false to override default
    helper js for packing
@@ -1732,27 +1689,30 @@ let StructFieldType = class StructFieldType {
   static useHelperJS(field) {
     return true;
   }
+
   /**
    Define field class info.
 
    Example:
    <pre>
    static define() {return {
-    type : StructEnum.T_INT,
+    type : StructEnum.INT,
     name : "int"
   }}
    </pre>
    */
-  static define() {return {
-    type : -1,
-    name : "(error)"
-  }}
+  static define() {
+    return {
+      type: -1,
+      name: "(error)"
+    }
+  }
 
   /**
    Register field packer/unpacker class.  Will throw an error if define() method is bad.
    */
   static register(cls) {
-    if (_export_StructFieldTypes_.indexOf(cls) >= 0) {
+    if (StructFieldTypes.indexOf(cls) >= 0) {
       throw new Error("class already registered");
     }
 
@@ -1764,29 +1724,40 @@ let StructFieldType = class StructFieldType {
       throw new Error("cls.define().type was undefined!");
     }
 
-    if (cls.define().type in _export_StructFieldTypeMap_) {
+    if (cls.define().type in StructFieldTypeMap) {
       throw new Error("type " + cls.define().type + " is used by another StructFieldType subclass");
     }
 
-    _export_StructFieldTypes_.push(cls);
-    _export_StructFieldTypeMap_[cls.define().type] = cls;
+    StructFieldTypes.push(cls);
+    StructFieldTypeMap[cls.define().type] = cls;
   }
-};
+}
 
 class StructIntField extends StructFieldType {
   static pack(manager, data, val, obj, field, type) {
-    pack_int$1(data, val);
+    pack_int(data, val);
   }
 
   static unpack(manager, data, type, uctx) {
-    return unpack_int$1(data, uctx);
+    return unpack_int(data, uctx);
   }
 
-  static define() {return {
-    type : StructEnum$1.T_INT,
-    name : "int"
-  }}
+  static validateJSON(manager, val, obj, field, type, instance) {
+    if (typeof val !== "number" || val !== Math.floor(val)) {
+      return "" + val + " is not an integer";
+    }
+
+    return true;
+  }
+
+  static define() {
+    return {
+      type: StructEnum.INT,
+      name: "int"
+    }
+  }
 }
+
 StructFieldType.register(StructIntField);
 
 class StructFloatField extends StructFieldType {
@@ -1798,11 +1769,22 @@ class StructFloatField extends StructFieldType {
     return unpack_float(data, uctx);
   }
 
-  static define() {return {
-    type : StructEnum$1.T_FLOAT,
-    name : "float"
-  }}
+  static validateJSON(manager, val, obj, field, type, instance, _abstractKey) {
+    if (typeof val !== "number") {
+      return "Not a float: " + val;
+    }
+
+    return true;
+  }
+
+  static define() {
+    return {
+      type: StructEnum.FLOAT,
+      name: "float"
+    }
+  }
 }
+
 StructFieldType.register(StructFloatField);
 
 class StructDoubleField extends StructFieldType {
@@ -1814,18 +1796,37 @@ class StructDoubleField extends StructFieldType {
     return unpack_double(data, uctx);
   }
 
-  static define() {return {
-    type : StructEnum$1.T_DOUBLE,
-    name : "double"
-  }}
+  static validateJSON(manager, val, obj, field, type, instance) {
+    if (typeof val !== "number") {
+      return "Not a double: " + val;
+    }
+
+    return true;
+  }
+
+  static define() {
+    return {
+      type: StructEnum.DOUBLE,
+      name: "double"
+    }
+  }
 }
+
 StructFieldType.register(StructDoubleField);
 
 class StructStringField extends StructFieldType {
   static pack(manager, data, val, obj, field, type) {
     val = !val ? "" : val;
 
-    pack_string$1(data, val);
+    pack_string(data, val);
+  }
+
+  static validateJSON(manager, val, obj, field, type, instance) {
+    if (typeof val !== "string") {
+      return "Not a string: " + val;
+    }
+
+    return true;
   }
 
   static packNull(manager, data, field, type) {
@@ -1836,18 +1837,34 @@ class StructStringField extends StructFieldType {
     return unpack_string(data, uctx);
   }
 
-  static define() {return {
-    type : StructEnum$1.T_STRING,
-    name : "string"
-  }}
+  static define() {
+    return {
+      type: StructEnum.STRING,
+      name: "string"
+    }
+  }
 }
+
 StructFieldType.register(StructStringField);
 
 class StructStaticStringField extends StructFieldType {
   static pack(manager, data, val, obj, field, type) {
     val = !val ? "" : val;
 
-    pack_static_string$1(data, val, type.data.maxlength);
+    pack_static_string(data, val, type.data.maxlength);
+  }
+
+  static validateJSON(manager, val, obj, field, type, instance) {
+    if (typeof val !== "string") {
+      return "Not a string: " + val;
+    }
+
+
+    if (val.length > type.data.maxlength) {
+      return "String is too big; limit is " + type.data.maxlength + "; string:" + val;
+    }
+
+    return true;
   }
 
   static format(type) {
@@ -1862,16 +1879,33 @@ class StructStaticStringField extends StructFieldType {
     return unpack_static_string(data, uctx, type.data.maxlength);
   }
 
-  static define() {return {
-    type : StructEnum$1.T_STATIC_STRING,
-    name : "static_string"
-  }}
+  static define() {
+    return {
+      type: StructEnum.STATIC_STRING,
+      name: "static_string"
+    }
+  }
 }
+
 StructFieldType.register(StructStaticStringField);
 
 class StructStructField extends StructFieldType {
   static pack(manager, data, val, obj, field, type) {
-    manager.write_struct(data, val, manager.get_struct(type.data));
+    let stt = manager.get_struct(type.data);
+
+    packer_debug("struct", stt.name);
+
+    manager.write_struct(data, val, stt);
+  }
+
+  static validateJSON(manager, val, obj, field, type, instance, _abstractKey) {
+    let stt = manager.get_struct(type.data);
+
+    if (!val) {
+      return "Expected " + stt.name + " object";
+    }
+
+    return manager.validateJSONIntern(val, stt, _abstractKey);
   }
 
   static format(type) {
@@ -1891,11 +1925,15 @@ class StructStructField extends StructFieldType {
 
   static unpackInto(manager, data, type, uctx, dest) {
     let cls2 = manager.get_struct_cls(type.data);
+
+    packer_debug("struct", cls2 ? cls2.name : "(error)");
     return manager.read_object(data, cls2, uctx, dest);
   }
 
   static packNull(manager, data, field, type) {
     let stt = manager.get_struct(type.data);
+
+    packer_debug("struct", type);
 
     for (let field2 of stt.fields) {
       let type2 = field2.type;
@@ -1906,14 +1944,19 @@ class StructStructField extends StructFieldType {
 
   static unpack(manager, data, type, uctx) {
     let cls2 = manager.get_struct_cls(type.data);
+    packer_debug("struct", cls2 ? cls2.name : "(error)");
+
     return manager.read_object(data, cls2, uctx);
   }
 
-  static define() {return {
-    type : StructEnum$1.T_STRUCT,
-    name : "struct"
-  }}
+  static define() {
+    return {
+      type: StructEnum.STRUCT,
+      name: "struct"
+    }
+  }
 }
+
 StructFieldType.register(StructStructField);
 
 class StructTStructField extends StructFieldType {
@@ -1921,36 +1964,72 @@ class StructTStructField extends StructFieldType {
     let cls = manager.get_struct_cls(type.data);
     let stt = manager.get_struct(type.data);
 
+    const keywords = manager.constructor.keywords;
+
     //make sure inheritance is correct
-    if (val.constructor.structName !== type.data && (val instanceof cls)) {
+    if (val.constructor[keywords.name] !== type.data && (val instanceof cls)) {
       //if (DEBUG.Struct) {
-      //    console.log(val.constructor.structName+" inherits from "+cls.structName);
+      //    console.log(val.constructor[keywords.name]+" inherits from "+cls[keywords.name]);
       //}
-      stt = manager.get_struct(val.constructor.structName);
-    } else if (val.constructor.structName === type.data) {
+      stt = manager.get_struct(val.constructor[keywords.name]);
+    } else if (val.constructor[keywords.name] === type.data) {
       stt = manager.get_struct(type.data);
     } else {
       console.trace();
-      throw new Error("Bad struct " + val.constructor.structName + " passed to write_struct");
+      throw new Error("Bad struct " + val.constructor[keywords.name] + " passed to write_struct");
     }
 
     packer_debug("int " + stt.id);
 
-    pack_int$1(data, stt.id);
+    pack_int(data, stt.id);
     manager.write_struct(data, val, stt);
   }
 
+  static validateJSON(manager, val, obj, field, type, instance, _abstractKey) {
+    let key = type.jsonKeyword;
+
+    if (typeof val !== "object") {
+      return typeof val + " is not an object";
+    }
+
+    let stt = manager.get_struct(val[key]);
+    let cls = manager.get_struct_cls(stt.name);
+    let parentcls = manager.get_struct_cls(type.data);
+
+    let ok = false;
+
+    do {
+      if (cls === parentcls) {
+        ok = true;
+        break;
+      }
+
+      cls = cls.prototype.__proto__.constructor;
+    } while (cls && cls !== Object);
+
+    if (!ok) {
+      return stt.name + " is not a child class off " + type.data;
+    }
+
+    return manager.validateJSONIntern(val, stt, type.jsonKeyword);
+  }
+
+
   static fromJSON(manager, val, obj, field, type, instance) {
-    let stt = manager.get_struct(val._structName);
+    let key = type.jsonKeyword;
+
+    let stt = manager.get_struct(val[key]);
 
     return manager.readJSON(val, stt, instance);
   }
 
   static toJSON(manager, val, obj, field, type) {
-    let stt = manager.get_struct(val.constructor.structName);
+    const keywords = manager.constructor.keywords;
+
+    let stt = manager.get_struct(val.constructor[keywords.name]);
     let ret = manager.writeJSON(val, stt);
 
-    ret._structName = "" + stt.name;
+    ret[type.jsonKeyword] = "" + stt.name;
 
     return ret;
   }
@@ -1958,8 +2037,8 @@ class StructTStructField extends StructFieldType {
   static packNull(manager, data, field, type) {
     let stt = manager.get_struct(type.data);
 
-    pack_int$1(data, stt.id);
-    packNull(manager, data, field, {type : StructEnum$1.T_STRUCT, data : type.data});
+    pack_int(data, stt.id);
+    packNull(manager, data, field, {type: StructEnum.STRUCT, data: type.data});
   }
 
   static format(type) {
@@ -1967,15 +2046,14 @@ class StructTStructField extends StructFieldType {
   }
 
   static unpackInto(manager, data, type, uctx, dest) {
-    let id = _module_exports_.unpack_int(data, uctx);
+    let id = unpack_int(data, uctx);
 
     packer_debug("-int " + id);
     if (!(id in manager.struct_ids)) {
-      packer_debug("struct id: " + id);
+      packer_debug("tstruct id: " + id);
       console.trace();
       console.log(id);
       console.log(manager.struct_ids);
-      packer_debug_end("tstruct");
       throw new Error("Unknown struct type " + id + ".");
     }
 
@@ -1990,15 +2068,14 @@ class StructTStructField extends StructFieldType {
   }
 
   static unpack(manager, data, type, uctx) {
-    let id = _module_exports_.unpack_int(data, uctx);
+    let id = unpack_int(data, uctx);
 
     packer_debug("-int " + id);
     if (!(id in manager.struct_ids)) {
-      packer_debug("struct id: " + id);
+      packer_debug("tstruct id: " + id);
       console.trace();
       console.log(id);
       console.log(manager.struct_ids);
-      packer_debug_end("tstruct");
       throw new Error("Unknown struct type " + id + ".");
     }
 
@@ -2011,11 +2088,14 @@ class StructTStructField extends StructFieldType {
     //packer_debug("ret", ret);
   }
 
-  static define() {return {
-    type : StructEnum$1.T_TSTRUCT,
-    name : "tstruct"
-  }}
+  static define() {
+    return {
+      type: StructEnum.TSTRUCT,
+      name: "tstruct"
+    }
+  }
 }
+
 StructFieldType.register(StructTStructField);
 
 class StructArrayField extends StructFieldType {
@@ -2027,12 +2107,12 @@ class StructArrayField extends StructFieldType {
       console.log("Type: ", type);
       console.log("");
       packer_debug("int 0");
-      _module_exports_.pack_int(data, 0);
+      pack_int(data, 0);
       return;
     }
 
     packer_debug("int " + val.length);
-    _module_exports_.pack_int(data, val.length);
+    pack_int(data, val.length);
 
     let d = type.data;
 
@@ -2056,14 +2136,13 @@ class StructArrayField extends StructFieldType {
   }
 
   static packNull(manager, data, field, type) {
-    pack_int$1(data, 0);
+    pack_int(data, 0);
   }
 
   static format(type) {
     if (type.data.iname !== "" && type.data.iname !== undefined) {
       return "array(" + type.data.iname + ", " + fmt_type(type.data.type) + ")";
-    }
-    else {
+    } else {
       return "array(" + fmt_type(type.data.type) + ")";
     }
   }
@@ -2072,12 +2151,28 @@ class StructArrayField extends StructFieldType {
     return !field.type.data.iname;
   }
 
+  static validateJSON(manager, val, obj, field, type, instance, _abstractKey) {
+    if (!val) {
+      return "not an array: " + val;
+    }
+
+    for (let i = 0; i < val.length; i++) {
+      let ret = validateJSON(manager, val[i], val, field, type.data.type, undefined, _abstractKey);
+
+      if (typeof ret === "string" || !ret) {
+        return ret;
+      }
+    }
+
+    return true;
+  }
+
   static fromJSON(manager, val, obj, field, type, instance) {
     let ret = instance || [];
 
     ret.length = 0;
 
-    for (let i=0; i<val.length; i++) {
+    for (let i = 0; i < val.length; i++) {
       let val2 = fromJSON(manager, val[i], val, field, type.data.type, undefined);
 
       if (val2 === undefined) {
@@ -2098,7 +2193,7 @@ class StructArrayField extends StructFieldType {
 
     let itername = type.data.iname;
 
-    for (let i=0; i<val.length; i++) {
+    for (let i = 0; i < val.length; i++) {
       let val2 = val[i];
       let env = _ws_env;
 
@@ -2117,7 +2212,7 @@ class StructArrayField extends StructFieldType {
   }
 
   static unpackInto(manager, data, type, uctx, dest) {
-    let len = _module_exports_.unpack_int(data, uctx);
+    let len = unpack_int(data, uctx);
     dest.length = 0;
 
     for (let i = 0; i < len; i++) {
@@ -2126,7 +2221,7 @@ class StructArrayField extends StructFieldType {
   }
 
   static unpack(manager, data, type, uctx) {
-    let len = _module_exports_.unpack_int(data, uctx);
+    let len = unpack_int(data, uctx);
     packer_debug("-int " + len);
 
     let arr = new Array(len);
@@ -2137,11 +2232,14 @@ class StructArrayField extends StructFieldType {
     return arr;
   }
 
-  static define() {return {
-    type : StructEnum$1.T_ARRAY,
-    name : "array"
-  }}
+  static define() {
+    return {
+      type: StructEnum.ARRAY,
+      name: "array"
+    }
+  }
 }
+
 StructFieldType.register(StructArrayField);
 
 class StructIterField extends StructFieldType {
@@ -2153,7 +2251,7 @@ class StructIterField extends StructFieldType {
           cb.call(thisvar, item);
         }
       } else if (val && val.forEach) {
-        val.forEach(function(item) {
+        val.forEach(function (item) {
           cb.call(thisvar, item);
         });
       } else {
@@ -2165,25 +2263,15 @@ class StructIterField extends StructFieldType {
       }
     }
 
-    let len = 0.0;
-    forEach(() => {
-      len++;
-    });
-
-    packer_debug("int " + len);
-    _module_exports_.pack_int(data, len);
+    /* save space for length */
+    let starti = data.length;
+    data.length += 4;
 
     let d = type.data, itername = d.iname, type2 = d.type;
     let env = _ws_env;
 
     let i = 0;
-    forEach(function(val2) {
-      if (i >= len) {
-        if (warninglvl > 0)
-          console.trace("Warning: iterator returned different length of list!", val, i);
-        return;
-      }
-
+    forEach(function (val2) {
       if (itername !== "" && itername !== undefined && field.get) {
         env[0][0] = itername;
         env[0][1] = val2;
@@ -2197,6 +2285,18 @@ class StructIterField extends StructFieldType {
 
       i++;
     }, this);
+
+    /* write length */
+    temp_dataview.setInt32(0, i, STRUCT_ENDIAN);
+
+    data[starti++] = uint8_view[0];
+    data[starti++] = uint8_view[1];
+    data[starti++] = uint8_view[2];
+    data[starti++] = uint8_view[3];
+  }
+
+  static validateJSON(manager, val, obj, field, type, instance) {
+    return StructArrayField.validateJSON(...arguments);
   }
 
   static fromJSON() {
@@ -2227,7 +2327,7 @@ class StructIterField extends StructFieldType {
   }
 
   static packNull(manager, data, field, type) {
-    pack_int$1(data, 0);
+    pack_int(data, 0);
   }
 
   static useHelperJS(field) {
@@ -2237,14 +2337,13 @@ class StructIterField extends StructFieldType {
   static format(type) {
     if (type.data.iname !== "" && type.data.iname !== undefined) {
       return "iter(" + type.data.iname + ", " + fmt_type(type.data.type) + ")";
-    }
-    else {
+    } else {
       return "iter(" + fmt_type(type.data.type) + ")";
     }
   }
 
   static unpackInto(manager, data, type, uctx, arr) {
-    let len = _module_exports_.unpack_int(data, uctx);
+    let len = unpack_int(data, uctx);
     packer_debug("-int " + len);
 
     arr.length = 0;
@@ -2257,7 +2356,7 @@ class StructIterField extends StructFieldType {
   }
 
   static unpack(manager, data, type, uctx) {
-    let len = _module_exports_.unpack_int(data, uctx);
+    let len = unpack_int(data, uctx);
     packer_debug("-int " + len);
 
     let arr = new Array(len);
@@ -2268,11 +2367,14 @@ class StructIterField extends StructFieldType {
     return arr;
   }
 
-  static define() {return {
-    type : StructEnum$1.T_ITER,
-    name : "iter"
-  }}
+  static define() {
+    return {
+      type: StructEnum.ITER,
+      name: "iter"
+    }
+  }
 }
+
 StructFieldType.register(StructIterField);
 
 class StructShortField extends StructFieldType {
@@ -2284,59 +2386,91 @@ class StructShortField extends StructFieldType {
     return unpack_short(data, uctx);
   }
 
-  static define() {return {
-    type : StructEnum$1.T_SHORT,
-    name : "short"
-  }}
+  static define() {
+    return {
+      type: StructEnum.SHORT,
+      name: "short"
+    }
+  }
 }
+
 StructFieldType.register(StructShortField);
 
 class StructByteField extends StructFieldType {
   static pack(manager, data, val, obj, field, type) {
-    pack_byte$1(data, val);
+    pack_byte(data, val);
   }
 
   static unpack(manager, data, type, uctx) {
-    return unpack_byte$1(data, uctx);
+    return unpack_byte(data, uctx);
   }
 
-  static define() {return {
-    type : StructEnum$1.T_BYTE,
-    name : "byte"
-  }}
+  static define() {
+    return {
+      type: StructEnum.BYTE,
+      name: "byte"
+    }
+  }
 }
+
 StructFieldType.register(StructByteField);
 
 class StructSignedByteField extends StructFieldType {
   static pack(manager, data, val, obj, field, type) {
-    pack_sbyte$1(data, val);
+    pack_sbyte(data, val);
   }
 
   static unpack(manager, data, type, uctx) {
-    return unpack_sbyte$1(data, uctx);
+    return unpack_sbyte(data, uctx);
   }
 
-  static define() {return {
-    type : StructEnum$1.T_SIGNED_BYTE,
-    name : "sbyte"
-  }}
+  static define() {
+    return {
+      type: StructEnum.SIGNED_BYTE,
+      name: "sbyte"
+    }
+  }
 }
+
 StructFieldType.register(StructSignedByteField);
 
 class StructBoolField extends StructFieldType {
   static pack(manager, data, val, obj, field, type) {
-    pack_byte$1(data, !!val);
+    pack_byte(data, !!val);
   }
 
   static unpack(manager, data, type, uctx) {
-    return !!unpack_byte$1(data, uctx);
+    return !!unpack_byte(data, uctx);
   }
 
-  static define() {return {
-    type : StructEnum$1.T_BOOL,
-    name : "bool"
-  }}
+  static validateJSON(manager, val, obj, field, type, instance) {
+    if (val === 0 || val === 1 || val === true || val === false || val === "true" || val === "false") {
+      return true;
+    }
+
+    return "" + val + " is not a bool";
+  }
+
+  static fromJSON(manager, val, obj, field, type, instance) {
+    if (val === "false") {
+      val = false;
+    }
+
+    return !!val;
+  }
+
+  static toJSON(manager, val, obj, field, type) {
+    return !!val;
+  }
+
+  static define() {
+    return {
+      type: StructEnum.BOOL,
+      name: "bool"
+    }
+  }
 }
+
 StructFieldType.register(StructBoolField);
 
 class StructIterKeysField extends StructFieldType {
@@ -2348,9 +2482,7 @@ class StructIterKeysField extends StructFieldType {
       console.log("Type: ", type);
       console.log("");
 
-      _module_exports_.pack_int(data, 0);
-
-      packer_debug_end("iterkeys");
+      pack_int(data, 0);
       return;
     }
 
@@ -2360,7 +2492,7 @@ class StructIterKeysField extends StructFieldType {
     }
 
     packer_debug("int " + len);
-    _module_exports_.pack_int(data, len);
+    pack_int(data, len);
 
     let d = type.data, itername = d.iname, type2 = d.type;
     let env = _ws_env;
@@ -2386,6 +2518,10 @@ class StructIterKeysField extends StructFieldType {
 
       i++;
     }
+  }
+
+  static validateJSON(manager, val, obj, field, type, instance) {
+    return StructArrayField.validateJSON(...arguments);
   }
 
   static fromJSON() {
@@ -2417,7 +2553,7 @@ class StructIterKeysField extends StructFieldType {
   }
 
   static packNull(manager, data, field, type) {
-    pack_int$1(data, 0);
+    pack_int(data, 0);
   }
 
   static useHelperJS(field) {
@@ -2427,14 +2563,13 @@ class StructIterKeysField extends StructFieldType {
   static format(type) {
     if (type.data.iname !== "" && type.data.iname !== undefined) {
       return "iterkeys(" + type.data.iname + ", " + fmt_type(type.data.type) + ")";
-    }
-    else {
+    } else {
       return "iterkeys(" + fmt_type(type.data.type) + ")";
     }
   }
 
   static unpackInto(manager, data, type, uctx, arr) {
-    let len = unpack_int$1(data, uctx);
+    let len = unpack_int(data, uctx);
     packer_debug("-int " + len);
 
     arr.length = 0;
@@ -2447,7 +2582,7 @@ class StructIterKeysField extends StructFieldType {
   }
 
   static unpack(manager, data, type, uctx) {
-    let len = unpack_int$1(data, uctx);
+    let len = unpack_int(data, uctx);
     packer_debug("-int " + len);
 
     let arr = new Array(len);
@@ -2458,47 +2593,72 @@ class StructIterKeysField extends StructFieldType {
     return arr;
   }
 
-  static define() {return {
-    type : StructEnum$1.T_ITERKEYS,
-    name : "iterkeys"
-  }}
+  static define() {
+    return {
+      type: StructEnum.ITERKEYS,
+      name: "iterkeys"
+    }
+  }
 }
+
 StructFieldType.register(StructIterKeysField);
 
 class StructUintField extends StructFieldType {
   static pack(manager, data, val, obj, field, type) {
-    pack_uint$1(data, val);
+    pack_uint(data, val);
   }
 
   static unpack(manager, data, type, uctx) {
-    return unpack_uint$1(data, uctx);
+    return unpack_uint(data, uctx);
   }
 
-  static define() {return {
-    type : StructEnum$1.T_UINT,
-    name : "uint"
-  }}
+  static validateJSON(manager, val, obj, field, type, instance) {
+    if (typeof val !== "number" || val !== Math.floor(val)) {
+      return "" + val + " is not an integer";
+    }
+
+    return true;
+  }
+
+  static define() {
+    return {
+      type: StructEnum.UINT,
+      name: "uint"
+    }
+  }
 }
+
 StructFieldType.register(StructUintField);
 
 
 class StructUshortField extends StructFieldType {
   static pack(manager, data, val, obj, field, type) {
-    pack_ushort$1(data, val);
+    pack_ushort(data, val);
   }
 
   static unpack(manager, data, type, uctx) {
-    return unpack_ushort$1(data, uctx);
+    return unpack_ushort(data, uctx);
   }
 
-  static define() {return {
-    type : StructEnum$1.T_USHORT,
-    name : "ushort"
-  }}
+  static validateJSON(manager, val, obj, field, type, instance) {
+    if (typeof val !== "number" || val !== Math.floor(val)) {
+      return "" + val + " is not an integer";
+    }
+
+    return true;
+  }
+
+  static define() {
+    return {
+      type: StructEnum.USHORT,
+      name: "ushort"
+    }
+  }
 }
+
 StructFieldType.register(StructUshortField);
 
-//let writeEmpty = exports.writeEmpty = function writeEmpty(stt) {
+//let writeEmpty = writeEmpty = function writeEmpty(stt) {
 //}
 
 class StructStaticArrayField extends StructFieldType {
@@ -2514,8 +2674,8 @@ class StructStaticArrayField extends StructFieldType {
       return;
     }
 
-    for (let i=0; i<type.data.size; i++) {
-      let i2 = Math.min(i, Math.min(val.length-1, type.data.size));
+    for (let i = 0; i < type.data.size; i++) {
+      let i2 = Math.min(i, Math.min(val.length - 1, type.data.size));
       let val2 = val[i2];
 
       //*
@@ -2534,13 +2694,17 @@ class StructStaticArrayField extends StructFieldType {
     return !field.type.data.iname;
   }
 
+  static validateJSON() {
+    return StructArrayField.validateJSON(...arguments);
+  }
+
   static fromJSON() {
     return StructArrayField.fromJSON(...arguments);
   }
 
   static packNull(manager, data, field, type) {
     let size = type.data.size;
-    for (let i=0; i<size; i++) {
+    for (let i = 0; i < size; i++) {
       packNull(manager, data, field, type.data.type);
     }
   }
@@ -2550,7 +2714,7 @@ class StructStaticArrayField extends StructFieldType {
   }
 
   static format(type) {
-    let type2 = _export_StructFieldTypeMap_[type.data.type.type].format(type.data.type);
+    let type2 = StructFieldTypeMap[type.data.type.type].format(type.data.type);
 
     let ret = `static_array[${type2}, ${type.data.size}`;
 
@@ -2567,7 +2731,7 @@ class StructStaticArrayField extends StructFieldType {
 
     ret.length = 0;
 
-    for (let i=0; i<type.data.size; i++) {
+    for (let i = 0; i < type.data.size; i++) {
       ret.push(unpack_field(manager, data, type.data.type, uctx));
     }
 
@@ -2579,73 +2743,348 @@ class StructStaticArrayField extends StructFieldType {
 
     let ret = [];
 
-    for (let i=0; i<type.data.size; i++) {
+    for (let i = 0; i < type.data.size; i++) {
       ret.push(unpack_field(manager, data, type.data.type, uctx));
     }
 
     return ret;
   }
 
-  static define() {return {
-    type : StructEnum$1.T_STATIC_ARRAY,
-    name : "static_array"
-  }}
+  static define() {
+    return {
+      type: StructEnum.STATIC_ARRAY,
+      name: "static_array"
+    }
+  }
 }
+
 StructFieldType.register(StructStaticArrayField);
+
+var _sintern2 = /*#__PURE__*/Object.freeze({
+  __proto__: null,
+  _get_pack_debug: _get_pack_debug,
+  setWarningMode2: setWarningMode2,
+  setDebugMode2: setDebugMode2,
+  StructFieldTypes: StructFieldTypes,
+  StructFieldTypeMap: StructFieldTypeMap,
+  packNull: packNull,
+  toJSON: toJSON,
+  fromJSON: fromJSON,
+  validateJSON: validateJSON,
+  do_pack: do_pack,
+  StructFieldType: StructFieldType
+});
+
+var structEval = eval;
+
+function setStructEval(val) {
+  structEval = val;
+}
+
+var _struct_eval = /*#__PURE__*/Object.freeze({
+  __proto__: null,
+  get structEval () { return structEval; },
+  setStructEval: setStructEval
+});
+
+const TokSymbol = Symbol("token-info");
+
+function buildJSONParser() {
+  let tk = (name, re, func, example) => new tokdef(name, re, func, example);
+
+  let parse;
+
+  let nint = "[+-]?[0-9]+";
+  let nhex = "[+-]?0x[0-9a-fA-F]+";
+  let nfloat1 = "[+-]?[0-9]+\\.[0-9]*";
+  let nfloat2 = "[+-]?[0-9]*\\.[0-9]+";
+  let nfloat3 = "[+-]?[0-9]+\\.[0-9]+";
+  let nfloatexp = "[+-]?[0-9]+\\.[0-9]+[eE][+-]?[0-9]+";
+
+  let nfloat = `(${nfloat1})|(${nfloat2})|(${nfloatexp})`;
+  let num = `(${nint})|(${nfloat})|(${nhex})`;
+  let numre = new RegExp(num);
+
+  let numreTest = new RegExp(`(${num})$`);
+
+  //nfloat3 has to be its own regexp, the parser
+  //always chooses the token handler that parses the most input,
+  //and we don't want the partial 0. and .0 handles to split
+  //e.g. 3.5 into 3 and 0.5
+  nfloat3 = new RegExp(nfloat3);
+  nfloatexp = new RegExp(nfloatexp);
+
+  let tests = ["1.234234", ".23432", "-234.", "1e-17", "-0x23423ff", "+23423", "-4.263256414560601e-14"];
+  for (let test of tests) {
+    if (!numreTest.test(test)) {
+      console.error("Error! Number regexp failed:", test);
+    }
+  }
+
+  let tokens = [
+    tk("BOOL", /true|false/),
+    tk("WS", /[ \r\t\n]/, t => undefined), //drop token
+    tk("STRLIT", /["']/, t => {
+      let lex = t.lexer;
+      let char = t.value;
+      let i = lex.lexpos;
+      let lexdata = lex.lexdata;
+
+      let escape = 0;
+      t.value = "";
+      let prev;
+
+      while (i < lexdata.length) {
+        let c = lexdata[i];
+
+        t.value += c;
+
+        if (c === "\\") {
+          escape ^= true;
+        } else if (!escape && c === char) {
+          break;
+        } else {
+          escape = false;
+        }
+
+        i++;
+      }
+
+      lex.lexpos = i + 1;
+
+      if (t.value.length > 0) {
+        t.value = t.value.slice(0, t.value.length - 1);
+      }
+
+      return t;
+    }),
+    tk("LSBRACKET", /\[/),
+    tk("RSBRACKET", /]/),
+    tk("LBRACE", /{/),
+    tk("RBRACE", /}/),
+    tk("NULL", /null/),
+    tk("COMMA", /,/),
+    tk("COLON", /:/),
+    tk("NUM", numre, t => (t.value = parseFloat(t.value), t)),
+    tk("NUM", nfloat3, t => (t.value = parseFloat(t.value), t)),
+    tk("NUM", nfloatexp, t => (t.value = parseFloat(t.value), t)),
+  ];
+
+  function tokinfo(t) {
+    return {
+      lexpos: t.lexpos,
+      lineno: t.lineno,
+      col   : t.col,
+      fields: {},
+    };
+  }
+
+  function p_Array(p) {
+    p.expect("LSBRACKET");
+    let t = p.peeknext();
+    let first = true;
+
+    let ret = [];
+
+    ret[TokSymbol] = tokinfo(t);
+
+    while (t && t.type !== "RSBRACKET") {
+      if (!first) {
+        p.expect("COMMA");
+      }
+
+      ret[TokSymbol].fields[ret.length] = tokinfo(t);
+      ret.push(p_Start(p));
+
+      first = false;
+      t = p.peeknext();
+    }
+    p.expect("RSBRACKET");
+
+    return ret;
+  }
+
+  function p_Object(p) {
+    p.expect("LBRACE");
+
+    let obj = {};
+
+    let first = true;
+    let t = p.peeknext();
+
+    obj[TokSymbol] = tokinfo(t);
+    while (t && t.type !== "RBRACE") {
+      if (!first) {
+        p.expect("COMMA");
+      }
+
+      let key = p.expect("STRLIT");
+      p.expect("COLON");
+
+      let val = p_Start(p, true);
+
+      obj[key] = val;
+      first = false;
+
+      t = p.peeknext();
+      obj[TokSymbol].fields[key] = tokinfo(t);
+    }
+
+    p.expect("RBRACE");
+
+    return obj;
+  }
+
+  function p_Start(p, throwError = true) {
+    let t = p.peeknext();
+    if (t.type === "LSBRACKET") {
+      return p_Array(p);
+    } else if (t.type === "LBRACE") {
+      return p_Object(p);
+    } else if (t.type === "STRLIT" || t.type === "NUM" || t.type === "NULL" || t.type === "BOOL") {
+      return p.next().value;
+    } else {
+      p.error(t, "Unknown token");
+    }
+  }
+
+  function p_Error(token, msg) {
+    throw new PUTIL_ParseError("Parse Error");
+  }
+
+  let lex = new lexer(tokens);
+  lex.linestart = 0;
+  parse = new parser(lex, p_Error);
+  parse.start = p_Start;
+  //lex.printTokens = true;
+
+  return parse;
+}
+
+var jsonParser = buildJSONParser();
+
+/*
+buildJSONParser().parse(`
+{
+                "alteredX": -110.95731659202336,
+                "alteredY": -359.9154922611667,
+                "alteredZ": -4.263256414560601e-14
+}
+`.trim()) //*/
+
+function printContext(buf, tokinfo, printColors=true) {
+  let lines = buf.split("\n");
+
+  if (!tokinfo) {
+    return '';
+  }
+
+  let lineno = tokinfo.lineno;
+  let col = tokinfo.col;
+
+  let istart = Math.max(lineno-50, 0);
+  let iend = Math.min(lineno+2, lines.length-1);
+
+  let s = '';
+
+  if (printColors) {
+    s += termColor("  /* pretty-printed json */\n", "blue");
+  } else {
+    s += "/* pretty-printed json */\n";
+  }
+
+  for (let i=istart; i<iend; i++) {
+    let l = lines[i];
+
+    let idx = "" + i;
+    while (idx.length < 3) {
+      idx = " " + idx;
+    }
+
+    if (i === lineno && printColors) {
+      s += termColor(`${idx}: ${l}\n`, "yellow");
+    } else {
+      s += `${idx}: ${l}\n`;
+    }
+
+    if (i === lineno) {
+      let l2 = '';
+      for (let j=0; j<col+5; j++) {
+        l2 += " ";
+      }
+
+      s += l2 + "^\n";
+    }
+  }
+
+  return s;
+}
+
+var nGlobal;
+
+if (typeof globalThis !== "undefined") {
+  nGlobal = globalThis;
+} else if (typeof window !== "undefined") {
+  nGlobal = window;
+} else if (typeof global !== "undefined") {
+  nGlobal = global;
+} else if (typeof globals !== "undefined") {
+  nGlobal = globals;
+} else if (typeof self !== "undefined") {
+  nGlobal = self;
+}
+
+const DEBUG = {};
+
+function updateDEBUG() {
+  for (let k in Object.keys(DEBUG)) {
+    delete DEBUG[k];
+  }
+
+  if (typeof nGlobal.DEBUG === "object") {
+    for (let k in nGlobal.DEBUG) {
+      DEBUG[k] = nGlobal.DEBUG[k];
+    }
+  }
+}
 
 "use strict";
 
-const NStruct$1 = NStruct;
-let StructFieldTypeMap$1 = _export_StructFieldTypeMap_;
+//needed to avoid a rollup bug in configurable mode
+var sintern2 = _sintern2;
+var struct_eval = _struct_eval;
 
 let warninglvl$1 = 2;
 
-const _module_exports_$1 = {};
+var truncateDollarSign = true;
+
+class JSONError extends Error {};
+
+function setTruncateDollarSign(v) {
+  truncateDollarSign = !!v;
+}
+
+function _truncateDollarSign(s) {
+  let i = s.search("$");
+
+  if (i > 0) {
+    return s.slice(0, i).trim();
+  }
+
+  return s;
+}
+
 function unmangle(name) {
-  if (_module_exports_$1.truncateDollarSign) {
-    return _export_truncateDollarSign_(name);
+  if (truncateDollarSign) {
+    return _truncateDollarSign(name);
   } else {
     return name;
   }
 }
 
-/*
-
-class SomeClass {
-  static newSTRUCT() {
-    //optional method, returns a new, empty instance of SomeClass
-  }
-  
-  loadSTRUCT(reader) {
-    reader(this); //reads data into this instance
-  }
-  
-  //the old api, that both creates and reads
-  static fromSTRUCT(reader) {
-    let ret = new SomeClass();
-    reader(ret);
-    return ret;
-  }
-}
-SomeClass.STRUCT = `
-SomeClass {
-}
-`
-nstructjs.manager.add_class(SomeClass);
-
-*/
-let StructTypeMap$1 = StructTypeMap;
-let StructTypes$1 = StructTypes;
-
-let struct_parse = _export_struct_parse_;
-let StructEnum$2 = StructEnum;
-
 let _static_envcode_null$1 = "";
-let debug_struct = 0;
-let packdebug_tablevel$1 = 0;
 
 //truncate webpack-mangled names
-_module_exports_$1.truncateDollarSign = true;
 
 function gen_tabstr$2(tot) {
   let ret = "";
@@ -2659,108 +3098,64 @@ function gen_tabstr$2(tot) {
 
 let packer_debug$1, packer_debug_start$1, packer_debug_end$1;
 
-if (debug_struct) {
-  packer_debug$1 = function (msg) {
-    if (msg !== undefined) {
-      let t = gen_tabstr$2(packdebug_tablevel$1);
-      console.log(t + msg);
-    } else {
-      console.log("Warning: undefined msg");
-    }
-  };
-  packer_debug_start$1 = function (funcname) {
-    packer_debug$1("Start " + funcname);
-    packdebug_tablevel$1++;
-  };
+function update_debug_data() {
+  let ret = _get_pack_debug();
 
-  packer_debug_end$1 = function (funcname) {
-    packdebug_tablevel$1--;
-    packer_debug$1("Leave " + funcname);
-  };
-}
-else {
-  packer_debug$1 = function () {
-  };
-  packer_debug_start$1 = function () {
-  };
-  packer_debug_end$1 = function () {
-  };
+  packer_debug$1 = ret.packer_debug;
+  packer_debug_start$1 = ret.packer_debug_start;
+  packer_debug_end$1 = ret.packer_debug_end;
+  warninglvl$1 = ret.warninglvl;
 }
 
-_module_exports_$1.setWarningMode = (t) => {
-  _export_setWarningMode_(t);
-  
+update_debug_data();
+
+function setWarningMode(t) {
+  sintern2.setWarningMode2(t);
+
   if (typeof t !== "number" || isNaN(t)) {
     throw new Error("Expected a single number (>= 0) argument to setWarningMode");
   }
 
   warninglvl$1 = t;
-};
+}
 
-_module_exports_$1.setDebugMode = (t) => {
-  debug_struct = t;
-
-  _export_setDebugMode_(t);
-  
-  if (debug_struct) {
-    packer_debug$1 = function (msg) {
-      if (msg !== undefined) {
-        let t = gen_tabstr$2(packdebug_tablevel$1);
-        console.log(t + msg);
-      } else {
-        console.log("Warning: undefined msg");
-      }
-    };
-    packer_debug_start$1 = function (funcname) {
-      packer_debug$1("Start " + funcname);
-      packdebug_tablevel$1++;
-    };
-
-    packer_debug_end$1 = function (funcname) {
-      packdebug_tablevel$1--;
-      packer_debug$1("Leave " + funcname);
-    };
-  }
-  else {
-    packer_debug$1 = function () {
-    };
-    packer_debug_start$1 = function () {
-    };
-    packer_debug_end$1 = function () {
-    };
-  }
-};
+function setDebugMode(t) {
+  sintern2.setDebugMode2(t);
+  update_debug_data();
+}
 
 let _ws_env$1 = [[undefined, undefined]];
 
-function do_pack$1(data, val, obj, thestruct, field, type) {
-  StructFieldTypeMap$1[field.type.type].pack(manager, data, val, obj, field, type);
-}
-
-function define_empty_class(name) {
+function define_empty_class(scls, name) {
   let cls = function () {
   };
 
   cls.prototype = Object.create(Object.prototype);
   cls.constructor = cls.prototype.constructor = cls;
 
-  cls.STRUCT = name + " {\n  }\n";
-  cls.structName = name;
+  let keywords = scls.keywords;
 
-  cls.prototype.loadSTRUCT = function (reader) {
+  cls[keywords.script] = name + " {\n  }\n";
+  cls[keywords.name] = name;
+
+  cls.prototype[keywords.load] = function (reader) {
     reader(this);
   };
 
-  cls.newSTRUCT = function () {
+  cls[keywords.new] = function () {
     return new this();
   };
 
   return cls;
 }
 
-let STRUCT = _module_exports_$1.STRUCT = class STRUCT {
+let haveCodeGen;
+
+//$KEYWORD_CONFIG_START
+
+class STRUCT {
   constructor() {
-    this.idgen = new IDGen();
+    this.idgen = 0;
     this.allowOverriding = true;
 
     this.structs = {};
@@ -2770,34 +3165,186 @@ let STRUCT = _module_exports_$1.STRUCT = class STRUCT {
     this.compiled_code = {};
     this.null_natives = {};
 
-    function define_null_native(name, cls) {
-      let obj = define_empty_class(name);
+    this.define_null_native("Object", Object);
 
-      let stt = struct_parse.parse(obj.STRUCT);
+    this.jsonUseColors = true;
+    this.jsonBuf = '';
+  }
 
-      stt.id = this.idgen.gen_id();
+  static inherit(child, parent, structName = child.name) {
+    const keywords = this.keywords;
 
-      this.structs[name] = stt;
-      this.struct_cls[name] = cls;
-      this.struct_ids[stt.id] = stt;
-
-      this.null_natives[name] = 1;
+    if (!parent[keywords.script]) {
+      return structName + "{\n";
     }
 
-    define_null_native.call(this, "Object", Object);
+    let stt = struct_parse.parse(parent[keywords.script]);
+    let code = structName + "{\n";
+    code += STRUCT.fmt_struct(stt, true);
+    return code;
+  }
+
+  /** invoke loadSTRUCT methods on parent objects.  note that
+   reader() is only called once.  it is called however.*/
+  static Super(obj, reader) {
+    if (warninglvl$1 > 0)
+      console.warn("deprecated");
+
+    reader(obj);
+
+    function reader2(obj) {
+    }
+
+    let cls = obj.constructor;
+    let bad = cls === undefined || cls.prototype === undefined || cls.prototype.__proto__ === undefined;
+
+    if (bad) {
+      return;
+    }
+
+    let parent = cls.prototype.__proto__.constructor;
+    bad = bad || parent === undefined;
+
+    if (!bad && parent.prototype[keywords.load] && parent.prototype[keywords.load] !== obj[keywords.load]) { //parent.prototype.hasOwnProperty("loadSTRUCT")) {
+      parent.prototype[keywords.load].call(obj, reader2);
+    }
+  }
+
+  /** deprecated.  used with old fromSTRUCT interface. */
+  static chain_fromSTRUCT(cls, reader) {
+    if (warninglvl$1 > 0)
+      console.warn("Using deprecated (and evil) chain_fromSTRUCT method, eek!");
+
+    let proto = cls.prototype;
+    let parent = cls.prototype.prototype.constructor;
+
+    let obj = parent[keywords.from](reader);
+    let obj2 = new cls();
+
+    let keys = Object.keys(obj).concat(Object.getOwnPropertySymbols(obj));
+    //let keys=Object.keys(proto);
+
+    for (let i = 0; i < keys.length; i++) {
+      let k = keys[i];
+
+      try {
+        obj2[k] = obj[k];
+      } catch (error) {
+        if (warninglvl$1 > 0)
+          console.warn("  failed to set property", k);
+      }
+      //let k=keys[i];
+      //if (k=="__proto__")
+      // continue;
+      //obj[k] = proto[k];
+    }
+
+    /*
+    if (proto.toString !== Object.prototype.toString)
+      obj2.toString = proto.toString;
+    //*/
+
+    return obj2;
+  }
+
+  //defined_classes is an array of class constructors
+  //with STRUCT scripts, *OR* another STRUCT instance
+  //
+
+  static formatStruct(stt, internal_only, no_helper_js) {
+    return this.fmt_struct(stt, internal_only, no_helper_js);
+  }
+
+  static fmt_struct(stt, internal_only, no_helper_js) {
+    if (internal_only === undefined)
+      internal_only = false;
+    if (no_helper_js === undefined)
+      no_helper_js = false;
+
+    let s = "";
+    if (!internal_only) {
+      s += stt.name;
+      if (stt.id !== -1)
+        s += " id=" + stt.id;
+      s += " {\n";
+    }
+    let tab = "  ";
+
+    function fmt_type(type) {
+      return StructFieldTypeMap[type.type].format(type);
+
+      if (type.type === StructEnum.ARRAY || type.type === StructEnum.ITER || type.type === StructEnum.ITERKEYS) {
+        if (type.data.iname !== "" && type.data.iname !== undefined) {
+          return "array(" + type.data.iname + ", " + fmt_type(type.data.type) + ")";
+        } else {
+          return "array(" + fmt_type(type.data.type) + ")";
+        }
+      } else if (type.type === StructEnum.STATIC_STRING) {
+        return "static_string[" + type.data.maxlength + "]";
+      } else if (type.type === StructEnum.STRUCT) {
+        return type.data;
+      } else if (type.type === StructEnum.TSTRUCT) {
+        return "abstract(" + type.data + ")";
+      } else {
+        return StructTypeMap[type.type];
+      }
+    }
+
+    let fields = stt.fields;
+    for (let i = 0; i < fields.length; i++) {
+      let f = fields[i];
+      s += tab + f.name + " : " + fmt_type(f.type);
+      if (!no_helper_js && f.get !== undefined) {
+        s += " | " + f.get.trim();
+      }
+      s += ";\n";
+    }
+    if (!internal_only)
+      s += "}";
+    return s;
+  }
+
+  static setClassKeyword(keyword, nameKeyword = undefined) {
+    if (!nameKeyword) {
+      nameKeyword = keyword.toLowerCase() + "Name";
+    }
+
+    this.keywords = {
+      script: keyword,
+      name  : nameKeyword,
+      load  : "load" + keyword,
+      new   : "new" + keyword,
+      after : "after" + keyword,
+      from  : "from" + keyword
+    };
+  }
+
+  define_null_native(name, cls) {
+    const keywords = this.constructor.keywords;
+    let obj = define_empty_class(this.constructor, name);
+
+    let stt = struct_parse.parse(obj[keywords.script]);
+
+    stt.id = this.idgen++;
+
+    this.structs[name] = stt;
+    this.struct_cls[name] = cls;
+    this.struct_ids[stt.id] = stt;
+
+    this.null_natives[name] = 1;
   }
 
   validateStructs(onerror) {
     function getType(type) {
       switch (type.type) {
-        case StructEnum$2.T_ITERKEYS:
-        case StructEnum$2.T_ITER:
-        case StructEnum$2.T_STATIC_ARRAY:
-        case StructEnum$2.T_ARRAY:
+        case StructEnum.ITERKEYS:
+        case StructEnum.ITER:
+        case StructEnum.STATIC_ARRAY:
+        case StructEnum.ARRAY:
           return getType(type.data.type);
-        case StructEnum$2.T_TSTRUCT:
+        case StructEnum.TSTRUCT:
           return type;
-        case StructEnum$2.T_STRUCT:
+        case StructEnum.STRUCT:
         default:
           return type;
       }
@@ -2809,8 +3356,8 @@ let STRUCT = _module_exports_$1.STRUCT = class STRUCT {
       ret.type = type.type;
 
       if (typeof ret.type === "number") {
-        for (let k in StructEnum$2) {
-          if (StructEnum$2[k] === ret.type) {
+        for (let k in StructEnum) {
+          if (StructEnum[k] === ret.type) {
             ret.type = k;
             break;
           }
@@ -2854,7 +3401,7 @@ let STRUCT = _module_exports_$1.STRUCT = class STRUCT {
 
         let type = getType(field.type);
 
-        if (type.type !== StructEnum$2.T_STRUCT && type.type !== StructEnum$2.T_TSTRUCT) {
+        if (type.type !== StructEnum.STRUCT && type.type !== StructEnum.TSTRUCT) {
           continue;
         }
 
@@ -2877,13 +3424,12 @@ let STRUCT = _module_exports_$1.STRUCT = class STRUCT {
     }
   }
 
-  //defined_classes is an array of class constructors
-  //with STRUCT scripts, *OR* another STRUCT instance
-  //
   //defaults to structjs.manager
   parse_structs(buf, defined_classes) {
+    const keywords = this.constructor.keywords;
+
     if (defined_classes === undefined) {
-      defined_classes = _module_exports_$1.manager;
+      defined_classes = exports.manager;
     }
 
     if (defined_classes instanceof STRUCT) {
@@ -2898,8 +3444,8 @@ let STRUCT = _module_exports_$1.STRUCT = class STRUCT {
     if (defined_classes === undefined) {
       defined_classes = [];
 
-      for (let k in _module_exports_$1.manager.struct_cls) {
-        defined_classes.push(_module_exports_$1.manager.struct_cls[k]);
+      for (let k in exports.manager.struct_cls) {
+        defined_classes.push(exports.manager.struct_cls[k]);
       }
     }
 
@@ -2908,16 +3454,16 @@ let STRUCT = _module_exports_$1.STRUCT = class STRUCT {
     for (let i = 0; i < defined_classes.length; i++) {
       let cls = defined_classes[i];
 
-      if (!cls.structName && cls.STRUCT) {
-        let stt = struct_parse.parse(cls.STRUCT.trim());
-        cls.structName = stt.name;
-      } else if (!cls.structName && cls.name !== "Object") {
-        if (warninglvl$1 > 0) 
+      if (!cls[keywords.name] && cls[keywords.script]) {
+        let stt = struct_parse.parse(cls[keywords.script].trim());
+        cls[keywords.name] = stt.name;
+      } else if (!cls[keywords.name] && cls.name !== "Object") {
+        if (warninglvl$1 > 0)
           console.log("Warning, bad class in registered class list", unmangle(cls.name), cls);
         continue;
       }
 
-      clsmap[cls.structName] = defined_classes[i];
+      clsmap[cls[keywords.name]] = defined_classes[i];
     }
 
     struct_parse.input(buf);
@@ -2927,18 +3473,18 @@ let STRUCT = _module_exports_$1.STRUCT = class STRUCT {
 
       if (!(stt.name in clsmap)) {
         if (!(stt.name in this.null_natives))
-        if (warninglvl$1 > 0) 
-          console.log("WARNING: struct " + stt.name + " is missing from class list.");
+          if (warninglvl$1 > 0)
+            console.log("WARNING: struct " + stt.name + " is missing from class list.");
 
-        let dummy = define_empty_class(stt.name);
+        let dummy = define_empty_class(this.constructor, stt.name);
 
-        dummy.STRUCT = STRUCT.fmt_struct(stt);
-        dummy.structName = stt.name;
+        dummy[keywords.script] = STRUCT.fmt_struct(stt);
+        dummy[keywords.name] = stt.name;
 
-        dummy.prototype.structName = dummy.name;
+        dummy.prototype[keywords.name] = dummy.name;
 
-        this.struct_cls[dummy.structName] = dummy;
-        this.structs[dummy.structName] = stt;
+        this.struct_cls[dummy[keywords.name]] = dummy;
+        this.structs[dummy[keywords.name]] = stt;
 
         if (stt.id !== -1)
           this.struct_ids[stt.id] = stt;
@@ -2957,97 +3503,164 @@ let STRUCT = _module_exports_$1.STRUCT = class STRUCT {
     }
   }
 
+  /** adds all structs referenced by cls inside of srcSTRUCT
+   *  to this */
+  registerGraph(srcSTRUCT, cls) {
+    if (!cls[keywords.name]) {
+      console.warn("class was not in srcSTRUCT");
+      return this.register(cls);
+    }
+
+    let recStruct;
+
+    let recArray = (t) => {
+      switch (t.type) {
+        case StructEnum.ARRAY:
+          return recArray(t.data.type);
+        case StructEnum.ITERKEYS:
+          return recArray(t.data.type);
+        case StructEnum.STATIC_ARRAY:
+          return recArray(t.data.type);
+        case StructEnum.ITER:
+          return recArray(t.data.type);
+        case StructEnum.STRUCT:
+        case StructEnum.TSTRUCT: {
+          let st = srcSTRUCT.structs[t.data];
+          let cls = srcSTRUCT.struct_cls[st.name];
+
+          return recStruct(st, cls);
+        }
+      }
+    };
+
+    recStruct = (st, cls) => {
+      if (!(cls[keywords.name] in this.structs)) {
+        this.add_class(cls, cls[keywords.name]);
+      }
+
+      for (let f of st.fields) {
+        if (f.type.type === StructEnum.STRUCT || f.type.type === StructEnum.TSTRUCT) {
+          let st2 = srcSTRUCT.structs[f.type.data];
+          let cls2 = srcSTRUCT.struct_cls[st2.name];
+
+          recStruct(st2, cls2);
+        } else if (f.type.type === StructEnum.ARRAY) {
+          recArray(f.type);
+        } else if (f.type.type === StructEnum.ITER) {
+          recArray(f.type);
+        } else if (f.type.type === StructEnum.ITERKEYS) {
+          recArray(f.type);
+        } else if (f.type.type === StructEnum.STATIC_ARRAY) {
+          recArray(f.type);
+        }
+      }
+    };
+
+    let st = srcSTRUCT.structs[cls[keywords.name]];
+    recStruct(st, cls);
+  }
+
   register(cls, structName) {
     return this.add_class(cls, structName);
   }
 
   unregister(cls) {
-    if (!cls || !cls.structName || !(cls.structName in this.struct_cls)) {
+    const keywords = this.constructor.keywords;
+
+    if (!cls || !cls[keywords.name] || !(cls[keywords.name] in this.struct_cls)) {
       console.warn("Class not registered with nstructjs", cls);
       return;
     }
 
 
-    let st = this.structs[cls.structName];
+    let st = this.structs[cls[keywords.name]];
 
-    delete this.structs[cls.structName];
-    delete this.struct_cls[cls.structName];
+    delete this.structs[cls[keywords.name]];
+    delete this.struct_cls[cls[keywords.name]];
     delete this.struct_ids[st.id];
   }
 
   add_class(cls, structName) {
-    if (cls.STRUCT) {
+    //do not register Object
+    if (cls === Object) {
+      return;
+    }
+
+    const keywords = this.constructor.keywords;
+    if (cls[keywords.script]) {
       let bad = false;
-      
+
       let p = cls;
       while (p) {
         p = p.__proto__;
-        
-        if (p && p.STRUCT && p.STRUCT === cls.STRUCT) {
+
+        if (p && p[keywords.script] && p[keywords.script] === cls[keywords.script]) {
           bad = true;
           break;
         }
       }
-      
+
       if (bad) {
-        console.warn("Generating STRUCT script for derived class " + unmangle(cls.name));
+        console.warn("Generating " + keywords.script + " script for derived class " + unmangle(cls.name));
         if (!structName) {
           structName = unmangle(cls.name);
         }
-        
-        cls.STRUCT = STRUCT.inherit(cls, p) + `\n}`;
+
+        cls[keywords.script] = STRUCT.inherit(cls, p) + "\n}";
       }
     }
-    
-    if (!cls.STRUCT) {
-      throw new Error("class " + unmangle(cls.name) + " has no STRUCT script");
+
+    if (!cls[keywords.script]) {
+      throw new Error("class " + unmangle(cls.name) + " has no " + keywords.script + " script");
     }
 
-    let stt = struct_parse.parse(cls.STRUCT);
+    let stt = struct_parse.parse(cls[keywords.script]);
 
     stt.name = unmangle(stt.name);
 
-    cls.structName = stt.name;
+    cls[keywords.name] = stt.name;
 
     //create default newSTRUCT
-    if (cls.newSTRUCT === undefined) {
-      cls.newSTRUCT = function () {
+    if (cls[keywords.new] === undefined) {
+      cls[keywords.new] = function () {
         return new this();
       };
     }
 
     if (structName !== undefined) {
-      stt.name = cls.structName = structName;
-    } else if (cls.structName === undefined) {
-      cls.structName = stt.name;
+      stt.name = cls[keywords.name] = structName;
+    } else if (cls[keywords.name] === undefined) {
+      cls[keywords.name] = stt.name;
     } else {
-      stt.name = cls.structName;
+      stt.name = cls[keywords.name];
     }
 
-    if (cls.structName in this.structs) {
-      console.warn("Struct " + unmangle(cls.structName) + " is already registered", cls);
+    if (cls[keywords.name] in this.structs) {
+      console.warn("Struct " + unmangle(cls[keywords.name]) + " is already registered", cls);
 
       if (!this.allowOverriding) {
-        throw new Error("Struct " + unmangle(cls.structName) + " is already registered");
+        throw new Error("Struct " + unmangle(cls[keywords.name]) + " is already registered");
       }
 
       return;
     }
 
     if (stt.id === -1)
-      stt.id = this.idgen.gen_id();
+      stt.id = this.idgen++;
 
-    this.structs[cls.structName] = stt;
-    this.struct_cls[cls.structName] = cls;
+    this.structs[cls[keywords.name]] = stt;
+    this.struct_cls[cls[keywords.name]] = cls;
     this.struct_ids[stt.id] = stt;
   }
 
   isRegistered(cls) {
+    const keywords = this.constructor.keywords;
+
     if (!cls.hasOwnProperty("structName")) {
       return false;
     }
 
-    return cls === this.struct_cls[cls.structName];
+    return cls === this.struct_cls[cls[keywords.name]];
   }
 
   get_struct_id(id) {
@@ -3070,134 +3683,6 @@ let STRUCT = _module_exports_$1.STRUCT = class STRUCT {
     return this.struct_cls[name];
   }
 
-  static inherit(child, parent, structName = child.name) {
-    if (!parent.STRUCT) {
-      return structName + "{\n";
-    }
-
-    let stt = struct_parse.parse(parent.STRUCT);
-    let code = structName + "{\n";
-    code += STRUCT.fmt_struct(stt, true);
-    return code;
-  }
-
-  /** invoke loadSTRUCT methods on parent objects.  note that
-   reader() is only called once.  it is called however.*/
-  static Super(obj, reader) {
-    if (warninglvl$1 > 0) 
-      console.warn("deprecated");
-
-    reader(obj);
-
-    function reader2(obj) {
-    }
-
-    let cls = obj.constructor;
-    let bad = cls === undefined || cls.prototype === undefined || cls.prototype.__proto__ === undefined;
-
-    if (bad) {
-      return;
-    }
-
-    let parent = cls.prototype.__proto__.constructor;
-    bad = bad || parent === undefined;
-
-    if (!bad && parent.prototype.loadSTRUCT && parent.prototype.loadSTRUCT !== obj.loadSTRUCT) { //parent.prototype.hasOwnProperty("loadSTRUCT")) {
-      parent.prototype.loadSTRUCT.call(obj, reader2);
-    }
-  }
-
-  /** deprecated.  used with old fromSTRUCT interface. */
-  static chain_fromSTRUCT(cls, reader) {
-    if (warninglvl$1 > 0) 
-      console.warn("Using deprecated (and evil) chain_fromSTRUCT method, eek!");
-
-    let proto = cls.prototype;
-    let parent = cls.prototype.prototype.constructor;
-
-    let obj = parent.fromSTRUCT(reader);
-    let obj2 = new cls();
-
-    let keys = Object.keys(obj).concat(Object.getOwnPropertySymbols(obj));
-    //let keys=Object.keys(proto);
-
-    for (let i = 0; i < keys.length; i++) {
-      let k = keys[i];
-
-      try {
-        obj2[k] = obj[k];
-      } catch (error) {
-        if (warninglvl$1 > 0) 
-          console.warn("  failed to set property", k);
-      }
-      //let k=keys[i];
-      //if (k=="__proto__")
-      // continue;
-      //obj[k] = proto[k];
-    }
-
-    /*
-    if (proto.toString !== Object.prototype.toString)
-      obj2.toString = proto.toString;
-    //*/
-
-    return obj2;
-  }
-
-  static formatStruct(stt, internal_only, no_helper_js) {
-    return this.fmt_struct(stt, internal_only, no_helper_js);
-  }
-
-  static fmt_struct(stt, internal_only, no_helper_js) {
-    if (internal_only === undefined)
-      internal_only = false;
-    if (no_helper_js === undefined)
-      no_helper_js = false;
-
-    let s = "";
-    if (!internal_only) {
-      s += stt.name;
-      if (stt.id !== -1)
-        s += " id=" + stt.id;
-      s += " {\n";
-    }
-    let tab = "  ";
-
-    function fmt_type(type) {
-      return StructFieldTypeMap$1[type.type].format(type);
-      
-      if (type.type === StructEnum$2.T_ARRAY || type.type === StructEnum$2.T_ITER || type.type === StructEnum$2.T_ITERKEYS) {
-        if (type.data.iname !== "" && type.data.iname !== undefined) {
-          return "array(" + type.data.iname + ", " + fmt_type(type.data.type) + ")";
-        }
-        else {
-          return "array(" + fmt_type(type.data.type) + ")";
-        }
-      } else if (type.type === StructEnum$2.T_STATIC_STRING) {
-        return "static_string[" + type.data.maxlength + "]";
-      } else if (type.type === StructEnum$2.T_STRUCT) {
-        return type.data;
-      } else if (type.type === StructEnum$2.T_TSTRUCT) {
-        return "abstract(" + type.data + ")";
-      } else {
-        return StructTypeMap$1[type.type];
-      }
-    }
-
-    let fields = stt.fields;
-    for (let i = 0; i < fields.length; i++) {
-      let f = fields[i];
-      s += tab + f.name + " : " + fmt_type(f.type);
-      if (!no_helper_js && f.get !== undefined) {
-        s += " | " + f.get.trim();
-      }
-      s += ";\n";
-    }
-    if (!internal_only)
-      s += "}";
-    return s;
-  }
-
   _env_call(code, obj, env) {
     let envcode = _static_envcode_null$1;
     if (env !== undefined) {
@@ -3218,29 +3703,26 @@ let STRUCT = _module_exports_$1.STRUCT = class STRUCT {
     if (!(fullcode in this.compiled_code)) {
       let code2 = "func = function(obj, env) { " + envcode + "return " + code + "}";
       try {
-        func = _structEval(code2);
-      }
-      catch (err) {
-        _export_print_stack_(err);
+        func = struct_eval.structEval(code2);
+      } catch (err) {
+        console.warn(err.stack);
 
-        console.log(code2);
-        console.log(" ");
+        console.warn(code2);
+        console.warn(" ");
         throw err;
       }
       this.compiled_code[fullcode] = func;
-    }
-    else {
+    } else {
       func = this.compiled_code[fullcode];
     }
     try {
       return func.call(obj, obj, env);
-    }
-    catch (err) {
-      _export_print_stack_(err);
+    } catch (err) {
+      console.warn(err.stack);
 
       let code2 = "func = function(obj, env) { " + envcode + "return " + code + "}";
-      console.log(code2);
-      console.log(" ");
+      console.warn(code2);
+      console.warn(" ");
       throw err;
     }
   }
@@ -3248,7 +3730,7 @@ let STRUCT = _module_exports_$1.STRUCT = class STRUCT {
   write_struct(data, obj, stt) {
     function use_helper_js(field) {
       let type = field.type.type;
-      let cls = StructFieldTypeMap$1[type];
+      let cls = StructFieldTypeMap[type];
       return cls.useHelperJS(field);
     }
 
@@ -3267,26 +3749,27 @@ let STRUCT = _module_exports_$1.STRUCT = class STRUCT {
         } else {
           val = f.name === "this" ? obj : obj[f.name];
         }
-        
-        if (_nGlobal.DEBUG && _nGlobal.DEBUG.tinyeval) { 
+
+        if (DEBUG.tinyeval) {
           console.log("\n\n\n", f.get, "Helper JS Ret", val, "\n\n\n");
         }
 
-        do_pack$1(data, val, obj, thestruct, f, t1);
-      }
-      else {
+        sintern2.do_pack(this, data, val, obj, f, t1);
+      } else {
         let val = f.name === "this" ? obj : obj[f.name];
-        do_pack$1(data, val, obj, thestruct, f, t1);
+        sintern2.do_pack(this, data, val, obj, f, t1);
       }
     }
   }
 
   /**
-  @param data : array to write data into,
-  @param obj  : structable object
-  */
+   @param data : array to write data into,
+   @param obj  : structable object
+   */
   write_object(data, obj) {
-    let cls = obj.constructor.structName;
+    const keywords = this.constructor.keywords;
+
+    let cls = obj.constructor[keywords.name];
     let stt = this.get_struct(cls);
 
     if (data === undefined) {
@@ -3298,13 +3781,13 @@ let STRUCT = _module_exports_$1.STRUCT = class STRUCT {
   }
 
   /**
-  Read an object from binary data
-  
-  @param data : DataView or Uint8Array instance
-  @param cls_or_struct_id : Structable class
-  @param uctx : internal parameter
-  @return {cls_or_struct_id} Instance of cls_or_struct_id
-  */
+   Read an object from binary data
+
+   @param data : DataView or Uint8Array instance
+   @param cls_or_struct_id : Structable class
+   @param uctx : internal parameter
+   @return {cls_or_struct_id} Instance of cls_or_struct_id
+   */
   readObject(data, cls_or_struct_id, uctx) {
     if (data instanceof Uint8Array || data instanceof Uint8ClampedArray) {
       data = new DataView(data.buffer);
@@ -3314,26 +3797,28 @@ let STRUCT = _module_exports_$1.STRUCT = class STRUCT {
 
     return this.read_object(data, cls_or_struct_id, uctx);
   }
-  
+
   /**
-  @param data array to write data into,
-  @param obj structable object
-  */
+   @param data array to write data into,
+   @param obj structable object
+   */
   writeObject(data, obj) {
     return this.write_object(data, obj);
   }
 
-  writeJSON(obj, stt=undefined) {
+  writeJSON(obj, stt = undefined) {
+    const keywords = this.constructor.keywords;
+
     let cls = obj.constructor;
-    stt = stt || this.get_struct(cls.structName);
+    stt = stt || this.get_struct(cls[keywords.name]);
 
     function use_helper_js(field) {
       let type = field.type.type;
-      let cls = StructFieldTypeMap$1[type];
+      let cls = StructFieldTypeMap[type];
       return cls.useHelperJS(field);
     }
 
-    let toJSON$1 = toJSON;
+    let toJSON = sintern2.toJSON;
 
     let fields = stt.fields;
     let thestruct = this;
@@ -3353,28 +3838,27 @@ let STRUCT = _module_exports_$1.STRUCT = class STRUCT {
           val = f.name === "this" ? obj : obj[f.name];
         }
 
-        if (_nGlobal.DEBUG && _nGlobal.DEBUG.tinyeval) {
+        if (DEBUG.tinyeval) {
           console.log("\n\n\n", f.get, "Helper JS Ret", val, "\n\n\n");
         }
 
-        json2 = toJSON$1(this, val, obj, f, t1);
-      }
-      else {
+        json2 = toJSON(this, val, obj, f, t1);
+      } else {
         val = f.name === "this" ? obj : obj[f.name];
-        json2 = toJSON$1(this, val, obj, f, t1);
+        json2 = toJSON(this, val, obj, f, t1);
       }
 
-      if (val !== obj) {
+      if (f.name !== 'this') {
         json[f.name] = json2;
       } else { //f.name was 'this'?
         let isArray = Array.isArray(json2);
-        isArray = isArray || f.type.type === StructTypes$1.T_ARRAY;
-        isArray = isArray || f.type.type === StructTypes$1.T_STATIC_ARRAY;
+        isArray = isArray || f.type.type === StructTypes.ARRAY;
+        isArray = isArray || f.type.type === StructTypes.STATIC_ARRAY;
 
         if (isArray) {
           json.length = json2.length;
 
-          for (let i=0; i<json2.length; i++) {
+          for (let i = 0; i < json2.length; i++) {
             json[i] = json2[i];
           }
         } else {
@@ -3387,11 +3871,12 @@ let STRUCT = _module_exports_$1.STRUCT = class STRUCT {
   }
 
   /**
-  @param data : DataView or Uint8Array instance
-  @param cls_or_struct_id : Structable class
-  @param uctx : internal parameter
-  */
+   @param data : DataView or Uint8Array instance
+   @param cls_or_struct_id : Structable class
+   @param uctx : internal parameter
+   */
   read_object(data, cls_or_struct_id, uctx, objInstance) {
+    const keywords = this.constructor.keywords;
     let cls, stt;
 
     if (data instanceof Array) {
@@ -3408,22 +3893,23 @@ let STRUCT = _module_exports_$1.STRUCT = class STRUCT {
       throw new Error("bad cls_or_struct_id " + cls_or_struct_id);
     }
 
-    stt = this.structs[cls.structName];
+    stt = this.structs[cls[keywords.name]];
 
     if (uctx === undefined) {
-      uctx = new _module_exports_.unpack_context();
+      uctx = new unpack_context();
 
-      packer_debug$1("\n\n=Begin reading " + cls.structName + "=");
+      packer_debug$1("\n\n=Begin reading " + cls[keywords.name] + "=");
     }
     let thestruct = this;
 
-    let this2  = this;
+    let this2 = this;
+
     function unpack_field(type) {
-      return StructFieldTypeMap$1[type.type].unpack(this2, data, type, uctx);
+      return StructFieldTypeMap[type.type].unpack(this2, data, type, uctx);
     }
 
     function unpack_into(type, dest) {
-      return StructFieldTypeMap$1[type.type].unpackInto(this2, data, type, uctx, dest);
+      return StructFieldTypeMap[type.type].unpackInto(this2, data, type, uctx, dest);
     }
 
     let was_run = false;
@@ -3454,26 +3940,32 @@ let STRUCT = _module_exports_$1.STRUCT = class STRUCT {
 
     let load = makeLoader(stt);
 
-    if (cls.prototype.loadSTRUCT !== undefined) {
+    if (cls.prototype[keywords.load] !== undefined) {
       let obj = objInstance;
 
-      if (!obj && cls.newSTRUCT !== undefined) {
-        obj = cls.newSTRUCT(load);
+      if (!obj && cls[keywords.new] !== undefined) {
+        obj = cls[keywords.new](load);
       } else if (!obj) {
         obj = new cls();
       }
 
-      obj.loadSTRUCT(load);
+      obj[keywords.load](load);
+
+      if (!was_run) {
+        console.warn("" + cls[keywords.name] + ".prototype[keywords.load]() did not execute its loader callback!");
+        load(obj);
+      }
+
       return obj;
-    } else if (cls.fromSTRUCT !== undefined) {
-      if (warninglvl$1 > 1) 
+    } else if (cls[keywords.from] !== undefined) {
+      if (warninglvl$1 > 1)
         console.warn("Warning: class " + unmangle(cls.name) + " is using deprecated fromSTRUCT interface; use newSTRUCT/loadSTRUCT instead");
-      return cls.fromSTRUCT(load);
+      return cls[keywords.from](load);
     } else { //default case, make new instance and then call load() on it
       let obj = objInstance;
 
-      if (!obj && cls.newSTRUCT !== undefined) {
-        obj = cls.newSTRUCT(load);
+      if (!obj && cls[keywords.new] !== undefined) {
+        obj = cls[keywords.new](load);
       } else if (!obj) {
         obj = new cls();
       }
@@ -3484,12 +3976,49 @@ let STRUCT = _module_exports_$1.STRUCT = class STRUCT {
     }
   }
 
-  readJSON(json, cls_or_struct_id, objInstance=undefined) {
+  validateJSON(json, cls_or_struct_id, useInternalParser=true, useColors=true, consoleLogger=function(){console.log(...arguments);}, _abstractKey="_structName") {
+    if (cls_or_struct_id === undefined) {
+      throw new Error(this.constructor.name + ".prototype.validateJSON: Expected at least two arguments");
+    }
+
+    try {
+      json = JSON.stringify(json, undefined, 2);
+
+      this.jsonBuf = json;
+      this.jsonUseColors = useColors;
+      this.jsonLogger = consoleLogger;
+
+      //add token annotations
+      jsonParser.logger = this.jsonLogger;
+
+      if (useInternalParser) {
+        json = jsonParser.parse(json);
+      } else {
+        json = JSON.parse(json);
+      }
+
+      this.validateJSONIntern(json, cls_or_struct_id, _abstractKey);
+
+    } catch (error) {
+      if (!(error instanceof JSONError)) {
+        console.error(error.stack);
+      }
+
+      this.jsonLogger(error.message);
+      return false;
+    }
+
+    return true;
+  }
+
+  validateJSONIntern(json, cls_or_struct_id, _abstractKey="_structName") {
+    const keywords = this.constructor.keywords;
+
     let cls, stt;
 
     if (typeof cls_or_struct_id === "number") {
       cls = this.struct_cls[this.struct_ids[cls_or_struct_id].name];
-    } else if (cls_or_struct_id instanceof NStruct$1) {
+    } else if (cls_or_struct_id instanceof NStruct) {
       cls = this.get_struct_cls(cls_or_struct_id.name);
     } else {
       cls = cls_or_struct_id;
@@ -3499,13 +4028,114 @@ let STRUCT = _module_exports_$1.STRUCT = class STRUCT {
       throw new Error("bad cls_or_struct_id " + cls_or_struct_id);
     }
 
-    stt = this.structs[cls.structName];
+    stt = this.structs[cls[keywords.name]];
 
-    packer_debug$1("\n\n=Begin reading " + cls.structName + "=");
+    let fields = stt.fields;
+    let flen = fields.length;
+
+    let keys = new Set();
+    keys.add(_abstractKey);
+
+    let keyTestJson = json;
+
+    for (let i = 0; i < flen; i++) {
+      let f = fields[i];
+
+      let val;
+
+      let tokinfo;
+
+      if (f.name === 'this') {
+        val = json;
+        keyTestJson = {
+          "this" : json
+        };
+
+        keys.add("this");
+        tokinfo = json[TokSymbol];
+      } else {
+        val = json[f.name];
+        keys.add(f.name);
+
+        tokinfo = json[TokSymbol] ? json[TokSymbol].fields[f.name] : undefined;
+        if (!tokinfo) {
+          let f2 = fields[Math.max(i-1, 0)];
+          tokinfo = TokSymbol[TokSymbol] ? json[TokSymbol].fields[f2.name] : undefined;
+        }
+
+        if (!tokinfo) {
+          tokinfo = json[TokSymbol];
+        }
+      }
+
+      if (val === undefined) {
+        //console.warn("nstructjs.readJSON: Missing field " + f.name + " in struct " + stt.name);
+        //continue;
+      }
+
+      let instance = f.name === 'this' ? val : json;
+
+      let ret = sintern2.validateJSON(this, val, json, f, f.type, instance, _abstractKey);
+
+      if (!ret || typeof ret === "string") {
+        let msg = typeof ret === "string" ? ": " + ret : "";
+
+        if (tokinfo) {
+          this.jsonLogger(printContext(this.jsonBuf, tokinfo, this.jsonUseColors));
+        }
+
+        //console.error(cls[keywords.script]);
+
+        if (val === undefined) {
+          throw new JSONError("Missing json field " + f.name + msg);
+        } else {
+          throw new JSONError("Invalid json field " + f.name + msg);
+        }
+
+        return false;
+      }
+    }
+
+    for (let k in keyTestJson) {
+      if (typeof json[k] === "symbol") {
+        //ignore symbols
+        continue;
+      }
+
+      if (!keys.has(k)) {
+        this.jsonLogger(cls[keywords.script]);
+        throw new JSONError("Unknown json field " + k);
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  readJSON(json, cls_or_struct_id, objInstance = undefined) {
+    const keywords = this.constructor.keywords;
+
+    let cls, stt;
+
+    if (typeof cls_or_struct_id === "number") {
+      cls = this.struct_cls[this.struct_ids[cls_or_struct_id].name];
+    } else if (cls_or_struct_id instanceof NStruct) {
+      cls = this.get_struct_cls(cls_or_struct_id.name);
+    } else {
+      cls = cls_or_struct_id;
+    }
+
+    if (cls === undefined) {
+      throw new Error("bad cls_or_struct_id " + cls_or_struct_id);
+    }
+
+    stt = this.structs[cls[keywords.name]];
+
+    packer_debug$1("\n\n=Begin reading " + cls[keywords.name] + "=");
     let thestruct = this;
-    let this2  = this;
+    let this2 = this;
     let was_run = false;
-    let fromJSON$1 = fromJSON;
+    let fromJSON = sintern2.fromJSON;
 
     function makeLoader(stt) {
       return function load(obj) {
@@ -3536,7 +4166,7 @@ let STRUCT = _module_exports_$1.STRUCT = class STRUCT {
 
           let instance = f.name === 'this' ? obj : objInstance;
 
-          let ret = fromJSON$1(this2, val, obj, f, f.type, instance);
+          let ret = fromJSON(this2, val, obj, f, f.type, instance);
 
           if (f.name !== 'this') {
             obj[f.name] = ret;
@@ -3547,26 +4177,26 @@ let STRUCT = _module_exports_$1.STRUCT = class STRUCT {
 
     let load = makeLoader(stt);
 
-    if (cls.prototype.loadSTRUCT !== undefined) {
+    if (cls.prototype[keywords.load] !== undefined) {
       let obj = objInstance;
 
-      if (!obj && cls.newSTRUCT !== undefined) {
-        obj = cls.newSTRUCT(load);
+      if (!obj && cls[keywords.new] !== undefined) {
+        obj = cls[keywords.new](load);
       } else if (!obj) {
         obj = new cls();
       }
 
-      obj.loadSTRUCT(load);
+      obj[keywords.load](load);
       return obj;
-    } else if (cls.fromSTRUCT !== undefined) {
+    } else if (cls[keywords.from] !== undefined) {
       if (warninglvl$1 > 1)
         console.warn("Warning: class " + unmangle(cls.name) + " is using deprecated fromSTRUCT interface; use newSTRUCT/loadSTRUCT instead");
-      return cls.fromSTRUCT(load);
+      return cls[keywords.from](load);
     } else { //default case, make new instance and then call load() on it
       let obj = objInstance;
 
-      if (!obj && cls.newSTRUCT !== undefined) {
-        obj = cls.newSTRUCT(load);
+      if (!obj && cls[keywords.new] !== undefined) {
+        obj = cls[keywords.new](load);
       } else if (!obj) {
         obj = new cls();
       }
@@ -3577,24 +4207,78 @@ let STRUCT = _module_exports_$1.STRUCT = class STRUCT {
     }
   }
 };
+//$KEYWORD_CONFIG_END
+
+if (haveCodeGen) {
+  var StructClass;
+
+  eval(code);
+
+  STRUCT = StructClass;
+}
+
+STRUCT.setClassKeyword("STRUCT");
+
+function deriveStructManager(keywords = {
+  script: "STRUCT",
+  name  : undefined, //script.toLowerCase + "Name"
+  load  : undefined, //"load" + script
+  new   : undefined, //"new" + script
+  from  : undefined, //"from" + script
+}) {
+
+  if (!keywords.name) {
+    keywords.name = keywords.script.toLowerCase() + "Name";
+  }
+
+  if (!keywords.load) {
+    keywords.load = "load" + keywords.script;
+  }
+
+  if (!keywords.new) {
+    keywords.new = "new" + keywords.script;
+  }
+
+  if (!keywords.from) {
+    keywords.from = "from" + keywords.script;
+  }
+
+  if (!haveCodeGen) {
+    class NewSTRUCT extends STRUCT {
+
+    }
+
+    NewSTRUCT.keywords = keywords;
+    return NewSTRUCT;
+  } else {
+    var StructClass;
+
+    let code2 = code;
+    code2 = code2.replace(/\[keywords.script\]/g, keywords.script);
+
+    eval(code2);
+    return StructClass;
+  }
+}
 
 //main struct script manager
-let manager = _module_exports_$1.manager = new STRUCT();
+exports.manager = new STRUCT();
 
 /**
  * Write all defined structs out to a string.
  *
- * @param manager STRUCT instance, defaults to nstructjs.manager
+ * @param nManager STRUCT instance, defaults to nstructjs.manager
  * @param include_code include save code snippets
  * */
-let write_scripts = _module_exports_$1.write_scripts = function write_scripts(manager, include_code = false) {
-  if (manager === undefined)
-    manager = _module_exports_$1.manager;
-
+function write_scripts(nManager = exports.manager, include_code = false) {
   let buf = "";
 
-  manager.forEach(function (stt) {
-    buf += STRUCT.fmt_struct(stt, false, !include_code) + "\n";
+  /* prevent code generation bugs in configurable mode */
+  let nl = String.fromCharCode(10);
+  let tab = String.fromCharCode(9);
+
+  nManager.forEach(function (stt) {
+    buf += STRUCT.fmt_struct(stt, false, !include_code) + nl;
   });
 
   let buf2 = buf;
@@ -3602,34 +4286,38 @@ let write_scripts = _module_exports_$1.write_scripts = function write_scripts(ma
 
   for (let i = 0; i < buf2.length; i++) {
     let c = buf2[i];
-    if (c === "\n") {
-      buf += "\n";
+    if (c === nl) {
+      buf += nl;
       let i2 = i;
-      while (i < buf2.length && (buf2[i] === " " || buf2[i] === "\t" || buf2[i] === "\n")) {
+      while (i < buf2.length && (buf2[i] === " " || buf2[i] === tab || buf2[i] === nl)) {
         i++;
       }
       if (i !== i2)
         i--;
-    }
-    else {
+    } else {
       buf += c;
     }
   }
 
   return buf;
-};
+}
 
 "use strict";
 
+let nbtoa, natob;
+
 if (typeof btoa === "undefined") {
-  _nGlobal.btoa = function btoa(str) {
+  nbtoa = function btoa(str) {
     let buffer = new Buffer("" + str, 'binary');
     return buffer.toString('base64');
   };
 
-  _nGlobal.atob = function atob(str) {
+  natob = function atob(str) {
     return new Buffer(str, 'base64').toString('binary');
   };
+} else {
+  natob = atob;
+  nbtoa = btoa;
 }
 
 /*
@@ -3649,15 +4337,15 @@ file format:
     data                                   : ...
 */
 
-const _export_versionToInt_ = function(v) {
-  v = _export_versionCoerce_(v);
+function versionToInt(v) {
+  v = versionCoerce(v);
   let mul = 64;
   return ~~(v.major*mul*mul*mul + v.minor*mul*mul + v.micro*mul);
-};
+}
 
 let ver_pat = /[0-9]+\.[0-9]+\.[0-9]+$/;
 
-const _export_versionCoerce_ = function(v) {
+function versionCoerce(v) {
   if (!v) {
     throw new Error("empty version: " + v);
   }
@@ -3690,15 +4378,13 @@ const _export_versionCoerce_ = function(v) {
   } else {
     throw new Error("invalid version " + v);
   }
-};
+}
 
-const _export_versionLessThan_ = function(a, b) {
-  return _export_versionToInt_(a) < _export_versionToInt_(b);
-};
+function versionLessThan(a, b) {
+  return versionToInt(a) < versionToInt(b);
+}
 
-let versionLessThan = _export_versionLessThan_;
-
-let FileParams = class FileParams {
+class FileParams {
   constructor() {
     this.magic = "STRT";
     this.ext = ".bin";
@@ -3710,20 +4396,20 @@ let FileParams = class FileParams {
       micro: 1
     };
   }
-};
+}
 
 //used to define blocks
-let Block = class Block {
+class Block {
   constructor(type_magic, data) {
     this.type = type_magic;
     this.data = data;
   }
-};
+}
 
-let FileError = class FileeError extends Error {
-};
+class FileeError extends Error {
+}
 
-let FileHelper = class FileHelper {
+class FileHelper {
   //params can be FileParams instance, or object literal
   //(it will convert to FileParams)
   constructor(params) {
@@ -3747,23 +4433,23 @@ let FileHelper = class FileHelper {
   }
 
   read(dataview) {
-    this.unpack_ctx = new _module_exports_.unpack_context();
+    this.unpack_ctx = new unpack_context();
 
-    let magic = _module_exports_.unpack_static_string(dataview, this.unpack_ctx, 4);
+    let magic = unpack_static_string(dataview, this.unpack_ctx, 4);
 
     if (magic !== this.magic) {
       throw new FileError("corrupted file");
     }
 
     this.version = {};
-    this.version.major = _module_exports_.unpack_short(dataview, this.unpack_ctx);
-    this.version.minor = _module_exports_.unpack_byte(dataview, this.unpack_ctx);
-    this.version.micro = _module_exports_.unpack_byte(dataview, this.unpack_ctx);
+    this.version.major = unpack_short(dataview, this.unpack_ctx);
+    this.version.minor = unpack_byte(dataview, this.unpack_ctx);
+    this.version.micro = unpack_byte(dataview, this.unpack_ctx);
 
-    let struct = this.struct = new _module_exports_$1.STRUCT();
+    let struct = this.struct = new STRUCT();
 
-    let scripts = _module_exports_.unpack_string(dataview, this.unpack_ctx);
-    this.struct.parse_structs(scripts, _module_exports_$1.manager);
+    let scripts = unpack_string(dataview, this.unpack_ctx);
+    this.struct.parse_structs(scripts, exports.manager);
 
     let blocks = [];
     let dviewlen = dataview.buffer.byteLength;
@@ -3771,18 +4457,18 @@ let FileHelper = class FileHelper {
     while (this.unpack_ctx.i < dviewlen) {
       //console.log("reading block. . .", this.unpack_ctx.i, dviewlen);
 
-      let type = _module_exports_.unpack_static_string(dataview, this.unpack_ctx, 4);
-      let datalen = _module_exports_.unpack_int(dataview, this.unpack_ctx);
-      let bstruct = _module_exports_.unpack_int(dataview, this.unpack_ctx);
+      let type = unpack_static_string(dataview, this.unpack_ctx, 4);
+      let datalen = unpack_int(dataview, this.unpack_ctx);
+      let bstruct = unpack_int(dataview, this.unpack_ctx);
       let bdata;
 
       //console.log(type, datalen, bstruct);
 
-      if (bstruct == -2) { //string data, e.g. JSON
-        bdata = _module_exports_.unpack_static_string(dataview, this.unpack_ctx, datalen);
+      if (bstruct === -2) { //string data, e.g. JSON
+        bdata = unpack_static_string(dataview, this.unpack_ctx, datalen);
       } else {
-        bdata = _module_exports_.unpack_bytes(dataview, this.unpack_ctx, datalen);
-        bdata = struct.read_object(bdata, bstruct, new _module_exports_.unpack_context());
+        bdata = unpack_bytes(dataview, this.unpack_ctx, datalen);
+        bdata = struct.read_object(bdata, bstruct, new unpack_context());
       }
 
       let block = new Block();
@@ -3805,27 +4491,27 @@ let FileHelper = class FileHelper {
   }
 
   write(blocks) {
-    this.struct = _module_exports_$1.manager;
+    this.struct = exports.manager;
     this.blocks = blocks;
 
     let data = [];
 
-    _module_exports_.pack_static_string(data, this.magic, 4);
-    _module_exports_.pack_short(data, this.version.major);
-    _module_exports_.pack_byte(data, this.version.minor & 255);
-    _module_exports_.pack_byte(data, this.version.micro & 255);
+    pack_static_string(data, this.magic, 4);
+    pack_short(data, this.version.major);
+    pack_byte(data, this.version.minor & 255);
+    pack_byte(data, this.version.micro & 255);
 
-    let scripts = _module_exports_$1.write_scripts();
-    _module_exports_.pack_string(data, scripts);
+    let scripts = write_scripts();
+    pack_string(data, scripts);
 
     let struct = this.struct;
 
     for (let block of blocks) {
       if (typeof block.data === "string") { //string data, e.g. JSON
-        _module_exports_.pack_static_string(data, block.type, 4);
-        _module_exports_.pack_int(data, block.data.length);
-        _module_exports_.pack_int(data, -2); //flag as string data
-        _module_exports_.pack_static_string(data, block.data, block.data.length);
+        pack_static_string(data, block.type, 4);
+        pack_int(data, block.data.length);
+        pack_int(data, -2); //flag as string data
+        pack_static_string(data, block.data, block.data.length);
         continue;
       }
 
@@ -3839,11 +4525,11 @@ let FileHelper = class FileHelper {
 
       struct.write_object(data2, block.data);
 
-      _module_exports_.pack_static_string(data, block.type, 4);
-      _module_exports_.pack_int(data, data2.length);
-      _module_exports_.pack_int(data, stt.id);
+      pack_static_string(data, block.type, 4);
+      pack_int(data, data2.length);
+      pack_int(data, stt.id);
 
-      _module_exports_.pack_bytes(data, data2);
+      pack_bytes(data, data2);
     }
 
     return new DataView(new Uint8Array(data).buffer);
@@ -3859,7 +4545,7 @@ let FileHelper = class FileHelper {
       str += String.fromCharCode(bytes[i]);
     }
 
-    return btoa(str);
+    return nbtoa(str);
   }
 
   makeBlock(type, data) {
@@ -3867,7 +4553,7 @@ let FileHelper = class FileHelper {
   }
 
   readBase64(base64) {
-    let data = atob(base64);
+    let data = natob(base64);
     let data2 = new Uint8Array(data.length);
 
     for (let i = 0; i < data.length; i++) {
@@ -3876,139 +4562,147 @@ let FileHelper = class FileHelper {
 
     return this.read(new DataView(data2.buffer));
   }
-};
+}
 
 var struct_filehelper = /*#__PURE__*/Object.freeze({
   __proto__: null,
-  versionToInt: _export_versionToInt_,
-  versionCoerce: _export_versionCoerce_,
-  versionLessThan: _export_versionLessThan_,
+  versionToInt: versionToInt,
+  versionCoerce: versionCoerce,
+  versionLessThan: versionLessThan,
   FileParams: FileParams,
   Block: Block,
-  FileError: FileError,
+  FileeError: FileeError,
   FileHelper: FileHelper
 });
 
-var struct_typesystem = /*#__PURE__*/Object.freeze({
-  __proto__: null
-});
-
-if (typeof window !== "undefined") {
-  window._nGlobal = window;
-} else if (typeof self !== "undefined") {
-  self._nGlobal = self;
-} else {
-  global._nGlobal = global;
-}
-
-_nGlobal._structEval = eval;
-
-const _module_exports_$2 = {};
-_module_exports_$2.unpack_context = _module_exports_.unpack_context;
-
-/**
-true means little endian, false means big endian
-*/
-Object.defineProperty(_module_exports_$2, "STRUCT_ENDIAN", {
-  get: function () {
-    return _module_exports_.STRUCT_ENDIAN;
-  },
-  set: function (val) {
-    _module_exports_.STRUCT_ENDIAN = val;
-  }
-});
-
-for (let k in _module_exports_$1) {
-  _module_exports_$2[k] = _module_exports_$1[k];
-}
-
-var StructTypeMap$2 = StructTypeMap;
-var StructTypes$2 = StructTypes;
-var Class = undefined;
-
-//forward struct_intern's exports
-for (var k in _module_exports_$1) {
-  _module_exports_$2[k] = _module_exports_$1[k];
-}
-
 /** truncate webpack mangled names. defaults to true
  *  so Mesh$1 turns into Mesh */
-_module_exports_$2.truncateDollarSign = function(value=true) {
-  _module_exports_$1.truncateDollarSign = !!value;
-};
+function truncateDollarSign$1(value = true) {
+  setTruncateDollarSign(value);
+}
 
-_module_exports_$2.validateStructs = function validateStructs(onerror) {
-  return _module_exports_$2.manager.validateStructs(onerror);
-};
+function validateStructs(onerror) {
+  return exports.manager.validateStructs(onerror);
+}
 
-_module_exports_$2.setAllowOverriding = function setAllowOverriding(t) {
-  return _module_exports_$2.manager.allowOverriding = !!t;
-};
+/**
+ true means little endian, false means big endian
+ */
+function setEndian(mode) {
+  let ret = STRUCT_ENDIAN;
 
-_module_exports_$2.isRegistered = function isRegistered(cls) {
-  return _module_exports_$2.manager.isRegistered(cls);
-};
+  setBinaryEndian(mode);
+
+  return ret;
+}
+
+function consoleLogger() {
+  console.log(...arguments);
+}
+
+/** Validate json
+ *
+ * @param json
+ * @param cls
+ * @param useInternalParser If true (the default) an internal parser will be used that generates nicer error messages
+ * @param printColors
+ * @param logger
+ * @returns {*}
+ */
+function validateJSON$1(json, cls, useInternalParser, printColors=true, logger=consoleLogger) {
+  return exports.manager.validateJSON(json, cls, useInternalParser, printColors, logger);
+}
+
+function getEndian() {
+  return STRUCT_ENDIAN;
+}
+
+function setAllowOverriding(t) {
+  return exports.manager.allowOverriding = !!t;
+}
+
+function isRegistered(cls) {
+  return exports.manager.isRegistered(cls);
+}
 
 /** Register a class with nstructjs **/
-_module_exports_$2.register = function register(cls, structName) {
-  return _module_exports_$2.manager.register(cls, structName);
-};
+function register(cls, structName) {
+  return exports.manager.register(cls, structName);
+}
 
-_module_exports_$2.unregister = function unregister(cls) {
-  _module_exports_$2.manager.unregister(cls);
-};
+function unregister(cls) {
+  exports.manager.unregister(cls);
+}
 
-_module_exports_$2.inherit = function (child, parent, structName = child.name) {
-  return _module_exports_$2.STRUCT.inherit(...arguments);
-};
+function inherit(child, parent, structName = child.name) {
 
-/**
-@param data : DataView
-*/
-_module_exports_$2.readObject = function(data, cls, __uctx=undefined) {
-  return _module_exports_$2.manager.readObject(data, cls, __uctx);
-};
+  return STRUCT.inherit(...arguments);
+}
 
 /**
-@param data : Array instance to write bytes to
-*/
-_module_exports_$2.writeObject = function(data, obj) {
-  return _module_exports_$2.manager.writeObject(data, obj);
-};
+ @param data : DataView
+ */
+function readObject(data, cls, __uctx = undefined) {
+  return exports.manager.readObject(data, cls, __uctx);
+}
 
-_module_exports_$2.writeJSON = function(obj) {
-  return _module_exports_$2.manager.writeJSON(obj);
-};
+/**
+ @param data : Array instance to write bytes to
+ */
+function writeObject(data, obj) {
+  return exports.manager.writeObject(data, obj);
+}
 
-_module_exports_$2.readJSON = function(json, class_or_struct_id) {
-  return _module_exports_$2.manager.readJSON(json, class_or_struct_id);
-};
+function writeJSON(obj) {
+  return exports.manager.writeJSON(obj);
+}
 
-_module_exports_$2.setDebugMode = _module_exports_$1.setDebugMode;
-_module_exports_$2.setWarningMode = _module_exports_$1.setWarningMode;
+function readJSON(json, class_or_struct_id) {
+  return exports.manager.readJSON(json, class_or_struct_id);
+}
 
 /*
-import * as _require___$tinyeval$tinyeval_js_ from "../tinyeval/tinyeval.js";
-_module_exports_.tinyeval = _require___$tinyeval$tinyeval_js_;
+import tinyeval1 from "../tinyeval/tinyeval.js";
+export const tinyeval = tinyeval1;
+import {nGlobal} from './struct_global.js';
 
-_module_exports_.useTinyEval = function() {
-  _nGlobal._structEval = (buf) => {
-    return _module_exports_.tinyeval.eval(buf, _nGlobal);
-  }
+export function useTinyEval() {
+  struct_eval.setStructEval((buf) => {
+    return tinyeval.eval(buf, nGlobal);
+  });
 };
 */
-   _module_exports_$2.useTinyEval = () => {};
+   exports.useTinyEval = () => {};
 
-
-//export other modules
-_module_exports_$2.binpack = _module_exports_;
-_module_exports_$2.util = struct_util;
-_module_exports_$2.typesystem = struct_typesystem;
-_module_exports_$2.parseutil = struct_parseutil;
-_module_exports_$2.parser = struct_parser;
-_module_exports_$2.filehelper = struct_filehelper;
-
-module.exports = _module_exports_$2;
+exports.JSONError = JSONError;
+exports.STRUCT = STRUCT;
+exports._truncateDollarSign = _truncateDollarSign;
+exports.binpack = struct_binpack;
+exports.consoleLogger = consoleLogger;
+exports.deriveStructManager = deriveStructManager;
+exports.filehelper = struct_filehelper;
+exports.getEndian = getEndian;
+exports.inherit = inherit;
+exports.isRegistered = isRegistered;
+exports.parser = struct_parser;
+exports.parseutil = struct_parseutil;
+exports.readJSON = readJSON;
+exports.readObject = readObject;
+exports.register = register;
+exports.setAllowOverriding = setAllowOverriding;
+exports.setDebugMode = setDebugMode;
+exports.setEndian = setEndian;
+exports.setTruncateDollarSign = setTruncateDollarSign;
+exports.setWarningMode = setWarningMode;
+exports.truncateDollarSign = truncateDollarSign$1;
+exports.typesystem = struct_typesystem;
+exports.unpack_context = unpack_context;
+exports.unregister = unregister;
+exports.validateJSON = validateJSON$1;
+exports.validateStructs = validateStructs;
+exports.writeJSON = writeJSON;
+exports.writeObject = writeObject;
+exports.write_scripts = write_scripts;
   {
     let glob = !((typeof window === "undefined" && typeof self === "undefined") && typeof global !== "undefined");
 

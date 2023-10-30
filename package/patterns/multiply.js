@@ -11,15 +11,6 @@ const shader = `
 //uniform float T;
 //uniform float SLIDERS[MAX_SLIDERS];
 
-#define M_PI 3.141592654
-
-vec2 cmul(vec2 a, vec2 b) {
-    return vec2(
-        a[0]*b[0] - a[1]*b[1],
-        a[0]*b[1] + b[0]*a[1]
-    );
-}
-
 float pattern(float ix, float iy) {
     vec2 uv = vec2(ix, iy)/iRes;
     
@@ -69,29 +60,32 @@ export class MultNoise extends Pattern {
       presets      : [],
       sliderDef    : [
         {
-          name : "steps", integer: true,
+          name : "steps",
+          type : "int",
           range: [5, 955],
           value: 300,
           speed: 7.0,
           exp  : 1.5,
         },//0
-        {name: "offset", value : 4.02, range : [-5.5, 15.5]}, //1
+        {name: "offset", value: 4.02, range: [-5.5, 15.5]}, //1
         {name: "gain", value: 6.0, range: [0.001, 1000], speed: 4.0, exp: 2.0},  //2
         {name: "color", value: 0.91, range: [-50, 50], speed: 0.25, exp: 1.0}, //3
         {name: "colorscale", value: 1.4},//4
         {name: "brightness", value: 1.0, range: [0.001, 10.0]}, //5
         {name: "scale", value: 1.75, range: [0.001, 1000000.0]}, //6
-        {name: "x", value : -0.42},  //7
+        {name: "x", value: -0.42},  //7
         {name: "y"},  //8
         {name: "offset2"}, //9
-        {name: "offset3", value : 0.85}, //10
+        {name: "offset3", value: 0.85}, //10
         {name: "offset4"}, //11
       ],
-      shader
+      shader,
+      shaderPre    : ''
     }
   }
 
   setup(ctx, gl, uniforms, defines) {
+    defines.STEPS = ~~this.sliders[0];
     defines.GAIN = "SLIDERS[2]";
     defines.COLOR_SHIFT = "SLIDERS[3]";
     defines.COLOR_SCALE = "SLIDERS[4]";
@@ -99,8 +93,6 @@ export class MultNoise extends Pattern {
   }
 
   viewportDraw(ctx, gl, uniforms, defines) {
-    defines.STEPS = ~~this.sliders[0];
-
     super.viewportDraw(ctx, gl, uniforms, defines);
   }
 

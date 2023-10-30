@@ -4,9 +4,24 @@ import {init_webgl} from './webgl/webgl.js';
 export var canvas;
 export var gl;
 
+let contextGenBase = 0;
+
 export function initGL() {
   canvas = document.createElement("canvas");
-  gl = init_webgl(canvas, {}, true);
+  gl = window._gl = init_webgl(canvas, {}, true);
+  gl.contextGen = contextGenBase++;
+
+  canvas.addEventListener("webglcontextrestored", (e) => {
+    if (window._appstate && _appstate.ctx && _appstate.ctx.pattern) {
+      _appstate.ctx.pattern.drawGen++;
+
+      canvas.remove();
+
+      initGL();
+    }
+  });
+
+  window.redraw_viewport();
 
   canvas.style["position"] = "fixed";
   canvas.style["z-index"] = "-1";
@@ -19,6 +34,8 @@ export class AppScreen extends Screen {
     super();
 
     this.keymap = new KeyMap([
+      new HotKey("S", ["CTRL"], "app.save"),
+      new HotKey("O", ["CTRL"], "app.open"),
       new HotKey("Z", ["CTRL"], "app.undo"),
       new HotKey("Z", ["CTRL", "SHIFT"], "app.redo"),
       new HotKey("T", [], (ctx) => {
@@ -60,6 +77,10 @@ export class AppScreen extends Screen {
   }
 
   update() {
+    if (this.ctx && this.ctx.state) {
+      this.ctx.state.update();
+    }
+
     super.update();
     this.checkCanvas();
 

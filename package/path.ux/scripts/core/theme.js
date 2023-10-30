@@ -1,9 +1,3 @@
-/*
- * WARNING: AUTO-GENERATED FILE
- *
- * Copy to scripts/editors/theme.js
- */
-
 import {CSSFont} from './ui_theme.js';
 
 export const DefaultTheme = {
@@ -12,7 +6,17 @@ export const DefaultTheme = {
     BasePackFlag        : 0,
     BoxDepressed        : 'rgba(130,130,130, 1)',
     BoxHighlight        : 'rgba(151,208,239, 1)',
+    "flex-grow"         : "unset",
+    mobileSizeMultiplier: 1.0,
     DefaultText         : new CSSFont({
+      font   : 'sans-serif',
+      weight : 'normal',
+      variant: 'normal',
+      style  : 'normal',
+      size   : 14,
+      color  : 'rgba(35, 35, 35, 1.0)'
+    }),
+    LabelText           : new CSSFont({
       font   : 'sans-serif',
       weight : 'normal',
       variant: 'normal',
@@ -35,93 +39,95 @@ export const DefaultTheme = {
     oneAxisPadding      : 2,
     padding             : 1,
   },
-  button:  {
-    DefaultText       : new CSSFont({
-      font    : 'poppins',
-      weight  : 'bold',
-      variant : 'normal',
-      style   : 'normal',
-      size    : 12,
-      color   : 'rgba(35,35,35, 1)'
+
+  button: {
+    DefaultText        : new CSSFont({
+      font   : 'poppins',
+      weight : 'bold',
+      variant: 'normal',
+      style  : 'normal',
+      size   : 12,
+      color  : 'rgba(35,35,35, 1)'
     }),
-    'background-color': 'rgba(238,238,238, 0.8672412740773168)',
-    'border-color'    : 'rgba(255,255,255, 1)',
-    'border-radius'   : 4,
-    'border-style'    : 'solid',
-    'border-width'    : 2,
-    pressed         : {
-      DefaultText : new CSSFont({
-        font    : 'poppins',
-        weight  : 'bold',
-        variant : 'normal',
-        style   : 'normal',
-        size    : 12,
-        color   : 'rgba(35,35,35, 1)'
+    'background-color' : 'rgba(238,238,238, 0.8672412740773168)',
+    'border-color'     : 'rgba(255,255,255, 1)',
+    'border-radius'    : 4,
+    'border-style'     : 'solid',
+    'border-width'     : 2,
+    disabled           : {
+      DefaultText       : new CSSFont({
+        font   : 'poppins',
+        weight : 'bold',
+        variant: 'normal',
+        style  : 'normal',
+        size   : 12,
+        color  : 'rgb(109,109,109)'
       }),
-      'background-color' : 'rgba(113,113,113, 1)',
-      'border-color' : '#DADCE0',
-      'border-style' : 'solid',
-      'border-width' : 1,
+      'background-color': 'rgb(19,19,19)',
+      'border-color'    : '#f58f8f',
+      'border-style'    : 'solid',
+      'border-width'    : 1,
     },
-    disabled         : {
-      DefaultText : new CSSFont({
-        font    : 'poppins',
-        weight  : 'bold',
-        variant : 'normal',
-        style   : 'normal',
-        size    : 12,
-        color   : 'rgb(109,109,109)'
+    height             : 25,
+    highlight          : {
+      DefaultText       : new CSSFont({
+        font   : 'poppins',
+        weight : 'bold',
+        variant: 'normal',
+        style  : 'normal',
+        size   : 12,
+        color  : 'rgba(255,255,255, 1)'
       }),
-      'background-color' : 'rgb(19,19,19)',
-      'border-color' : '#f58f8f',
-      'border-style' : 'solid',
-      'border-width' : 1,
+      'background-color': 'rgba(138,222,255, 1)',
+      'border-color'    : 'rgba(255,255,255, 1)',
+      'border-radius'   : 4,
+      'border-style'    : 'solid',
+      'border-width'    : 2,
     },
-    "highlight-pressed"         : {
-      DefaultText : new CSSFont({
-        font    : 'poppins',
-        weight  : 'bold',
-        variant : 'normal',
-        style   : 'normal',
-        size    : 12,
-        color   : 'rgba(35,35,35, 1)'
+    'highlight-pressed': {
+      DefaultText       : new CSSFont({
+        font   : 'poppins',
+        weight : 'bold',
+        variant: 'normal',
+        style  : 'normal',
+        size   : 12,
+        color  : 'rgba(35,35,35, 1)'
       }),
-      'background-color' : 'rgba(113,113,113, 1)',
-      'border-color' : '#DADCE0',
-      'border-style' : 'solid',
-      'border-width' : 1,
+      'background-color': 'rgba(113,113,113, 1)',
+      'border-color'    : '#DADCE0',
+      'border-style'    : 'solid',
+      'border-width'    : 1,
     },
-    height            : 25,
-    highlight         : {
-      DefaultText : new CSSFont({
-        font    : 'poppins',
-        weight  : 'bold',
-        variant : 'normal',
-        style   : 'normal',
-        size    : 12,
-        color   : 'rgba(255,255,255, 1)'
+    margin             : 4,
+    'margin-left'      : 4,
+    'margin-right'     : 4,
+    padding            : 1,
+    pressed            : {
+      DefaultText       : new CSSFont({
+        font   : 'poppins',
+        weight : 'bold',
+        variant: 'normal',
+        style  : 'normal',
+        size   : 12,
+        color  : 'rgba(35,35,35, 1)'
       }),
-      'background-color' : 'rgba(138,222,255, 1)',
-      'border-color' : 'rgba(255,255,255, 1)',
-      'border-radius' : 4,
-      'border-style' : 'solid',
-      'border-width' : 2,
+      'background-color': 'rgba(113,113,113, 1)',
+      'border-color'    : '#DADCE0',
+      'border-style'    : 'solid',
+      'border-width'    : 1,
     },
-    margin            : 4,
-    'margin-left'     : 4,
-    'margin-right'    : 4,
-    padding           : 1,
-    width             : 25,
+    width              : 25,
   },
 
   checkbox: {
-    CheckSide: 'left',
-    height   : 32,
-    width    : 32,
+    CheckSide         : 'left',
+    height            : 32,
+    width             : 32,
+    "background-color": "rgb(168,168,168)",
   },
 
   colorfield: {
-    circleSize    : 16,
+    circleSize    : 11,
     colorBoxHeight: 24,
     fieldSize     : 400,
     height        : 256,
@@ -131,11 +137,11 @@ export const DefaultTheme = {
 
   colorpickerbutton: {
     height: 32,
-    width : 120,
+    width : 95,
   },
 
   curvewidget: {
-    CanvasBG    : 'rgba(117,79,79, 1)',
+    CanvasBG    : 'rgb(44,44,44)',
     CanvasHeight: 256,
     CanvasWidth : 256,
   },
@@ -147,32 +153,96 @@ export const DefaultTheme = {
   },
 
   iconbutton: {
+    highlight: {
+      'background-color': 'rgba(133,182,255,0.8)',
+      'border-color'    : 'black',
+      'border-radius'   : 5,
+      'border-width'    : 1,
+      height            : 32,
+      'margin-bottom'   : 1,
+      'margin-left'     : 2,
+      'margin-right'    : 2,
+      'margin-top'      : 1,
+      padding           : 2,
+      width             : 32,
+    },
+    depressed: {
+      'background-color': 'rgba(42,61,77,0.8)',
+      'border-color'    : 'black',
+      'border-radius'   : 5,
+      'border-width'    : 1,
+      height            : 32,
+      'margin-bottom'   : 1,
+      'margin-left'     : 2,
+      'margin-right'    : 2,
+      'margin-top'      : 1,
+      padding           : 2,
+      width             : 32,
+    },
+
     'background-color': 'rgba(15,15,15, 0)',
     'border-color'    : 'black',
     'border-radius'   : 5,
     'border-width'    : 1,
     height            : 32,
-    width             : 32,
     'margin-bottom'   : 1,
     'margin-left'     : 2,
     'margin-right'    : 2,
     'margin-top'      : 1,
     padding           : 2,
+    width             : 32,
   },
 
   iconcheck: {
+    highlight         : {
+      'background-color': 'rgba(133,182,255,0.8)',
+      'border-color'    : 'black',
+      'border-radius'   : 5,
+      'border-width'    : 1,
+      height            : 32,
+      'margin-bottom'   : 1,
+      'margin-left'     : 2,
+      'margin-right'    : 2,
+      'margin-top'      : 1,
+      padding           : 2,
+      width             : 32,
+    },
+    depressed         : {
+      'background-color': 'rgba(42,61,77,0.8)',
+      'border-color'    : 'black',
+      'border-radius'   : 5,
+      'border-width'    : 1,
+      height            : 32,
+      'margin-bottom'   : 1,
+      'margin-left'     : 2,
+      'margin-right'    : 2,
+      'margin-top'      : 1,
+      padding           : 2,
+      width             : 32,
+    },
     'background-color': 'rgba(15,15,15, 0)',
     'border-color'    : 'rgba(237,209,209, 1)',
     'border-radius'   : 5,
     'border-width'    : 0,
     drawCheck         : true,
     height            : 32,
-    width             : 32,
     'margin-bottom'   : 1,
     'margin-left'     : 2,
     'margin-right'    : 2,
     'margin-top'      : 1,
     padding           : 2,
+    width             : 32,
+  },
+
+  label: {
+    LabelText: new CSSFont({
+      font   : 'sans-serif',
+      weight : 'normal',
+      variant: 'normal',
+      style  : 'normal',
+      size   : 14,
+      color  : 'rgba(35, 35, 35, 1.0)'
+    }),
   },
 
   listbox: {
@@ -183,19 +253,21 @@ export const DefaultTheme = {
   },
 
   menu: {
-    MenuBG         : 'rgba(250, 250, 250, 1.0)',
-    MenuBorder     : '1px solid grey',
-    MenuHighlight  : 'rgba(155, 220, 255, 1.0)',
-    MenuSeparator  : `
-      width : 100%;
-      height : 2px;
-      padding : 0px;
-      margin : 0px;
-      border : none;
-      background-color : grey; 
-    `,
-    MenuSpacing    : 5,
-    MenuText       : new CSSFont({
+    MenuBG          : 'rgba(250, 250, 250, 1.0)',
+    "item-radius"   : 0,
+    MenuBorder      : '1px solid grey',
+    MenuHighlight   : 'rgba(155, 220, 255, 1.0)',
+    MenuSeparator   : {
+      width             : "100%",
+      height            : 2,
+      padding           : 0,
+      margin            : 0,
+      border            : "none",
+      "background-color": "grey"
+    },
+    'box-shadow'    : '5px 5px 25px rgba(0,0,0,0.75)',
+    MenuSpacing     : 5,
+    MenuText        : new CSSFont({
       font   : 'sans-serif',
       weight : 'normal',
       variant: 'normal',
@@ -203,54 +275,110 @@ export const DefaultTheme = {
       size   : 12,
       color  : 'rgba(25, 25, 25, 1.0)'
     }),
-    'border-color' : 'grey',
-    'border-radius': 5,
-    'border-style' : 'solid',
-    'border-width' : 1,
+    "padding-top"   : 0,
+    "padding-left"  : 0,
+    "padding-right" : 0,
+    "padding-bottom": 0,
+    'border-color'  : 'grey',
+    'border-radius' : 5,
+    'border-style'  : 'solid',
+    'border-width'  : 1,
+  },
+
+  notification: {
+    DefaultText       : new CSSFont({
+      font   : 'poppins',
+      weight : 'bold',
+      variant: 'normal',
+      style  : 'normal',
+      size   : 12,
+      color  : 'rgb(55,55,55)'
+    }),
+    "background-color": "rgba(72,72,72,0)",
+    "border-radius"   : 5,
+    "border-color"    : "grey",
+    "border-width"    : 1,
+    "border-style"    : "solid",
+    ProgressBarBG     : "rgb(74,148,183)",
+    ProgressBar       : "rgb(250,132,58)",
   },
 
   numslider: {
+    'arrow-color'     : '50%',
     'background-color': 'rgba(219,219,219, 1)',
-    'border-color'    : 'black',
+    'border-color'    : 'rgba(255,255,255, 1)',
     'border-radius'   : 1,
-    height            : 18,
-    width             : 135,
+    height            : 22,
+    highlight         : {
+      DefaultText       : new CSSFont({
+        font   : 'poppins',
+        weight : 'bold',
+        variant: 'normal',
+        style  : 'normal',
+        size   : 12,
+        color  : 'rgb(0,0,0)'
+      }),
+      'background-color': 'rgba(151,208,239, 1)',
+      'border-color'    : 'rgba(255,255,255, 1)',
+      'border-style'    : 'solid',
+      'border-width'    : 1,
+    },
+    pressed           : {
+      DefaultText       : new CSSFont({
+        font   : 'poppins',
+        weight : 'bold',
+        variant: 'normal',
+        style  : 'normal',
+        size   : 12,
+        color  : 'rgba(0,0,0, 1)'
+      }),
+      'arrow-color'     : 'rgb(28,28,28)',
+      'background-color': 'rgba(178,178,178, 1)',
+      'border-color'    : 'rgba(255,255,255, 1)',
+      'border-style'    : 'solid',
+      'border-width'    : 1,
+    },
+    width             : 115,
+    /*
+    'highlight-pressed'            : {
+      DefaultText       : new CSSFont({
+        font   : 'poppins',
+        weight : 'bold',
+        variant: 'normal',
+        style  : 'normal',
+        size   : 12,
+        color  : 'rgb(245,245,245)'
+      }),
+      'background-color': 'rgb(126,126,126)',
+      'border-color'    : '#DADCE0',
+      'border-style'    : 'solid',
+      'border-width'    : 1,
+    },*/
   },
 
   numslider_simple: {
-    DefaultHeight     : 18,
-    DefaultWidth      : 135,
     SlideHeight       : 10,
     TextBoxWidth      : 45,
     'background-color': 'rgba(219,219,219, 1)',
     height            : 18,
     labelOnTop        : true,
+    addLabel          : true,
     width             : 135,
-  },
-
-  label: {
-    LabelText         : new CSSFont({
-      font   : 'sans-serif',
-      weight : 'normal',
-      variant: 'normal',
-      style  : 'normal',
-      size   : 14,
-      color  : 'rgba(35, 35, 35, 1.0)'
-    }),
   },
 
   numslider_textbox: {
     TextBoxHeight     : 25,
-    TextBoxWidth      : 100,
+    TextBoxWidth      : 50,
     'background-color': 'rgba(219,219,219, 1)',
     height            : 25,
     labelOnTop        : true,
+    addLabel          : false,
     width             : 120,
   },
 
   panel: {
-    HeaderBorderRadius    : 5.829650280441558,
-    HeaderRadius          : 5.829650280441558,
+    HeaderBorderRadius    : 5.329650280441558,
+    HeaderRadius          : 4,
     TitleBackground       : 'rgba(177,219,255, 1)',
     TitleBorder           : 'rgba(104,104,104, 1)',
     TitleText             : new CSSFont({
@@ -263,19 +391,19 @@ export const DefaultTheme = {
     }),
     'background-color'    : 'rgba(184,184,184, 0.7594818376068376)',
     'border-color'        : 'rgba(0,0,0, 0.5598061397157866)',
-    'border-radius'       : 7.243125760182565,
+    'border-radius'       : 4,
     'border-style'        : 'groove',
     'border-width'        : 1.141,
-    'margin-bottom'       : 15.762442435166511,
+    'margin-bottom'       : 0,
     'margin-bottom-closed': 0,
-    'margin-top'          : 0.2606556353343805,
-    'margin-top-closed'   : 0,
-    'margin-left'         : 0,
+    'margin-left'         : 5.6584810220495445,
     'margin-right'        : 0,
-    'padding-bottom'      : 0.8561244078997758,
+    'margin-top'          : 0,
+    'margin-top-closed'   : 0,
+    'padding-bottom'      : 0,
     'padding-left'        : 0,
     'padding-right'       : 0,
-    'padding-top'         : 0.9665377430621097,
+    'padding-top'         : 0,
   },
 
   richtext: {
@@ -294,7 +422,7 @@ export const DefaultTheme = {
     'border-inner'   : 'grey',
     'border-outer'   : 'rgba(228,228,228, 1)',
     'border-width'   : 2,
-    'mouse-threshold': 5,
+    'mouse-threshold': 8,
   },
 
   scrollbars: {
@@ -318,16 +446,21 @@ export const DefaultTheme = {
     margin            : 2,
     oneAxisPadding    : 2,
     padding           : 1,
+    "flex-grow"       : "unset",
   },
 
   tabs: {
-    TabActive         : 'rgba(212,212,212, 1)',
-    TabBarRadius      : 6,
-    TabHighlight      : 'rgba(50, 50, 50, 0.2)',
-    TabInactive       : 'rgba(183,183,183, 1)',
-    TabStrokeStyle1   : 'rgba(0,0,0, 1)',
-    TabStrokeStyle2   : 'rgba(0,0,0, 1)',
-    TabText           : new CSSFont({
+    "focus-on-tab-click": "false",
+    "movable-tabs"      : "true",
+    TabPadding_mobile   : 20, //padding perpindicular to the label text
+    TabPadding          : 0,
+    TabActive           : 'rgba(212,212,212, 1)',
+    TabBarRadius        : 6,
+    TabHighlight        : 'rgba(50, 50, 50, 0.2)',
+    TabInactive         : 'rgba(183,183,183, 1)',
+    TabStrokeStyle1     : 'rgba(0,0,0, 1)',
+    TabStrokeStyle2     : 'rgba(0,0,0, 1)',
+    TabText             : new CSSFont({
       font   : 'sans-serif',
       weight : 'normal',
       variant: 'bold',
@@ -335,7 +468,7 @@ export const DefaultTheme = {
       size   : 15,
       color  : 'rgba(0,0,0, 1)'
     }),
-    'background-color': 'rgba(222,222,222, 1)',
+    'background-color'  : 'rgba(222,222,222, 1)',
   },
 
   textbox: {
@@ -347,6 +480,10 @@ export const DefaultTheme = {
       size   : 14,
       color  : 'rgba(3,3,3, 1)'
     }),
+    'border-color'    : "rgba(0,0,0,0)",
+    'border-width'    : 1,
+    "border-radius"   : 4,
+    "border-style"    : "solid",
     'background-color': 'rgba(245,245,245, 1)',
   },
 
@@ -373,9 +510,9 @@ export const DefaultTheme = {
   },
 
   vecPopupButton: {
-    defaultHeight: 18,
-    defaultWidth : 100,
-    padding      : 3,
+    height : 18,
+    padding: 3,
+    width  : 100,
   },
 
 };

@@ -1,4 +1,4 @@
-import {nstructjs} from "../util/struct.js";
+import nstructjs from "../util/struct.js";
 import {CurveConstructors, CurveTypeData} from "./curve1d_base.js";
 import Ease from './ease.js';
 import * as util from '../util/util.js';
@@ -23,6 +23,7 @@ export class ParamKey {
     this.val = val;
   }
 }
+
 ParamKey.STRUCT = `
 ParamKey {
   key : string;
@@ -49,6 +50,10 @@ export class SimpleCurveBase extends CurveTypeData {
     }
   }
 
+  get hasGUI() {
+    return true;
+  }
+
   calcHashKey(digest = _udigest.reset()) {
     let d = digest;
     super.calcHashKey(d);
@@ -67,7 +72,7 @@ export class SimpleCurveBase extends CurveTypeData {
     }
 
     for (let k in this.params) {
-      if (Math.abs(this.params[k]-b.params[k]) > 0.000001) {
+      if (Math.abs(this.params[k] - b.params[k]) > 0.000001) {
         return false;
       }
     }
@@ -78,10 +83,6 @@ export class SimpleCurveBase extends CurveTypeData {
   redraw() {
     if (this.parent)
       this.parent.redraw();
-  }
-
-  get hasGUI() {
-    return true;
   }
 
   makeGUI(container) {
@@ -104,10 +105,10 @@ export class SimpleCurveBase extends CurveTypeData {
         }
       } else {
         let slider = container.slider(undefined, {
-          name: p[0],
+          name      : p[0],
           defaultval: this.params[k],
-          min: p[2],
-          max: p[3]
+          min       : p[2],
+          max       : p[3]
         })
         slider.baseUnit = slider.displayUnit = "none";
 
@@ -141,10 +142,10 @@ export class SimpleCurveBase extends CurveTypeData {
 
   draw(canvas, g, draw_transform) {
     let steps = 128;
-    let s=0, ds = 1.0 / (steps-1);
+    let s = 0, ds = 1.0/(steps - 1);
 
     g.beginPath();
-    for (let i=0; i<steps; i++, s += ds) {
+    for (let i = 0; i < steps; i++, s += ds) {
       let co = this.evaluate(s);
 
       if (i) {
@@ -168,7 +169,7 @@ export class SimpleCurveBase extends CurveTypeData {
 
   toJSON() {
     return Object.assign(super.toJSON(), {
-      params : this.params
+      params: this.params
     });
   }
 
@@ -214,6 +215,22 @@ SimpleCurveBase.STRUCT = nstructjs.inherit(SimpleCurveBase, CurveTypeData) + `
 nstructjs.register(SimpleCurveBase);
 
 export class BounceCurve extends SimpleCurveBase {
+  static define() {
+    return {
+      params  : {
+        decay : ["Decay", 1.0, 0.1, 5.0],
+        scale : ["Scale", 1.0, 0.01, 10.0],
+        freq  : ["Freq", 1.0, 0.01, 50.0],
+        phase : ["Phase", 0.0, -Math.PI*2.0, Math.PI*2.0],
+        offset: ["Offset", 0.0, -2.0, 2.0]
+      },
+      name    : "bounce",
+      uiname  : "Bounce",
+      typeName: "BounceCurve"
+
+    }
+  }
+
   _evaluate(t) {
     let params = this.params;
     let decay = params.decay + 1.0;
@@ -223,9 +240,10 @@ export class BounceCurve extends SimpleCurveBase {
     let offset = params.offset;
 
     t *= freq;
-    let t2 = Math.abs(Math.cos(phase + t*Math.PI*2.0))*scale; ;//+ (1.0-scale);
+    let t2 = Math.abs(Math.cos(phase + t*Math.PI*2.0))*scale;
+    ;//+ (1.0-scale);
 
-    t2 *= Math.exp(decay*t) / Math.exp(decay);
+    t2 *= Math.exp(decay*t)/Math.exp(decay);
 
     return t2;
   }
@@ -234,21 +252,10 @@ export class BounceCurve extends SimpleCurveBase {
     let s = this._evaluate(0.0);
     let e = this._evaluate(1.0);
 
-    return (this._evaluate(t) - s) / (e - s) + this.params.offset;
+    return (this._evaluate(t) - s)/(e - s) + this.params.offset;
   }
-
-  static define() {return {
-    params : {
-      decay  : ["Decay", 1.0, 0.1, 5.0],
-      scale  : ["Scale", 1.0, 0.01, 10.0],
-      freq   : ["Freq", 1.0, 0.01, 50.0],
-      phase  : ["Phase", 0.0, -Math.PI*2.0, Math.PI*2.0],
-      offset : ["Offset", 0.0, -2.0, 2.0]
-    },
-    name   : "bounce",
-    uiname : "Bounce"
-  }}
 }
+
 CurveTypeData.register(BounceCurve);
 BounceCurve.STRUCT = nstructjs.inherit(BounceCurve, SimpleCurveBase) + `
 }`;
@@ -261,6 +268,19 @@ export class ElasticCurve extends SimpleCurveBase {
 
     this._func = undefined;
     this._last_hash = undefined;
+  }
+
+  static define() {
+    return {
+      params  : {
+        mode     : ["Out Mode", false, BOOL_FLAG, BOOL_FLAG],
+        amplitude: ["Amplitude", 1.0, 0.01, 10.0],
+        period   : ["Period", 1.0, 0.01, 5.0]
+      },
+      name    : "elastic",
+      uiname  : "Elastic",
+      typeName: "ElasticCurve",
+    }
   }
 
   evaluate(t) {
@@ -277,17 +297,8 @@ export class ElasticCurve extends SimpleCurveBase {
     }
     return this._func(t);
   }
-
-  static define() {return {
-    params : {
-      mode      : ["Out Mode", false, BOOL_FLAG, BOOL_FLAG],
-      amplitude : ["Amplitude", 1.0, 0.01, 10.0],
-      period    : ["Period", 1.0, 0.01, 5.0]
-    },
-    name   : "elastic",
-    uiname : "Elastic"
-  }}
 }
+
 CurveTypeData.register(ElasticCurve);
 ElasticCurve.STRUCT = nstructjs.inherit(ElasticCurve, SimpleCurveBase) + `
 }`;
@@ -299,24 +310,28 @@ export class EaseCurve extends SimpleCurveBase {
     super();
   }
 
+  static define() {
+    return {
+      params  : {
+        mode_in  : ["in", true, BOOL_FLAG, BOOL_FLAG],
+        mode_out : ["out", true, BOOL_FLAG, BOOL_FLAG],
+        amplitude: ["Amplitude", 1.0, 0.01, 4.0]
+      },
+      name    : "ease",
+      uiname  : "Ease",
+      typeName: "EaseCurve"
+    }
+  }
+
   evaluate(t) {
     let amp = this.params.amplitude;
-    let a1 = this.params.mode_in ? 1.0-amp : 1.0/3.0;
+    let a1 = this.params.mode_in ? 1.0 - amp : 1.0/3.0;
     let a2 = this.params.mode_out ? amp : 2.0/3.0;
 
     return bez4(0.0, a1, a2, 1.0, t);
   }
-
-  static define() {return {
-    params : {
-      mode_in   : ["in", true, BOOL_FLAG, BOOL_FLAG],
-      mode_out  : ["out", true, BOOL_FLAG, BOOL_FLAG],
-      amplitude : ["Amplitude", 1.0, 0.01, 4.0]
-    },
-    name   : "ease",
-    uiname : "Ease"
-  }}
 }
+
 CurveTypeData.register(EaseCurve);
 EaseCurve.STRUCT = nstructjs.inherit(EaseCurve, SimpleCurveBase) + `
 }`;
@@ -330,13 +345,26 @@ export class RandCurve extends SimpleCurveBase {
     this.seed = 0;
   }
 
+  get seed() {
+    return this._seed;
+  }
+
   set seed(v) {
     this.random.seed(v);
     this._seed = v;
   }
 
-  get seed() {
-    return this._seed;
+  static define() {
+    return {
+      params  : {
+        amplitude: ["Amplitude", 1.0, 0.01, 4.0],
+        decay    : ["Decay", 1.0, 0.0, 5.0],
+        in_mode  : ["In", true, BOOL_FLAG, BOOL_FLAG]
+      },
+      name    : "random",
+      uiname  : "Random",
+      typeName: "RandCurve"
+    }
   }
 
   evaluate(t) {
@@ -355,12 +383,12 @@ export class RandCurve extends SimpleCurveBase {
     //r *= 0.5;
 
     if (in_mode) {
-      d = Math.exp(t*decay) / Math.exp(decay);
+      d = Math.exp(t*decay)/Math.exp(decay);
     } else {
-      d = Math.exp(t*decay) / Math.exp(decay);
+      d = Math.exp(t*decay)/Math.exp(decay);
     }
 
-    t = t + (r - t) * d;
+    t = t + (r - t)*d;
 
     if (in_mode) {
       t = 1.0 - t;
@@ -368,17 +396,8 @@ export class RandCurve extends SimpleCurveBase {
 
     return t;
   }
-
-  static define() {return {
-    params : {
-      amplitude : ["Amplitude", 1.0, 0.01, 4.0],
-      decay     : ["Decay", 1.0, 0.0, 5.0],
-      in_mode   : ["In", true, BOOL_FLAG, BOOL_FLAG]
-    },
-    name   : "random",
-    uiname : "Random"
-  }}
 }
+
 CurveTypeData.register(RandCurve);
 RandCurve.STRUCT = nstructjs.inherit(RandCurve, SimpleCurveBase) + `
 }`;

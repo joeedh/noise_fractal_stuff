@@ -25,15 +25,18 @@ import {MenuBarEditor} from "../editors/menu/menu.js";
 
 import {PropsEditor} from "../editors/properties/properties.js";
 import {LogEditor} from "../editors/log/log_editor.js";
+import {contextWrangler} from '../../scripts/screen/ScreenArea.js';
+import {Icons} from '../editors/icon_enum.js';
 
 
 let iconmanager = new IconManager([
-  document.getElementById("iconsheet16"),
-  document.getElementById("iconsheet32"),
-  document.getElementById("iconsheet48")
-], [16, 32, 48], 16);
+  document.getElementById("iconsheet"),
+  document.getElementById("iconsheet"),
+  document.getElementById("iconsheet")
+], [[32, 16], [32, 32], [32, 48]], 16);
 
 setIconManager(iconmanager);
+setIconMap(Icons);
 
 /*
 let dopExecPost = DataPathSetOp.prototype.execPost;
@@ -191,6 +194,10 @@ export class AppState {
     args.loadScreen = args.loadScreen === undefined ? true : args.loadScreen;
     args.resetToolStack = args.resetToolStack === undefined ? true : args.resetToolStack;
 
+    if (args.loadScreen) {
+      contextWrangler.reset();
+    }
+
     if (data instanceof Array) {
       data = new DataView(new Uint8Array(data).buffer);
     } else if (data instanceof Uint8Array) {
@@ -330,7 +337,7 @@ export class AppState {
     file = util.btoa(file);
 
     localStorage[cconst.LOCALSTORAGE_KEY] = file;
-    console.log("saved to local storage");
+    console.log("saved to local storage", file.length);
   }
 
   loadLocalStorage() {

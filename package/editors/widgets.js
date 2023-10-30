@@ -4,6 +4,7 @@ import {
   keymap
 } from '../path.ux/pathux.js';
 import {presetManager} from '../pattern/preset.js';
+import {genBlueMask} from '../pattern/bluemask.js';
 
 export class SlidersWidget extends UIBase {
   constructor() {
@@ -355,6 +356,7 @@ export class SlidersWidget extends UIBase {
     }
 
     g.restore();
+    //g.putImageData(genBlueMask(128), 0, 0);
   }
 
   getSliders() {

@@ -19,4 +19,13 @@ import './newton_trace.js';
 import './newton2_presets.js';
 import './newton2.js';
 
+import './fractal_trace_presets.js';
 import './fractal_trace.js';
+
+import './graph.js';
+
+import './mountains.js';
+import './mountain_presets.js';
+
+import './clothoid.js';
+import './clothoid_presets.js';

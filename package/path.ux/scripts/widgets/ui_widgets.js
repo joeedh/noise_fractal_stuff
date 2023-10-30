@@ -4,7 +4,7 @@ import * as util from '../path-controller/util/util.js';
 import * as vectormath from '../path-controller/util/vectormath.js';
 import * as ui_base from '../core/ui_base.js';
 import * as events from '../path-controller/util/events.js';
-import * as stoolsys from '../path-controller/toolsys/toolsys.js';
+import * as toolsys from '../path-controller/toolsys/toolsys.js';
 import * as toolprop from '../path-controller/toolsys/toolprop.js';
 import {DataPathError} from '../path-controller/controller/controller.js';
 import {Vector3, Vector4, Quat, Matrix4} from '../path-controller/util/vectormath.js';
@@ -169,24 +169,9 @@ export class Check extends UIBase {
     check.setAttribute("id", check._id);
     check.setAttribute("name", check._id);
 
-    /*
-    let doblur = () => {
-      this.blur();
-    };
-    check.addEventListener("mousedown", doblur);
-    check.addEventListener("mouseup", doblur);
-    check.addEventListener("touchstart", doblur);
-    check.addEventListener("touchend", doblur);
-    //*/
-
     let mdown = (e) => {
       this._highlight = false;
       this.checked = !this.checked;
-
-      /* ensure browser doesn't spawn its own (incompatible)
-         touch->mouse emulation events}; */
-      e.preventDefault();
-
     };
 
     let mup = (e) => {
@@ -205,10 +190,11 @@ export class Check extends UIBase {
       this._redraw();
     };
 
-    span.addEventListener("mouseover", mover);
-    span.addEventListener("mousein", mover);
-    span.addEventListener("mouseleave", mleave);
-    span.addEventListener("mouseout", mleave);
+    span.addEventListener("pointerover", mover, {passive: true});
+    span.addEventListener("mousein", mover, {passive: true});
+    span.addEventListener("mouseleave", mleave, {passive: true});
+    span.addEventListener("pointerout", mleave, {passive: true});
+
     this.addEventListener("blur", (e) => {
       this._highlight = this._focus = false;
       this._redraw();
@@ -223,10 +209,9 @@ export class Check extends UIBase {
     });
 
 
-    span.addEventListener("mousedown", mdown);
-    span.addEventListener("touchstart", mdown);
-    span.addEventListener("mouseup", mup);
-    span.addEventListener("touchend", mup);
+    span.addEventListener("pointerdown", mdown, {passive: true});
+    span.addEventListener("pointerup", mup, {passive: true});
+    span.addEventListener("pointercancel", mup, {passive: true});
 
     this.addEventListener("keydown", (e) => {
       switch (e.keyCode) {
@@ -459,12 +444,15 @@ export class Check extends UIBase {
 
     this.updateDPI();
 
+    let ready = ui_base.getIconManager().isReady(0);
+
     if (this.hasAttribute("datapath")) {
       this.updateDataPath();
     }
 
     let updatekey = this.getDefault("DefaultText").hash();
     updatekey += this._checked + ":" + this._label.textContent;
+    updatekey += ":" + ready;
 
     if (updatekey !== this._updatekey) {
       this._repos_canvas();
@@ -493,12 +481,38 @@ export class IconButton extends UIBase {
     this.iconsheet = 0;
     this.drawButtonBG = true;
 
+    this._extraIcon = undefined; //draw another icon on top
+
+    this.extraDom = undefined;
+
     //have to put icon in subdiv
     this.dom = document.createElement("div");
     this.shadow.appendChild(this.dom);
 
     this._last_iconsheet = undefined;
 
+    this.addEventListener("keydown", (e) => {
+      switch (e.keyCode) {
+        case keymap["Enter"]:
+        case keymap["Space"]:
+          this.click();
+          break;
+      }
+    });
+  }
+
+  click() {
+    if (this._onpress) {
+      let rect = this.getClientRects();
+      let x = rect.x + rect.width*0.5;
+      let y = rect.y + rect.height*0.5;
+
+      let e = {x : x, y : y, stopPropagation : () => {}, preventDefault : () => {}};
+
+      this._onpress(e);
+    }
+
+    super.click();
   }
 
   get customIcon() {
@@ -550,9 +564,9 @@ export class IconButton extends UIBase {
     this.noMarginsOrPadding();
 
     if (this._pressed && this._draw_pressed) {
-      def = k => pstyle && k in pstyle ? pstyle[k] : this.getDefault(k);
+      def = k => this.getSubDefault("depressed", k);
     } else if (this._highlight) {
-      def = k => hstyle && k in hstyle ? hstyle[k] : this.getDefault(k);
+      def = k => this.getSubDefault("highlight", k);
     } else {
       def = k => this.getDefault(k);
     }
@@ -599,7 +613,9 @@ export class IconButton extends UIBase {
     this.style["align-items"] = "center";
 
     if (this._customIcon) {
-      this.dom.style["background-image"] = `url("${this._customIcon}")`
+      this.dom.style["background-image"] = `url("${this._customIcon.src}")`
+      this.dom.style["background-size"] = "contain";
+      this.dom.style["background-repeat"] = "no-repeat";
     } else {
       let icon = this.icon;
 
@@ -609,20 +625,39 @@ export class IconButton extends UIBase {
 
       ui_base.iconmanager.setCSS(icon, this.dom, this.iconsheet);
     }
+
+    if (this._extraIcon !== undefined) {
+      let dom;
+
+      if (!this.extraDom) {
+        this.extraDom = dom = document.createElement("div");
+
+        this.shadow.appendChild(dom);
+      } else {
+        dom = this.extraDom;
+      }
+
+      dom.style["position"] = "absolute";
+      dom.style["margin"] = dom.style["padding"] = "0px";
+      dom.style["pointer-events"] = "none";
+      dom.style["width"] = size + "px";
+      dom.style["height"] = size + "px";
+
+      ui_base.iconmanager.setCSS(this._extraIcon, dom, this.iconsheet);
+    } else if (this.extraDom) {
+      this.extraDom.remove();
+    }
   }
 
   init() {
     super.init();
 
-    let modalstate = undefined;
-
     let press = (e) => {
       e.stopPropagation();
       e.preventDefault();
 
-      if (modalstate) {
-        popModalLight(modalstate);
-        modalstate = undefined;
+      if (this.modalRunning) {
+        this.popModal();
       }
 
       if (!eventWasTouch(e) && e.button !== 0) {
@@ -632,7 +667,7 @@ export class IconButton extends UIBase {
       if (1) { //!eventWasTouch(e)) {
         let this2 = this;
 
-        modalstate = pushModalLight({
+        this.pushModal({
           on_mouseup(e) {
             //touch events aren't fireing onclick automatically the way mouse ones are
 
@@ -653,9 +688,8 @@ export class IconButton extends UIBase {
             this.end();
           },
           end() {
-            if (modalstate) {
-              popModalLight(modalstate);
-              modalstate = undefined;
+            if (this2.modalRunning) {
+              this2.popModal();
               this2._on_depress(e)
               this2.setCSS();
             }
@@ -739,15 +773,24 @@ export class IconCheck extends IconButton {
   }
 
   set drawCheck(val) {
+    val = !!val;
+
     if (val && (this.packflag & PackFlags.HIDE_CHECK_MARKS)) {
       this.packflag &= ~PackFlags.HIDE_CHECK_MARKS;
     }
 
-    if (!!val !== !!this._drawCheck) {
+    let old = !!this.drawCheck;
+    this._drawCheck = val;
+
+    if (val !== old) {
+      this.updateDrawCheck();
       this.setCSS();
     }
+  }
 
-    this._drawCheck = val;
+  click() {
+    super.click();
+    this.checked ^= true;
   }
 
   get icon() {
@@ -814,10 +857,10 @@ export class IconCheck extends IconButton {
   }
 
   _on_press() {
-    this.checked ^= 1;
+    this.checked ^= true;
 
     if (this.hasAttribute("datapath")) {
-      this.setPathValue(this.ctx, this.getAttribute("datapath"), this.checked);
+      this.setPathValue(this.ctx, this.getAttribute("datapath"), !!this.checked);
     }
 
     this.setCSS();
@@ -864,7 +907,7 @@ export class IconCheck extends IconButton {
           icon2 = rdef.prop.iconmap2[rdef.subkey];
           title = rdef.prop.descriptions[rdef.subkey];
 
-          if (title === undefined && rdef.subkey.length > 0) {
+          if (!title && rdef.subkey.length > 0) {
             title = rdef.subkey;
             title = title[0].toUpperCase() + title.slice(1, title.length).toLowerCase();
           }
@@ -874,14 +917,14 @@ export class IconCheck extends IconButton {
           title = rdef.prop.description;
         }
 
-        if (icon2 !== undefined) {
+        if (icon2 !== undefined && icon2 !== -1) {
           this._icon_pressed = icon;
           icon = icon2;
         }
 
         if (icon !== undefined && icon !== this.icon)
           this.icon = icon;
-        if (title !== undefined)
+        if (title)
           this.description = title;
       }
     }
@@ -904,10 +947,20 @@ export class IconCheck extends IconButton {
     }
   }
 
+  updateDrawCheck() {
+    if (this.drawCheck) {
+      this._extraIcon = this._checked ? ui_base.Icons.ENUM_CHECKED : ui_base.Icons.ENUM_UNCHECKED;
+    } else {
+      this._extraIcon = undefined;
+    }
+  }
+
   update() {
     if (this.packflag & PackFlags.HIDE_CHECK_MARKS) {
       this.drawCheck = false;
     }
+
+    this.updateDrawCheck();
 
     if (this.hasAttribute("datapath")) {
       this.updateDataPath();
@@ -919,6 +972,11 @@ export class IconCheck extends IconButton {
   _getsize() {
     let margin = this.getDefault("padding");
     return ui_base.iconmanager.getTileSize(this.iconsheet) + margin*2;
+  }
+
+  setCSS() {
+    this.updateDrawCheck();
+    super.setCSS();
   }
 }
 

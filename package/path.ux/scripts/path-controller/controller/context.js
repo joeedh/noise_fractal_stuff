@@ -36,99 +36,109 @@ const _ret_tmp = [undefined];
 
 export const OverlayClasses = [];
 
-export class ContextOverlay {
-  constructor(appstate) {
-    this.ctx = undefined; //owning context
-    this._state = appstate;
-  }
+export function makeDerivedOverlay(parent) {
+  return class ContextOverlay extends parent {
+    constructor(appstate) {
+      super(appstate);
 
-  get state() {
-    return this._state;
-  }
-
-  /*
-  Ugly hack, ui_lasttool.js saves
-  a DataStruct wrapping the most recently executed ToolOp
-  in this.state._last_tool.
-  */
-  get last_tool() {
-    return this.state._last_tool;
-  }
-
-
-  onRemove(have_new_file=false) {
-  }
-
-  copy() {
-    return new this.constructor(this._state);
-  }
-
-  validate() {
-    throw new Error("Implement me!");
-  }
-
-
-  //base classes override this
-  static contextDefine() {
-    throw new Error("implement me!");
-    return {
-      name   :   "",
-      flag   :   0
-    }
-  }
-
-  //don't override this
-  static resolveDef() {
-    if (this.hasOwnProperty(Symbol.CachedDef)) {
-      return this[Symbol.CachedDef];
+      this.ctx = undefined; //owning context
+      this._state = appstate;
     }
 
-    let def2 = Symbol.CachedDef = {};
-
-    let def = this.contextDefine();
-
-    if (def === undefined) {
-      def = {};
+    get state() {
+      return this._state;
     }
 
-    for (let k in def) {
-      def2[k] = def[k];
+    set state(state) {
+      this._state = state;
     }
 
-    if (!("flag") in def) {
-      def2.flag = Context.inherit(0);
+    /*
+    Ugly hack, ui_lasttool.js saves
+    a DataStruct wrapping the most recently executed ToolOp
+    in this.state._last_tool.
+    */
+    get last_tool() {
+      return this.state._last_tool;
     }
 
-    let parents = [];
-    let p = util.getClassParent(this);
 
-    while (p && p !== ContextOverlay) {
-      parents.push(p);
-      p = util.getClassParent(p);
+    onRemove(have_new_file = false) {
     }
 
-    if (def2.flag instanceof InheritFlag) {
-      let flag = def2.flag.data;
-      for (let p of parents) {
-        let def = p.contextDefine();
+    copy() {
+      return new this.constructor(this._state);
+    }
 
-        if (!def.flag) {
-          continue;
-        }else if (def.flag instanceof InheritFlag) {
-          flag |= def.flag.data;
-        } else {
-          flag |= def.flag;
-          //don't go past non-inheritable parents
-          break;
-        }
+    validate() {
+      throw new Error("Implement me!");
+    }
+
+
+    //base classes override this
+    static contextDefine() {
+      throw new Error("implement me!");
+      return {
+        name: "",
+        flag: 0
+      }
+    }
+
+    //don't override this
+    static resolveDef() {
+      if (this.hasOwnProperty(Symbol.CachedDef)) {
+        return this[Symbol.CachedDef];
       }
 
-      def2.flag = flag;
-    }
+      let def2 = Symbol.CachedDef = {};
 
-    return def2;
-  }
+      let def = this.contextDefine();
+
+      if (def === undefined) {
+        def = {};
+      }
+
+      for (let k in def) {
+        def2[k] = def[k];
+      }
+
+      if (!("flag") in def) {
+        def2.flag = Context.inherit(0);
+      }
+
+      let parents = [];
+      let p = util.getClassParent(this);
+
+      while (p && p !== ContextOverlay) {
+        parents.push(p);
+        p = util.getClassParent(p);
+      }
+
+      if (def2.flag instanceof InheritFlag) {
+        let flag = def2.flag.data;
+        for (let p of parents) {
+          let def = p.contextDefine();
+
+          if (!def.flag) {
+            continue;
+          } else if (def.flag instanceof InheritFlag) {
+            flag |= def.flag.data;
+          } else {
+            flag |= def.flag;
+            //don't go past non-inheritable parents
+            break;
+          }
+        }
+
+        def2.flag = flag;
+      }
+
+      return def2;
+    }
+  };
 }
+
+export const ContextOverlay = makeDerivedOverlay(Object);
 
 export const excludedKeys = new Set(["onRemove", "reset", "toString", "_fix",
                                      "valueOf", "copy", "next", "save", "load", "clear", "hasOwnProperty",
@@ -136,12 +146,14 @@ export const excludedKeys = new Set(["onRemove", "reset", "toString", "_fix",
                                      "state", "saveProperty", "loadProperty", "getOwningOverlay", "_props"]);
 
 export class LockedContext {
-  constructor(ctx) {
+  constructor(ctx, noWarnings) {
     this.props = {};
 
     this.state = ctx.state;
     this.api = ctx.api;
     this.toolstack = ctx.toolstack;
+
+    this.noWarnings = noWarnings;
 
     this.load(ctx);
   }

@@ -10,105 +10,27 @@ import {DataPathError} from '../path-controller/controller/controller.js';
 import {Vector3, Vector4, Quat, Matrix4} from '../path-controller/util/vectormath.js';
 import cconst from '../config/const.js';
 import {_themeUpdateKey, CSSFont} from "../core/ui_base.js";
-import {pushModalLight, popModalLight, eventWasTouch} from '../path-controller/util/simple_events.js';
 
 let keymap = events.keymap;
 
 let EnumProperty = toolprop.EnumProperty,
-    PropTypes = toolprop.PropTypes;
+    PropTypes    = toolprop.PropTypes;
 
-let UIBase = ui_base.UIBase,
-    PackFlags = ui_base.PackFlags,
+let UIBase     = ui_base.UIBase,
+    PackFlags  = ui_base.PackFlags,
     IconSheets = ui_base.IconSheets;
 
 let parsepx = ui_base.parsepx;
 
 cconst.DEBUG.buttonEvents = true;
 
-export class Button extends UIBase {
+export class ButtonEventBase extends UIBase {
   constructor() {
     super();
 
-    this.label = document.createElement("span");
-    this.label.innerText = "button";
-    this.shadow.appendChild(this.label);
-
-    this.label.style["pointer-events"] = "none";
-
-    this._pressed = false;
-    this._highlight = false;
-
     this._auto_depress = true;
-    this._modalstate = undefined;
-
-    this._last_name = undefined;
-    this._last_disabled = undefined;
-  }
-
-  init() {
-    super.init();
-    this.tabIndex = 0;
-
-    this.bindEvents();
-
-    this.setCSS();
-  }
-
-  get name() {
-    return "" + this.getAttribute("name");
-  }
-
-  set name(val) {
-    this.setAttribute("name", val);
-  }
-
-  setCSS() {
-    super.setCSS();
-
-    let subkey = undefined;
-
-    if (this.disabled) {
-      subkey = "disabled";
-    } else if (this._pressed && this._highlight) {
-      subkey = "highlight-pressed";
-    } else if (this._pressed) {
-      subkey = "pressed";
-    } else if (this._highlight) {
-      subkey = "highlight";
-    }
-
-    let h = this.getDefault("height");
-
-    this.setBoxCSS(subkey);
-
-    this.label.style["padding"] = this.label.style["margin"] = "0px";
-    this.style["background-color"] = this.getSubDefault(subkey, "background-color");
-
-    let font = this.getSubDefault(subkey, "DefaultText");
-    this.label.style["font"] = font.genCSS();
-    this.label.style["color"] = font.color;
-
-    this.style["display"] = "flex";
-    this.style["align-items"] = "center";
-    this.style["width"] = "max-content";
-    this.style["height"] = h + "px";
-
-    this.style["user-select"] = "none";
-    this.label.style["user-select"] = "none";
-  }
-
-  click() {
-    if (this._onpress) {
-      let rect = this.getClientRects();
-      let x = rect.x + rect.width*0.5;
-      let y = rect.y + rect.height*0.5;
-
-      let e = {x : x, y : y, stopPropagation : () => {}, preventDefault : () => {}};
-
-      this._onpress(e);
-    }
-
-    super.click();
+    this._highlight = false;
+    this._pressed = false;
   }
 
   bindEvents() {
@@ -118,28 +40,42 @@ export class Button extends UIBase {
     let press = (e) => {
       e.stopPropagation();
 
-      if (!this._modalstate) {
+      if (!this.modalRunning) {
         let this2 = this;
 
-        this._modalstate = pushModalLight({
-          on_mousedown(e) {
+        this.pushModal({
+          on_pointerdown(e) {
             this.end(e);
           },
-          on_mouseup(e) {
+
+          on_pointerup(e) {
             this.end(e);
+          },
+
+          on_pointercancel(e) {
+            console.warn("Pointer cancel in button");
+            this2.popModal();
+          },
+
+          on_keydown(e) {
+            switch (e.keyCode) {
+              case keymap["Enter"]:
+              case keymap["Escape"]:
+              case keymap["Space"]:
+                this.end();
+                break;
+            }
           },
 
           end(e) {
-            if (!this2._modalstate) {
+            if (!this2.modalRunning) {
               return;
             }
 
-            popModalLight(this2._modalstate);
-            this2._modalstate = undefined;
-
+            this2.popModal();
             depress(e);
           }
-        });
+        }, undefined, e.pointerId);
       }
 
       if (cconst.DEBUG.buttonEvents) {
@@ -149,10 +85,6 @@ export class Button extends UIBase {
       if (this.disabled) return;
 
       this._pressed = true;
-
-      if (util.isMobile() && this.onclick && e.button === 0) {
-        this.onclick();
-      }
 
       if (this._onpress) {
         this._onpress(this);
@@ -175,11 +107,13 @@ export class Button extends UIBase {
         this._redraw();
       }
 
-      e.preventDefault();
-      e.stopPropagation();
+      if (e) {
+        e.preventDefault();
+        e.stopPropagation();
 
-      if (util.isMobile() || e.type === "mouseup" && e.button) {
-        return;
+        if (util.isMobile() || e.type === "pointerup" && e.button) {
+          return;
+        }
       }
 
       this._redraw();
@@ -187,7 +121,7 @@ export class Button extends UIBase {
       if (cconst.DEBUG.buttonEvents)
         console.log("button click callback:", this.onclick, this._onpress, this.onpress);
 
-      if (this.onclick && e.touches !== undefined) {
+      if (this.onclick && e && e.pointerType !== "mouse") {
         this.onclick(this);
       }
 
@@ -200,9 +134,9 @@ export class Button extends UIBase {
       this._redraw();
     });
 
-    this.addEventListener("mousedown", press, {captured : true, passive : false});
-    this.addEventListener("mouseup", depress, {captured : true, passive : false});
-    this.addEventListener("mouseover", (e) => {
+    this.addEventListener("pointerdown", press, {captured: true, passive: false});
+    this.addEventListener("pointerup", depress, {captured: true, passive: false});
+    this.addEventListener("pointerover", (e) => {
       if (this.disabled)
         return;
 
@@ -210,7 +144,7 @@ export class Button extends UIBase {
       this._redraw();
     })
 
-    this.addEventListener("mouseout", (e) => {
+    this.addEventListener("pointerout", (e) => {
       if (this.disabled)
         return;
 
@@ -256,6 +190,144 @@ export class Button extends UIBase {
   }
 
   _redraw() {
+
+  }
+}
+
+export class Button extends ButtonEventBase {
+  constructor() {
+    super();
+
+    this.label = document.createElement("span");
+    this.label.innerText = "button";
+    this.shadow.appendChild(this.label);
+
+    this.label.style["pointer-events"] = "none";
+
+    this._pressed = false;
+    this._highlight = false;
+    this._pressedTime = 0;
+    this._pressedTimeout = 100;
+
+    this._auto_depress = true;
+
+    this._last_name = undefined;
+    this._last_disabled = undefined;
+  }
+
+  get name() {
+    return "" + this.getAttribute("name");
+  }
+
+  set name(val) {
+    this.setAttribute("name", val);
+  }
+
+  get _pressed() {
+    return this.__pressed;
+  }
+
+  set _pressed(v) {
+    let changed = !v !== !this._pressed;
+
+    if (v) {
+      this._pressedTime = util.time_ms();
+    } else if (changed && util.time_ms() - this._pressedTime < this._pressedTimeout) {
+      window.setTimeout(() => {
+        this.setCSS();
+      }, this._pressedTimeout - (util.time_ms() - this._pressedTime) + 1);
+    }
+
+    this.__pressed = v;
+  }
+
+  static define() {
+    return {
+      tagname: "button-x",
+      style  : "button"
+    };
+  }
+
+  init() {
+    super.init();
+    this.tabIndex = 0;
+
+    this.bindEvents();
+
+    this.setCSS();
+  }
+
+  on_enabled() {
+    this.setCSS();
+  }
+
+  on_disabled() {
+    this.setCSS();
+  }
+
+  setCSS() {
+    super.setCSS();
+
+    if (this.hasDefault("pressedTimeout")) {
+      this._pressedTimeout = this.getDefault("pressedTimeout");
+    }
+
+    let subkey = undefined;
+
+    let pressed = this._pressed;
+    if (!pressed && util.time_ms() - this._pressedTime < this._pressedTimeout) {
+      pressed = true;
+    }
+
+    if (this.disabled) {
+      subkey = "disabled";
+    } else if (pressed && this._highlight) {
+      subkey = "highlight-pressed";
+    } else if (pressed) {
+      subkey = "pressed";
+    } else if (this._highlight) {
+      subkey = "highlight";
+    }
+
+    let h = this.getDefault("height");
+
+    this.setBoxCSS(subkey);
+
+    this.label.style["padding"] = this.label.style["margin"] = "0px";
+    this.style["background-color"] = this.getSubDefault(subkey, "background-color");
+
+    let font = this.getSubDefault(subkey, "DefaultText");
+    this.label.style["font"] = font.genCSS();
+    this.label.style["color"] = font.color;
+
+    this.style["display"] = "flex";
+    this.style["align-items"] = "center";
+    this.style["width"] = "max-content";
+    this.style["height"] = h + "px";
+
+    this.style["user-select"] = "none";
+    this.label.style["user-select"] = "none";
+  }
+
+  click() {
+    if (this._onpress) {
+      let rect = this.getClientRects();
+      let x = rect.x + rect.width*0.5;
+      let y = rect.y + rect.height*0.5;
+
+      let e = {
+        x                : x, y: y, stopPropagation: () => {
+        }, preventDefault: () => {
+        }
+      };
+
+      this._onpress(e);
+    }
+
+    super.click();
+  }
+
+  _redraw() {
     this.setCSS();
   }
 
@@ -279,18 +351,12 @@ export class Button extends UIBase {
       this._last_name = this.name;
     }
   }
-
-  static define() {
-    return {
-      tagname: "button-x",
-      style  : "button"
-    };
-  }
 }
+
 UIBase.register(Button);
 
 //use .setAttribute("linear") to disable nonlinear sliding
-export class OldButton extends UIBase {
+export class OldButton extends ButtonEventBase {
   constructor() {
     super();
 
@@ -361,13 +427,32 @@ export class OldButton extends UIBase {
     this.shadow.appendChild(this.dom);
   }
 
+  get r() {
+    return this.getDefault("border-radius");
+  }
+
+  set r(val) {
+    this.overrideDefault("border-radius", val);
+  }
+
+  static define() {
+    return {
+      tagname: "old-button-x",
+      style  : "button"
+    };
+  }
+
   click() {
     if (this._onpress) {
       let rect = this.getClientRects();
       let x = rect.x + rect.width*0.5;
       let y = rect.y + rect.height*0.5;
 
-      let e = {x : x, y : y, stopPropagation : () => {}, preventDefault : () => {}};
+      let e = {
+        x                : x, y: y, stopPropagation: () => {
+        }, preventDefault: () => {
+        }
+      };
 
       this._onpress(e);
     }
@@ -379,15 +464,15 @@ export class OldButton extends UIBase {
     let dpi = this.getDPI();
 
     //set default dimensions
-    let width = ~~(this.getDefault("width"));
-    let height = ~~(this.getDefault("height"));
+    let width = ~~(this.getDefault("width")*dpi);
+    let height = ~~(this.getDefault("height")*dpi);
 
-    this.dom.style["width"] = width + "px";
-    this.dom.style["height"] = height + "px";
+    this.dom.width = width;
+    this.dom.height = height;
+
+    this.dom.style["width"] = (width/dpi) + "px";
+    this.dom.style["height"] = (height/dpi) + "px";
     this.dom.style["padding"] = this.dom.style["margin"] = "0px";
-
-    this.dom.width = Math.ceil(width*dpi); //parsepx(this.dom.style["width"])*dpi;
-    this.dom.height = Math.ceil(parsepx(this.dom.style["height"])*dpi);
 
     this._name = undefined;
     this.updateName();
@@ -405,15 +490,7 @@ export class OldButton extends UIBase {
     }
   }
 
-  get r() {
-    return this.getDefault("border-radius");
-  }
-
-  set r(val) {
-    this.overrideDefault("border-radius", val);
-  }
-
-  bindEvents() {
+  old_bindEvents() {
     let press_gen = 0;
 
     let press = (e) => {
@@ -455,24 +532,25 @@ export class OldButton extends UIBase {
       e.preventDefault();
       e.stopPropagation();
 
-      if (util.isMobile() || e.type === "mouseup" && e.button) {
+      if (util.isMobile() || e.type === "pointerup" && e.button) {
         return;
       }
 
       this._redraw();
 
-      if (cconst.DEBUG.buttonEvents)
+      if (cconst.DEBUG.buttonEvents) {
         console.log("button click callback:", this.onclick, this._onpress, this.onpress);
+      }
 
-      if (this.onclick && e.touches !== undefined) {
+      if (this.onclick && e.pointerType !== "mouse") {
         this.onclick(this);
       }
 
       this.undoBreakPoint();
     }
 
-    this.addEventListener("mousedown", press, {captured : true, passive : false});
-    this.addEventListener("mouseup", depress, {captured : true, passive : false});
+    this.addEventListener("mousedown", press, {captured: true, passive: false});
+    this.addEventListener("mouseup", depress, {captured: true, passive: false});
     this.addEventListener("mouseover", (e) => {
       if (this.disabled)
         return;
@@ -509,19 +587,21 @@ export class OldButton extends UIBase {
   }
 
   updateDefaultSize() {
+    const dpi = UIBase.getDPI();
     let height = ~~(this.getDefault("height")) + this.getDefault("padding");
-    let size = this.getDefault("DefaultText").size * 1.33;
+    let size = this.getDefault("DefaultText").size*1.33;
 
     if (height === undefined || size === undefined || isNaN(height) || isNaN(size)) {
       return;
     }
 
-    height = ~~Math.max(height, size);
-    height = height + "px";
+    height = ~~(Math.max(height, size)*dpi);
+    let cssHeight = (height/dpi) + "px";
 
-    if (height !== this.style["height"]) {
-      this.style["height"] = height;
-      this.dom.style["height"] = height;
+    if (cssHeight !== this.style["height"]) {
+      this.style["height"] = cssHeight;
+      this.dom.style["height"] = cssHeight;
+      this.dom.height = height;
 
       this._repos_canvas();
       this._redraw();
@@ -579,9 +659,9 @@ export class OldButton extends UIBase {
     let pad = this.getDefault("padding");
     let ts = this.getDefault("DefaultText").size;
 
-    let tw = ui_base.measureText(this, this._genLabel(),{
-      size : ts,
-      font : this.getDefault("DefaultText")
+    let tw = ui_base.measureText(this, this._genLabel(), {
+      size: ts,
+      font: this.getDefault("DefaultText")
     }).width + 2.0*pad + this._leftPad + this._rightPad;
 
     if (this._namePad !== undefined) {
@@ -592,7 +672,7 @@ export class OldButton extends UIBase {
 
     w = Math.max(w, tw);
     w = ~~w;
-    this.dom.style["width"] = w+"px";
+    this.dom.style["width"] = w + "px";
     this.updateBorders();
   }
 
@@ -628,7 +708,7 @@ export class OldButton extends UIBase {
     }
   }
 
-  updateWidth(w_add=0) {
+  updateWidth(w_add = 0) {
   }
 
   _repos_canvas() {
@@ -688,7 +768,7 @@ export class OldButton extends UIBase {
     }
   }
 
-  _redraw(draw_text=true) {
+  _redraw(draw_text = true) {
     //console.log("button draw");
 
     let dpi = this.getDPI();
@@ -698,7 +778,7 @@ export class OldButton extends UIBase {
     if (this._pressed && this._highlight) {
       this.dom._background = this.getSubDefault(subkey, "highlight-pressed", "BoxHighlight");
     } else if (this._pressed) {
-      this.dom._background = this.getSubDefault(subkey, "pressed","BoxDepressed");
+      this.dom._background = this.getSubDefault(subkey, "pressed", "BoxDepressed");
     } else if (this._highlight) {
       this.dom._background = this.getSubDefault(subkey, "highlight", "BoxHighlight");
     } else {
@@ -729,7 +809,7 @@ export class OldButton extends UIBase {
 
       this.g.lineWidth = this.getDefault("focus-border-width", undefined, 1.0)*dpi;
 
-      ui_base.drawRoundBox(this, this.dom, this.g, w-p*2, h-p*2, this.r, "stroke", this.getDefault("BoxHighlight"));
+      ui_base.drawRoundBox(this, this.dom, this.g, w - p*2, h - p*2, this.r, "stroke", this.getDefault("BoxHighlight"));
 
       this.g.lineWidth = lw;
       this.g.translate(-p, -p);
@@ -751,8 +831,8 @@ export class OldButton extends UIBase {
 
     let font = this.getSubDefault(subkey, "DefaultText");
 
-    let pad = this.getDefault("padding") * dpi;
-    let ts = font.size * dpi;
+    let pad = this.getDefault("padding")*dpi;
+    let ts = font.size*dpi;
 
     let text = this._genLabel();
 
@@ -763,23 +843,17 @@ export class OldButton extends UIBase {
     let tw = ui_base.measureText(this, text, undefined, undefined, ts, font).width;
 
     let cx = pad*0.5 + this._leftPad*dpi;
-    let cy = ts + (h-ts)/3.0;
+    let cy = ts + (h - ts)/3.0;
 
     let g = this.g;
 
     ui_base.drawText(this, ~~cx, ~~cy, text, {
-      canvas : this.dom,
-      g : this.g,
-      size : ts / dpi,
-      font : font
+      canvas: this.dom,
+      g     : this.g,
+      size  : ts/dpi,
+      font  : font
     });
   }
-
-  static define() {
-    return {
-      tagname: "old-button-x",
-      style  : "button"
-    };
-  }
 }
+
 UIBase.internalRegister(OldButton);

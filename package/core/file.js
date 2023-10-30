@@ -1,7 +1,6 @@
-import {nstructjs} from '../path.ux/pathux.js';
+import {nstructjs, util} from '../path.ux/pathux.js';
 import {Pattern, PatternClasses} from '../pattern/pattern.js';
 import * as cconst from './const.js';
-import {write_scripts} from '../path.ux/scripts/path-controller/util/struct.js';
 
 export const FileFlags = {
   HAS_SCREEN: 1
@@ -96,7 +95,7 @@ export class PatternList extends Array {
 PatternList.STRUCT = `
 PatternList {
   _items : array(abstract(Pattern)) | this;
-  active : string | this.active !== undefined ? this.active.typeName : ""; 
+  active : string                   | this.active !== undefined ? this.active.typeName : ""; 
 }
 `;
 nstructjs.register(PatternList);
@@ -237,6 +236,7 @@ export function saveFile(appstate, args) {
   let model = appstate.model;
 
   const doScreen = args.screen;
+  const useJson = args.json;
 
   if (doScreen) {
     let model2 = new FileWithScreen();
@@ -245,44 +245,21 @@ export function saveFile(appstate, args) {
     model = model2;
   }
 
-  let data = [];
-  nstructjs.writeObject(data, model);
-  data = new Uint8Array(data).buffer;
+  if (!useJson) {
+    let data = [];
+    nstructjs.writeObject(data, model);
+    data = new Uint8Array(data).buffer;
 
-  return data;
+    return data;
+  } else {
+    return JSON.stringify(nstructjs.writeJSON(model), undefined, 1);
+  }
 }
 
-export function loadFile(appstate, buf, args = {}) {
+export function loadFileFinal(appstate, model, istruct, args) {
   let doScreen = args.screen;
   let resetToolStack = args.resetToolStack;
 
-  if (buf instanceof Uint8Array || buf instanceof Int8Array || buf instanceof Uint8ClampedArray) {
-    buf = buf.buffer;
-  }
-
-  if (!(buf instanceof DataView)) {
-    buf = new DataView(buf);
-  }
-
-  let header = nstructjs.readObject(buf, FileHeader);
-  console.log("header", header);
-
-  if (header.magic !== cconst.FILE_MAGIC) {
-    throw new Error("invalid file");
-  }
-
-  let istruct = new nstructjs.STRUCT();
-  istruct.parse_structs(header.structDefs);
-
-  let cls;
-
-  if (header.flag & FileFlags.HAS_SCREEN) {
-    cls = FileWithScreen;
-  } else {
-    cls = FileState;
-  }
-
-  let model = istruct.readObject(buf, cls);
   let screen;
 
   if (args.screen && model instanceof FileWithScreen) {
@@ -313,4 +290,107 @@ export function loadFile(appstate, buf, args = {}) {
   }
 
   window.redraw_viewport();
+}
+
+export function loadFileJSON(appstate, buf, args = {}) {
+  let json = buf;
+
+  if (typeof json === "string") {
+    json = JSON.parse(json);
+  }
+
+  if (json.magic !== cconst.FILE_MAGIC) {
+    throw new Error("invalid file");
+  }
+
+  let istruct = new nstructjs.STRUCT();
+  istruct.parse_structs(json.structDefs);
+
+  /*
+  function fixItems(obj, extraProps = {}) {
+    if (!obj._items) {
+      let obj2 = Object.assign({_items: []}, extraProps);
+
+      for (let i = 0; i < obj.length; i++) {
+        obj2._items.push(obj[i]);
+      }
+
+      return obj2;
+    }
+
+    return obj;
+  }
+
+  json.patterns = fixItems(json.patterns, {active: json.patterns.active});
+
+  function fixPattern(pat) {
+    pat.sliders = fixItems(pat.sliders, {params : pat.sliders.params});
+    pat.sliders._items = pat.sliders._items.map(f => f ?? 0.0);
+
+    if (pat.typeName === "graph") {
+      for (let pat2 of pat.graph.generators) {
+        fixPattern(pat2);
+      }
+    }
+  }
+
+  for (let pat of json.patterns._items) {
+    fixPattern(pat);
+  }
+  window._istruct = istruct;
+
+  console.warn(json);
+  //*/
+
+
+  let cls;
+
+  if (json.flag & FileFlags.HAS_SCREEN) {
+    cls = FileWithScreen;
+  } else {
+    cls = FileState;
+  }
+
+  let model = istruct.readJSON(json, cls);
+  loadFileFinal(appstate, model, istruct, args);
+}
+
+export function loadFileBinary(appstate, buf, args = {}) {
+  if (buf instanceof Uint8Array || buf instanceof Int8Array || buf instanceof Uint8ClampedArray) {
+    buf = buf.buffer;
+  }
+
+  if (!(buf instanceof DataView)) {
+    buf = new DataView(buf);
+  }
+
+  let header = nstructjs.readObject(buf, FileHeader);
+  console.log("header", header);
+
+  if (header.magic !== cconst.FILE_MAGIC) {
+    throw new Error("invalid file");
+  }
+
+  let istruct = new nstructjs.STRUCT();
+  istruct.parse_structs(header.structDefs);
+
+  let cls;
+
+  if (header.flag & FileFlags.HAS_SCREEN) {
+    cls = FileWithScreen;
+  } else {
+    cls = FileState;
+  }
+
+  let model = istruct.readObject(buf, cls);
+  loadFileFinal(appstate, model, istruct, args);
+}
+
+
+export function loadFile(appstate, buf, args = {}) {
+  if (args.json) {
+    return loadFileJSON(appstate, buf, args);
+  } else {
+    return loadFileBinary(appstate, buf, args);
+  }
 }

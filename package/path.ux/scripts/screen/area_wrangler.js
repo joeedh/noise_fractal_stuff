@@ -1,20 +1,12 @@
-let _ScreenArea = undefined;
-
-import * as util from '../path-controller/util/util.js';
-import * as vectormath from '../path-controller/util/vectormath.js';
-import * as ui_base from '../core/ui_base.js';
-import * as ui from '../core/ui.js';
-import * as ui_noteframe from '../widgets/ui_noteframe.js';
 //import * as nstructjs from './struct.js';
-import {haveModal} from '../path-controller/util/simple_events.js';
+import {haveModal, _setModalAreaClass} from '../path-controller/util/simple_events.js';
+import * as util from '../path-controller/util/util.js';
 
 import '../path-controller/util/struct.js';
 
-let UIBase = ui_base.UIBase;
-let Vector2 = vectormath.Vector2;
 let ScreenClass = undefined;
 
-import {snap, snapi} from './FrameManager_mesh.js';
+import {ClassIdSymbol} from '../core/ui_consts.js';
 
 
 export function setScreenClass(cls) {
@@ -24,13 +16,13 @@ export function setScreenClass(cls) {
 export function getAreaIntName(name) {
   let hash = 0;
 
-  for (let i=0; i<name.length; i++) {
+  for (let i = 0; i < name.length; i++) {
     let c = name.charCodeAt(i);
 
-    if (i % 2 === 0) {
+    if (i%2 === 0) {
       hash += c<<8;
       hash *= 13;
-      hash = hash & ((1<<15)-1);
+      hash = hash & ((1<<15) - 1);
     } else {
       hash += c;
     }
@@ -38,15 +30,16 @@ export function getAreaIntName(name) {
 
   return hash;
 }
+
 //XXX get rid of me
 window.getAreaIntName = getAreaIntName;
 
 //XXX get rid of me
 export var AreaTypes = {
-  TEST_CANVAS_EDITOR : 0
+  TEST_CANVAS_EDITOR: 0
 };
 
-export function setAreaTypes(def) {
+  export function setAreaTypes(def) {
   for (let k in AreaTypes) {
     delete AreaTypes[k];
   }
@@ -57,14 +50,56 @@ export function setAreaTypes(def) {
 }
 
 export let areaclasses = {};
+
+/*hackish! store ref an active wrangler so simple_event's modal
+* system can lock it!*/
+let theWrangler = undefined;
+
 export class AreaWrangler {
   constructor() {
-    this.stacks = {};
-    this.lasts = {};
+    this.stacks = new Map();
+    this.lasts = new Map();
     this.lastArea = undefined;
     this.stack = [];
     this.idgen = 0;
+    this.locked = 0;
     this._last_screen_id = undefined;
+
+    theWrangler = this;
+  }
+
+  /*Yeek this is particularly evil, it creates a context
+  * that can be used by popups with the original context
+  * area stack intact of the elements that spawned them.*/
+  makeSafeContext(ctx) {
+    let wrangler = this.copy();
+    let this2 = this;
+
+    return new Proxy(ctx, {
+      get(target, key, rec) {
+        wrangler.copyTo(contextWrangler);
+        return target[key];
+      }
+    });
+  }
+
+  copyTo(ret) {
+    for (let [key, stack1] of this.stacks) {
+      ret.stack.set(key, util.list(stack1));
+    }
+
+    for (let [key, val] of this.lasts) {
+      ret.lasts.set(key, val);
+    }
+
+    ret.stack = util.list(this.stack);
+    ret.lastArea = this.lastArea;
+  }
+
+  copy(b) {
+    let ret = new AreaWrangler();
+    this.copyTo(ret);
+    return ret;
   }
 
   _checkWrangler(ctx) {
@@ -89,51 +124,96 @@ export class AreaWrangler {
   }
 
   reset() {
-    this.stacks = {};
-    this.lasts = {};
+    theWrangler = this;
+    this.stacks = new Map();
+    this.lasts = new Map();
     this.lastArea = undefined;
     this.stack = [];
+    this.locked = 0;
     this._last_screen_id = undefined;
 
     return this;
   }
 
-  push(type, area, pushLastRef=true) {
-    if (!(type.name in this.stacks)) {
-      this.stacks[type.name] = [];
+  static findInstance() {
+    return theWrangler;
+  }
+
+  static lock() {
+    return this.findInstance().lock();
+  }
+
+  static unlock() {
+    return this.findInstance().unlock();
+  }
+
+  lock() {
+    this.locked++;
+    return this;
+  }
+
+  unlock() {
+    this.locked = Math.max(this.locked - 1, 0);
+    return this;
+  }
+
+  push(type, area, pushLastRef = true) {
+    theWrangler = this;
+
+    if (haveModal() || this.locked) {
+      pushLastRef = false;
     }
 
-    this.stacks[type.name].push(this.lasts[type.name]);
-
-    if (pushLastRef || this.lasts[type.name] === undefined) {
-      this.lasts[type.name] = area;
+    if (pushLastRef || !this.lasts.has(type[ClassIdSymbol])) {
+      this.lasts.set(type[ClassIdSymbol], area);
       this.lastArea = area;
     }
 
-    this.stacks[type.name].push(area);
+    let stack = this.stacks.get(type[ClassIdSymbol]);
+    if (stack === undefined) {
+      stack = [];
+      this.stacks.set(type[ClassIdSymbol], stack);
+    }
+
+    let last = this.lasts.get(type[ClassIdSymbol]);
+
+    stack.push(last);
+    stack.push(area);
+
     this.stack.push(area);
   }
 
   updateLastRef(type, area) {
-    this.lasts[type.name] = area;
+    theWrangler = this;
+
+    if ((this.locked || haveModal()) && this.lasts.has(type[ClassIdSymbol])) {
+      return;
+    }
+
+    this.lasts.set(type[ClassIdSymbol], area);
     this.lastArea = area;
   }
 
   pop(type, area) {
-    if (!(type.name in this.stacks)) {
+    let stack = this.stacks.get(type[ClassIdSymbol]);
+
+    if (stack === undefined) {
       console.warn("pop_ctx_area called in error");
       //throw new Error("pop_ctx_area called in error");
       return;
     }
 
-    if (this.stacks[type.name].length > 0) {
-      this.stacks[type.name].pop();
+    if (stack.length > 0) {
+      stack.pop();
+      let last = stack.pop();
 
-      let last = this.stacks[type.name].pop();
-
-      if (last) {
-        this.lasts[type.name] = last;
+      /* paranoia isConnected check to ensure stale elements don't
+       * pollute the lasts stack */
+      if (!this.locked && last && last.isConnected) {
+        this.lasts.set(type[ClassIdSymbol], last);
       }
+    } else {
+      console.error("pop_ctx_area called in error");
     }
 
     if (this.stack.length > 0) {
@@ -142,22 +222,29 @@ export class AreaWrangler {
   }
 
   getLastArea(type) {
+    //if (Math.random() > 0.9995) {
+      //console.warn("getLastArea!", type, this.lasts.get(type[ClassIdSymbol]));
+    //}
+
     if (type === undefined) {
       if (this.stack.length > 0) {
-        return this.stack[this.stack.length-1];
+        return this.stack[this.stack.length - 1];
       } else {
         return this.lastArea;
       }
     } else {
-      if (type.name in this.stacks) {
-        let stack = this.stacks[type.name];
+      if (this.stacks.has(type[ClassIdSymbol])) {
+        let stack = this.stacks.get(type[ClassIdSymbol]);
 
         if (stack.length > 0) {
           return stack[stack.length-1];
         }
       }
 
-      return this.lasts[type.name];
+      return this.lasts.get(type[ClassIdSymbol]);
     }
   }
 }
+_setModalAreaClass(AreaWrangler);
+
+export let contextWrangler = new AreaWrangler();

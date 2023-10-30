@@ -1,24 +1,22 @@
 "use strict";
 
 /*FIXME: not sure this works anymore*/
-import {nstructjs} from "../util/struct.js";
+import nstructjs from "../util/struct.js";
 
 import * as util from '../util/util.js';
 //import * as ui_base from './ui_base.js';
-import * as vectormath from '../util/vectormath.js';
+import {Vector2, Vector3, Vector4, Matrix4} from '../util/vectormath.js';
 import {EventDispatcher} from "../util/events.js";
 
 export {getCurve} from './curve1d_base.js';
 export {SplineTemplates, SplineTemplateIcons} from './curve1d_bspline.js';
-
-var Vector2 = vectormath.Vector2;
 
 import './curve1d_basic.js';
 import './curve1d_bspline.js';
 import './curve1d_anim.js';
 
 export function mySafeJSONStringify(obj) {
-  return JSON.stringify(obj.toJSON(), function(key) {
+  return JSON.stringify(obj.toJSON(), function (key) {
     let v = this[key];
 
     if (typeof v === "number") {
@@ -32,6 +30,7 @@ export function mySafeJSONStringify(obj) {
     return v;
   });
 }
+
 export function mySafeJSONParse(buf) {
   return JSON.parse(buf, (key, val) => {
 
@@ -45,11 +44,14 @@ import {CurveConstructors, CURVE_VERSION, CurveTypeData} from './curve1d_base.js
 
 let _udigest = new util.HashDigest();
 
-export class Curve1D extends EventDispatcher {
+export class Curve1D {
   constructor() {
-    super();
+    this._eventCBs = [];
 
     this.uiZoom = 1.0;
+    this.xRange = new Vector2().loadXY(0.0, 1.0);
+    this.yRange = new Vector2().loadXY(0.0, 1.0);
+    this.clipToRange = false;
 
     this.generators = [];
     this.VERSION = CURVE_VERSION;
@@ -65,7 +67,80 @@ export class Curve1D extends EventDispatcher {
     this.setGenerator("bspline");
   }
 
-  calcHashKey(digest=_udigest.reset()) {
+  get generatorType() {
+    return this.generators.active ? this.generators.active.type : undefined;
+  }
+
+  get fastmode() {
+    return this._fastmode;
+  }
+
+  set fastmode(val) {
+    this._fastmode = val;
+
+    for (let gen of this.generators) {
+      gen.fastmode = val;
+    }
+  }
+
+  /** cb_is_dead is a callback that returns true if it
+   *  should be removed from the callback list. */
+  on(type, cb, owner, cb_is_dead) {
+    if (cb_is_dead === undefined) {
+      cb_is_dead = () => false;
+    }
+
+    this._eventCBs.push({type, cb, owner, dead: cb_is_dead, once: false});
+  }
+
+  off(type, cb) {
+    this._eventCBs = this._eventCBs.filter(cb => cb.cb !== cb);
+  }
+
+  once(type, cb, owner, cb_is_dead) {
+    this.on(type, cb, owner, cb_is_dead);
+    this._eventCBs[this._eventCBs.length - 1].once = true;
+  }
+
+  subscribed(type, owner) {
+    for (let cb of this._eventCBs) {
+      if ((!type || cb.type === type) && cb.owner === owner) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  _pruneEventCallbacks() {
+    this._eventCBs = this._eventCBs.filter(cb => !cb.dead());
+  }
+
+  _fireEvent(evt, data) {
+    this._pruneEventCallbacks();
+
+    for (let i = 0; i < this._eventCBs.length; i++) {
+      let cb = this._eventCBs[i];
+
+      if (cb.type !== evt) {
+        continue;
+      }
+
+      try {
+        cb.cb(data);
+      } catch (error) {
+        console.error(error.stack);
+        console.error(error.message);
+      }
+
+      if (cb.once) {
+        this._eventCBs.remove(cb);
+        i--;
+      }
+    }
+  }
+
+  calcHashKey(digest = _udigest.reset()) {
     let d = digest;
 
     for (let g of this.generators) {
@@ -86,11 +161,11 @@ export class Curve1D extends EventDispatcher {
     return gen1.equals(gen2);
   }
 
-  get generatorType() {
-    return this.generators.active ? this.generators.active.type : undefined;
-  }
-
   load(b) {
+    if (b === undefined || b === this) {
+      return;
+    }
+    /*
     if (b === undefined) {
       return;
     }
@@ -106,13 +181,65 @@ export class Curve1D extends EventDispatcher {
     this._on_change();
     this.redraw();
 
+    return this;*/
+
+    let json = nstructjs.writeJSON(b, Curve1D);
+    let cpy = nstructjs.readJSON(json, Curve1D);
+
+    let activeCls = this.generators.active.constructor;
+    let oldGens = this.generators;
+
+    this.generators = cpy.generators;
+    this.generators.active = undefined;
+
+    for (let gen of cpy.generators) {
+      /* See if generator provides a .load() method. */
+      for (let gen2 of oldGens) {
+        if (gen2.constructor === gen.constructor && gen2.load !== undefined) {
+          cpy.generators[cpy.generators.indexOf(gen)] = gen2;
+
+          if (gen2.constructor === activeCls) {
+            this.generators.active = gen2;
+          }
+
+          gen2.parent = this;
+          gen2.load(gen);
+          gen = gen2;
+          break;
+        }
+      }
+
+      if (gen.constructor === activeCls) {
+        this.generators.active = gen;
+      }
+      gen.parent = this;
+    }
+
+    for (let k in json) {
+      if (k === "generators") {
+        continue;
+      }
+      if (k.startsWith("_")) {
+        continue;
+      }
+
+      let v = cpy[k];
+      if (typeof v === "number" || typeof v === "boolean" || typeof v === "string") {
+        this[k] = v;
+      } else if (v instanceof Vector2 || v instanceof Vector3 || v instanceof Vector4 || v instanceof Matrix4) {
+        this[k].load(v);
+      }
+    }
+
+    this._on_change();
+    this.redraw();
+
     return this;
   }
 
   copy() {
-    let ret = new Curve1D();
-    ret.loadJSON(JSON.parse(mySafeJSONStringify(this)));
-    return ret;
+    let json = nstructjs.writeJSON(this, Curve1D);
+    return nstructjs.readJSON(json, Curve1D);
   }
 
   _on_change() {
@@ -125,7 +252,10 @@ export class Curve1D extends EventDispatcher {
 
   setGenerator(type) {
     for (let gen of this.generators) {
-      if (gen.constructor.define().name === type || gen.type === type || gen.constructor.name === type || gen.constructor === type) {
+      if (gen.constructor.define().name === type
+        || gen.type === type
+        || gen.constructor.define().typeName === type
+        || gen.constructor === type) {
         if (this.generators.active) {
           this.generators.active.onInactive();
         }
@@ -140,24 +270,15 @@ export class Curve1D extends EventDispatcher {
     throw new Error("unknown curve type " + type);
   }
 
-  get fastmode() {
-    return this._fastmode;
-  }
-
-  set fastmode(val) {
-    this._fastmode = val;
-
-    for (let gen of this.generators) {
-      gen.fastmode = val;
-    }
-  }
-
   toJSON() {
     let ret = {
-      generators       : [],
-      uiZoom           : this.uiZoom,
-      VERSION          : this.VERSION,
-      active_generator : this.generatorType
+      generators      : [],
+      uiZoom          : this.uiZoom,
+      VERSION         : this.VERSION,
+      active_generator: this.generatorType,
+      xRange          : this.xRange,
+      yRange          : this.yRange,
+      clipToRange     : this.clipToRange,
     };
 
     for (let gen of this.generators) {
@@ -169,7 +290,7 @@ export class Curve1D extends EventDispatcher {
     return ret;
   }
 
-  getGenerator(type, throw_on_error=true) {
+  getGenerator(type, throw_on_error = true) {
     for (let gen of this.generators) {
       if (gen.type === type) {
         return gen;
@@ -178,9 +299,10 @@ export class Curve1D extends EventDispatcher {
 
     //was a new generator registerd?
     for (let cls of CurveConstructors) {
-      if (cls.name === type) {
+      if (cls.define().typeName === type) {
         let gen = new cls();
         gen.type = type;
+        gen.parent = this;
         this.generators.push(gen);
         return gen;
       }
@@ -216,6 +338,13 @@ export class Curve1D extends EventDispatcher {
     this.VERSION = obj.VERSION;
 
     this.uiZoom = parseFloat(obj.uiZoom) || this.uiZoom;
+    if (obj.xRange) {
+      this.xRange = new Vector2(obj.xRange);
+    }
+    if (obj.yRange) {
+      this.yRange = new Vector2(obj.yRange);
+    }
+    this.clipToRange = Boolean(obj.clipToRange);
 
     //this.generators = [];
     for (let gen of obj.generators) {
@@ -242,11 +371,24 @@ export class Curve1D extends EventDispatcher {
       //this.generators.push(gen2);
     }
 
+    if (this.VERSION < 1.1) {
+      this.#patchRange();
+    }
+
     return this;
   }
 
   evaluate(s) {
-    return this.generators.active.evaluate(s);
+    if (this.clipToRange) {
+      s = Math.min(Math.max(s, this.xRange[0]), this.xRange[1]);
+    }
+
+    let f = this.generators.active.evaluate(s);
+    if (this.clipToRange) {
+      f = Math.min(Math.max(f, this.yRange[0]), this.yRange[1]);
+    }
+
+    return f;
   }
 
   integrate(s, quadSteps) {
@@ -274,9 +416,7 @@ export class Curve1D extends EventDispatcher {
   }
 
   draw(canvas, g, draw_transform) {
-    var w=canvas.width, h=canvas.height;
-
-    console.warn("draw");
+    let w = canvas.width, h = canvas.height;
 
     g.save();
 
@@ -298,17 +438,17 @@ export class Curve1D extends EventDispatcher {
     //g.fillStyle = "rgb(50, 50, 50)";
     //g.fill();
 
-    var f=0, steps=64;
-    var df = 1/(steps-1);
-    var w = 6.0/sz;
+    let f = this.xRange[0], steps = 64;
+    let df = (this.xRange[1] - this.xRange[0])/(steps - 1);
+    w = 6.0/sz;
 
     let curve = this.generators.active;
 
     g.beginPath();
-    for (var i=0; i<steps; i++, f += df) {
-      var val = curve.evaluate(f);
+    for (let i = 0; i < steps; i++, f += df) {
+      let val = this.evaluate(f);
 
-      (i==0 ? g.moveTo : g.lineTo).call(g, f, val, w, w);
+      (i === 0 ? g.moveTo : g.lineTo).call(g, f, val, w, w);
     }
 
     g.strokeStyle = "grey";
@@ -316,12 +456,12 @@ export class Curve1D extends EventDispatcher {
 
     if (this.overlay_curvefunc !== undefined) {
       g.beginPath();
-      f = 0.0;
+      f = this.xRange[0];
 
-      for (var i=0; i<steps; i++, f += df) {
-        var val = this.overlay_curvefunc(f);
+      for (let i = 0; i < steps; i++, f += df) {
+        let val = this.overlay_curvefunc(f);
 
-        (i==0 ? g.moveTo : g.lineTo).call(g, f, val, w, w);
+        (i === 0 ? g.moveTo : g.lineTo).call(g, f, val, w, w);
       }
 
       g.strokeStyle = "green";
@@ -337,8 +477,6 @@ export class Curve1D extends EventDispatcher {
   loadSTRUCT(reader) {
     this.generators = [];
     reader(this);
-
-    //console.log("VERSION", this.VERSION);
 
     if (this.VERSION <= 0.75) {
       this.generators = [];
@@ -362,16 +500,37 @@ export class Curve1D extends EventDispatcher {
       }
     }
 
+    for (let gen of this.generators) {
+      gen.parent = this;
+    }
+
+    if (this.VERSION < 1.1) {
+      this.#patchRange();
+    }
+
     delete this._active;
+    this.VERSION = CURVE_VERSION;
+  }
+
+  #patchRange() {
+    let range = this.getGenerator("BSplineCurve").range;
+    if (range) {
+      this.xRange.load(range[0]);
+      this.yRange.load(range[1]);
+    }
   }
 }
 
+/* Remember to update toJSON() loadJSON api. */
 Curve1D.STRUCT = `
 Curve1D {
   generators  : array(abstract(CurveTypeData));
   _active     : string | obj.generators.active.type;
   VERSION     : float;
   uiZoom      : float;
+  xRange      : vec2;
+  yRange      : vec2;
+  clipToRange : bool;
 }
 `;
 nstructjs.register(Curve1D);

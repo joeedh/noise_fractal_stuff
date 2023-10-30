@@ -9,40 +9,40 @@ import {savePreset} from '../pattern/preset.js';
 export const MoireNewtonPresets = [];
 
 export const MoireFuncs = {
-  SUM : 0, DIST : 1, MUL1 : 2, DIFF1 : 3, DIFF2: 4 
+  SUM: 0, DIST: 1, MUL1: 2, DIFF1: 3, DIFF2: 4
 };
 
 export const MoireModes = {
-  ZERO  : 0,
-  ONE   : 1,
-  TWO   : 2,
-  THREE : 3,
-  FOUR  : 4,
-  FIVE  : 5,
-  SIX   : 6,
-  SEVEN : 7
+  ZERO : 0,
+  ONE  : 1,
+  TWO  : 2,
+  THREE: 3,
+  FOUR : 4,
+  FIVE : 5,
+  SIX  : 6,
+  SEVEN: 7
 };
 
 let namegen = 1;
 
-export function add_preset(func, mode, sliders, options={}) {
+export function add_preset(func, mode, sliders, options = {}) {
   let pat = new MoireNewtonPattern();
-  
-  for (let i=0; i<sliders.length; i++) {
+
+  for (let i = 0; i < sliders.length; i++) {
     if (i >= pat.sliders.length) {
       break;
     }
-    
+
     pat.sliders[i] = sliders[i];
   }
-  
+
   pat.func = func;
   pat.newton_mode = mode;
-  
+
   for (let k in options) {
     pat[k] = options[k];
   }
-  
+
   let name = "Builtin " + (namegen++);
   let preset = savePreset(pat, name, 'Builtin');
   MoireNewtonPresets.push(preset);
@@ -100,16 +100,8 @@ fdist_dy;
 off fort;
 
 */
-const shader = `
-//uniform vec2 iRes;
-//uniform vec2 iInvRes;
-//uniform float T;
-//uniform float SLIDERS[MAX_SLIDERS];
-
-
-#define M_PI 3.141592654
-
-float ctent(float f) {
+const shaderPre = `
+float mn_ctent(float f) {
   //return fract(f+0.5);
   return cos(f*M_PI*2.0)*0.5 + 0.5;
   //f = tent(f);
@@ -121,24 +113,32 @@ float ctent(float f) {
   //return 1.0 - abs(fract(f)-0.5)*2.0;
   //return fract(f);
 }
+`;
+const shader = `
+//uniform vec2 iRes;
+//uniform vec2 iInvRes;
+//uniform float T;
+//uniform float SLIDERS[MAX_SLIDERS];
 
-float fsample(vec2 p) {
+
+/* $ gets substituted with pattern.id by MLGraph */
+float fsample$(vec2 p) {
   float th = SLIDERS[10];
   
-  float dx1 = ctent(p.x);
-  float dy1 = ctent(p.y);
+  float dx1 = mn_ctent(p.x);
+  float dy1 = mn_ctent(p.y);
   
   p *= SLIDERS[11];
   
-  float dx2 = ctent(cos(th)*p.x + sin(th)*p.y);
-  float dy2 = ctent(cos(th)*p.y - sin(th)*p.x);
+  float dx2 = mn_ctent(cos(th)*p.x + sin(th)*p.y);
+  float dy2 = mn_ctent(cos(th)*p.y - sin(th)*p.x);
   
   th *= 2.0;
   
   p *= SLIDERS[11];
   
-  float dx3 = ctent(cos(th)*p.x + sin(th)*p.y);
-  float dy3 = ctent(cos(th)*p.y - sin(th)*p.x);
+  float dx3 = mn_ctent(cos(th)*p.x + sin(th)*p.y);
+  float dy3 = mn_ctent(cos(th)*p.y - sin(th)*p.x);
   
   
 #if PATTERN == 0
@@ -160,10 +160,10 @@ float fsample(vec2 p) {
 #endif
 }
 
-const float df = 0.00001;
-const float df_inv = 1.0 / df;
+const float df$ = 0.00001;
+const float df_inv$ = 1.0 / df$;
 
-vec2 dv_sample(vec2 p) {
+vec2 dv_sample$(vec2 p) {
   float scale1 = SLIDERS[11];
   float scale2 = SLIDERS[11];
   float th = SLIDERS[10];
@@ -347,20 +347,20 @@ vec2 dv_sample(vec2 p) {
     return vec2(dx, dy)*0.5; //hack, why do I have to scale by 0.5?
 #else
       
-      float f = fsample(p);
-      float dx = fsample(p + vec2(df, 0.0));
-      float dy = fsample(p + vec2(0.0, df));
+      float f = fsample$(p);
+      float dx = fsample$(p + vec2(df$, 0.0));
+      float dy = fsample$(p + vec2(0.0, df$));
       
-      vec2 dp = vec2(f - dx, f - dy) * df_inv;
+      vec2 dp = vec2(f - dx, f - dy) * df_inv$;
       
       return dp;
 #endif
 #else
-      float f = fsample(p);
-      float dx = fsample(p + vec2(df, 0.0));
-      float dy = fsample(p + vec2(0.0, df));
+      float f = fsample$(p);
+      float dx = fsample$(p + vec2(df$, 0.0));
+      float dy = fsample$(p + vec2(0.0, df$));
       
-      vec2 dp = vec2(f - dx, f - dy) * df_inv;
+      vec2 dp = vec2(f - dx, f - dy) * df_inv$;
       
       return dp;
 #endif
@@ -376,15 +376,15 @@ float pattern(float ix, float iy) {
 
     uv *= SLIDERS[3];
 
-    //return fsample(uv);
+    //return fsample$(uv);
     
     vec2 p = uv;
     float sum = 0.0;
     vec2 lastdp;
     
     for (int i=0; i<STEPS; i++) {
-      float f = fsample(p);
-      vec2 dp = dv_sample(p);
+      float f = fsample$(p);
+      vec2 dp = dv_sample$(p);
       
 #if MODE == 7
       //dp = normalize(dp);
@@ -493,35 +493,35 @@ export class MoireNewtonPattern extends Pattern {
     this.func = MoireFuncs.DIST;
     this.sharpness = 0.33; //use different default sharpness
   }
-  
+
   static buildSidebar(ctx, con) {
     super.buildSidebar(ctx, con);
-    
+
     con.prop("func");
     con.prop("newton_mode");
     con.prop("square_f");
   }
-  
+
   static apiDefine(api) {
     let st = super.apiDefine(api);
-    
-    let onchange = function() {
+
+    let onchange = function () {
       this.ctx.pattern.drawGen++;
       window.redraw_viewport();
     }
-    
+
     st.bool("square_f", "square_f", "Square F")
-    .on('change', onchange);
-    
+      .on('change', onchange);
+
     st.enum("func", "func", MoireFuncs, "Func")
-    .on("change", onchange);
-    
+      .on("change", onchange);
+
     st.enum("newton_mode", "newton_mode", MoireModes, "Mode")
-    .on("change", onchange);
+      .on("change", onchange);
 
     return st;
   }
-  
+
   static patternDef() {
     return {
       typeName     : "moire_newton",
@@ -537,7 +537,8 @@ export class MoireNewtonPattern extends Pattern {
       presets      : MoireNewtonPresets,
       sliderDef    : [
         {
-          name : "steps", integer: true,
+          name : "steps",
+          type : "int",
           range: [5, 955],
           value: 15,
           speed: 7.0,
@@ -550,30 +551,33 @@ export class MoireNewtonPattern extends Pattern {
         "y",  //5
         {name: "colorscale", value: 46.79, noReset: true},//6
         {name: "brightness", value: 1.04, range: [0.001, 10.0], noReset: true}, //7
-        {name: "hoff", value: 2.738, range: [0.0001, 10.0], speed: 0.05, exp : 1.5}, //8
+        {name: "hoff", value: 2.738, range: [0.0001, 10.0], speed: 0.05, exp: 1.5}, //8
         {name: "poff", value: 1.642, range: [-8.0, 8.0], speed: 0.1, exp: 1.0}, //9
         {name: "offset1", value: 2.2809, range: [-5.0, 25.0], speed: 0.1}, //10
         {name: "offset2", value: 0.8471, range: [-5.0, 25.0], speed: 0.1}, //11
         {name: "offset3", value: 0.62189, range: [-5.0, 25.0], speed: 0.5}, //12
-        {name: "offset4", value : 0.0, range : [-15.0, 15.0], speed : 0.1}, //13
-        ],
-      shader
+        {name: "offset4", value: 0.0, range: [-15.0, 15.0], speed: 0.1}, //13
+      ],
+      shader,
+      shaderPre
     }
   }
 
   savePresetText() {
     let sliders = JSON.stringify(this.sliders);
-    
+
     return `add_preset(${this.func}, ${this.newton_mode}, ${sliders}, {sharpness : ${this.sharpness}});`
   }
-  
+
   setup(ctx, gl, uniforms, defines) {
     if (this.square_f) {
       defines.SQUARE_F = true;
     } else {
       delete defines.SQUARE_F;
     }
-    
+
+    defines.STEPS = ~~this.sliders[0];
+
     defines.MODE = this.newton_mode;
     defines.GAIN = "SLIDERS[1]";
     defines.COLOR_SHIFT = "SLIDERS[2]";
@@ -583,14 +587,12 @@ export class MoireNewtonPattern extends Pattern {
   }
 
   viewportDraw(ctx, gl, uniforms, defines) {
-    defines.STEPS = ~~this.sliders[0];
-
     super.viewportDraw(ctx, gl, uniforms, defines);
   }
 
   copyTo(b) {
     super.copyTo(b);
-    
+
     b.newton_mode = this.newton_mode;
     b.func = this.func;
     b.square_f = this.square_f;
