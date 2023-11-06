@@ -24,7 +24,9 @@
   let api = new DataAPI();
 
   //map MyContextClass to a struct, true tells mapStruct to auto-create
-  //the struct if it doesn't already exist
+  //the struct if it doesn't already exist.
+  //
+  //MyContextClass should have a member "propCache" pointing at SavedToolDefaults.
   let st = api.mapStruct(MyContextClass, true);
 
   //set fields of struct, e.g. st.int, st.float, st.enum, st.struct, etc

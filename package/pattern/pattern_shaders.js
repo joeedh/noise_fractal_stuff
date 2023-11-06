@@ -1,8 +1,19 @@
 import {Curve1D, nstructjs} from '../path.ux/scripts/pathux.js';
 import {Curve} from '../path.ux/scripts/widgets/ui_curvewidget_old.js';
 import {genBlueMask} from './bluemask.js';
+import {Texture} from '../webgl/webgl.js';
 
 export class CurveSet {
+  v = null;
+  r = null;
+  g = null
+  b = null;
+  _regen = true;
+  size = 0;
+  tables = new Array(4);
+  gltex = null;
+  texDimen = 0;
+
   constructor() {
     this.v = new Curve1D();
     this.r = new Curve1D();
@@ -47,18 +58,19 @@ export class CurveSet {
   }
 
   static getShaderCode(name, size = this.getDefaultSize()) {
+    let dimen = this.calcTexDimen(size);
+    let fdimen = "" + dimen + ".0";
+    let idimen = "" + (1.0/dimen);
+    let texname = this.texName(name);
+
     let ch = (ch, nvar) => {
       return `
       {
-        float fi = (cinput.${nvar})*${size}.0*0.9999;
-        int i1 = int(fi);
-        int i2 = min(i1+1, ${size}-1);
-        float t = fract(fi);
-         
-        float fa = ${this.getName(name, ch)}[i1];
-        float fb = ${this.getName(name, ch)}[i2];
-        
-        ret.${nvar} = fa + (fb - fa)*t;
+      float fi = (cinput.${nvar})*${size}.0*0.99999;
+      int i = int(fi);
+      float s = (${ch*size}.0 + float(i) + 0.00) * ${idimen};
+      
+      ret.${nvar} = texture(${texname}, vec2(s, 0.0))[0];
       }
 `;
     }
@@ -69,8 +81,11 @@ vec3 ${name}_evaluate(vec3 cinput) {
   cinput.g = clamp(cinput.g, 0.0, 1.0);
   cinput.b = clamp(cinput.b, 0.0, 1.0);
   
-  vec3 ret;
+  vec3 ret = cinput;
   
+  /* Note: the first (combined) curve is pre-applied to
+   * the individual rgb channel curves.
+   */
   ${ch(1, "r")};
   ${ch(2, "g")};
   ${ch(3, "b")};
@@ -80,11 +95,10 @@ vec3 ${name}_evaluate(vec3 cinput) {
     `;
   }
 
+
   static makeUniforms(name, size = this.getDefaultSize()) {
-    return `
-      uniform float ${this.getName(name, 1)}[${size}];
-      uniform float ${this.getName(name, 2)}[${size}];
-      uniform float ${this.getName(name, 3)}[${size}];
+    return `      
+      uniform sampler2D ${this.texName(name)};
     `;
   }
 
@@ -124,6 +138,10 @@ vec3 ${name}_evaluate(vec3 cinput) {
       return;
     }
 
+    if (this.gltex) {
+      this.deleteTex(this.gltex.gl);
+    }
+
     this._regen = false;
 
     const curves = [this.v, this.r, this.g, this.b];
@@ -144,34 +162,77 @@ vec3 ${name}_evaluate(vec3 cinput) {
       for (let j = 0; j < steps; j++, s += ds) {
         let t = s;
 
-        /*fold combined curve into rgb curves*/
+        /* Fold combined curve into rgb curves. */
 
         if (i > 0) {
           t = curves[0].evaluate(t);
         }
 
-        t = curve.evaluate(t);
+        //t = curve.evaluate(t);
 
         table[j] = t;
       }
     }
   }
 
-  setUniforms(name, uniforms) {
+  makeTex(gl) {
+    this.checkTable();
+
+    if (this.gltex) {
+      gl.deleteTexture(this.gltex.texture);
+    }
+
+    /* Nearest power of 2. */
+    let dimen = CurveSet.calcTexDimen(this.size);
+
+    let tex = new Float32Array(dimen*4);
+    let i = 0;
+    for (let table of this.tables) {
+      for (let f of table) {
+        tex[i++] = f;
+        i += 3;
+      }
+    }
+
+    this.gltex = new Texture(gl.createTexture(), gl);
+    this.gltex.load(gl, dimen, 1, tex, gl.RGBA);
+
+    gl.bindTexture(gl.TEXTURE_2D, this.gltex.texture);
+    this.gltex.texParameteri(gl, gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    this.gltex.texParameteri(gl, gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    this.gltex.texParameteri(gl, gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    this.gltex.texParameteri(gl, gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+    this.texDimen = dimen;
+  }
+
+  static calcTexDimen(size) {
+    return Math.pow(2.0, Math.ceil(Math.log(size*4.0)/Math.log(2.0)));
+  }
+
+  getTex(gl) {
+    if (!this.gltex) {
+      this.makeTex(gl);
+    }
+
+    return this.gltex;
+  }
+
+  deleteTex(gl) {
+    gl.deleteTexture(this.gltex.texture);
+    this.gltex = null;
+  }
+
+  static texName(name) {
+    return name + "_tex";
+  }
+
+  setUniforms(gl, name, uniforms) {
     this.checkTable();
 
     let tables = this.tables, size = this.size;
 
-    for (let i = 0; i < tables.length; i++) {
-      let table = tables[i];
-      let name2 = this.constructor.getName(name, i);
-
-      for (let j = 0; j < table.length; j++) {
-        let k = `${name2}[${j}]`;
-
-        uniforms[k] = table[j];
-      }
-    }
+    uniforms[CurveSet.texName(name)] = this.getTex(gl);
   }
 }
 
@@ -188,8 +249,15 @@ nstructjs.register(CurveSet);
 window.CurveSet = CurveSet;
 
 export var shaderHeaders = {
-  webgl1: `precision highp float;
+  webgl1: {
+    base    :
+      `#extension GL_EXT_draw_buffers : require
+  precision highp float;
 #define texture texture2D
+
+int min(int a, int b) {
+  return a < b ? a : b;
+}
 
 bool isnan(float f) {
   return (f == f) == (f != f);
@@ -218,20 +286,104 @@ vec2 rot2d(vec2 a, float th) {
 }
 
 `.trim() + "\n",
-  webgl2: `#version 300 es
+    vertex  : ``,
+    fragment: `
+#define fragColor gl_FragData[0]
+#define fragVar gl_FragData[1]
+    `,
+  },
+  webgl2: {
+    base    : `#version 300 es
 precision highp float;
-
-#define varying VARYING
-#define attribute ATTRIBUTE
-
-out vec4 fragColor;
-#define gl_FragColor fragColor
-
 vec2 rot2d(vec2 a, float th) {
   return vec2(cos(th)*a.x + sin(th)*a.y, cos(th)*a.y - sin(th)*a.x);
 }
+`,
+    vertex  : `
+#define attribute in
+#define varying out 
+    `,
+    fragment: `
+#define varying in
 
-`
+layout(location = 0) out vec4 fragColor;
+layout(location = 1) out vec4 fragVar;
+`,
+  }
+}
+
+export const ColorizeShaderCode = {
+  pre: `
+        #ifndef OLD_GRADIENT
+        uniform float rgrad[GRAD_STEPS];
+        uniform float ggrad[GRAD_STEPS];
+        uniform float bgrad[GRAD_STEPS];
+        uniform float agrad[GRAD_STEPS];
+        #endif
+        
+        #ifndef GAIN
+        #define GAIN 1.0
+        #endif
+        
+        #ifndef COLOR_SCALE
+        #define COLOR_SCALE 1.0
+        #endif
+        
+        #ifndef BRIGHTNESS
+        #define BRIGHTNESS 1.0
+        #endif
+        
+        #ifndef COLOR_SHIFT
+        #define COLOR_SHIFT 1.5
+        #endif
+        
+        #ifndef OLD_GRADIENT
+        float evalgrad(float t, float grad[GRAD_STEPS]) {
+          float t1 = floor(t*float(GRAD_STEPS));
+          float t2 = ceil(t*float(GRAD_STEPS));
+          float s = fract(t*float(GRAD_STEPS));
+
+          int i1 = int(t1);
+          int i2 = int(t2);
+
+          i2 = max(0, min(i2, GRAD_STEPS-1));
+
+          return mix(grad[i1], grad[i2], s);
+        }
+        #endif
+        
+        vec3 colorize(float value) {
+          vec3 color;
+          
+  #ifndef OLD_GRADIENT
+          float f = value;
+
+          color.r = evalgrad(f, rgrad);
+          color.g = evalgrad(f, ggrad);
+          color.b = evalgrad(f, bgrad);
+          color.a = 1.0;
+  #else
+          float f = value + VALUE_OFFSET;
+          
+          f = mix(f*1.5, pow(f, 1.0 / GAIN), 0.5);
+          f = tent(f*COLOR_SCALE+0.5);
+          
+          float off = COLOR_SHIFT;
+          float f2 = f*pow(off*0.05, 0.25) + off + 0.45;
+          
+          color.r = tent(f2);
+          color.g = tent(f2*2.0+0.234);
+          color.b = tent(f2*3.0+0.7324);
+          
+          color.rgb = normalize(color.rgb);
+          //color.b *= 0.1;
+          color.rgb *= f*1.5*BRIGHTNESS;
+          //color.rgb = vec3(f, f, f)*BRIGHTNESS*1.5;
+           
+  #endif
+          return color;
+        }
+  `,
 }
 
 export function buildShader(shader, webgl2) {
@@ -241,22 +393,30 @@ export function buildShader(shader, webgl2) {
 
   if (webgl2) {
     shader.vertex = `
-${header}
+${header.base}
+${header.vertex}
 #define HAVE_WEBGL2
-#define ATTRIBUTE in
-#define VARYING out
 ${shader.vertex}
 `.trim();
 
     shader.fragment = `
-${header}
+${header.base}
+${header.fragment}
 #define HAVE_WEBGL2
-#define VARYING in
 ${shader.fragment}
 `.trim();
   } else {
-    shader.vertex = (header + "\n" + shader.vertex).trim();
-    shader.fragment = (header + "\n" + shader.fragment).trim();
+    shader.vertex = `
+${header.base}
+${header.vertex}
+${shader.vertex}
+    `.trim();
+    shader.fragment = `
+${header.base}
+${header.fragment}
+${shader.fragment}
+    `.trim();
+
   }
 
   return shader;
@@ -290,6 +450,7 @@ uniform float sharpness;
 uniform float uSample;
 
 uniform sampler2D rgba;
+uniform sampler2D rgba2;
 
 uniform float blueMaskDimen;
 uniform sampler2D blueMask;
@@ -359,6 +520,8 @@ float tent(float f) {
 vec2 tent(vec2 p) {
     return vec2(tent(p.x), tent(p.y));
 }
+
+${ColorizeShaderCode.pre}
 
 float hash(float seed) {
     float f = fract(sin(seed*13.0) + seed*8.9);
@@ -485,19 +648,16 @@ float uhash2(vec2 p) {
 #endif
 }
 
-float uhash2b(vec2 p, float seed) {
-    float f;
-
-#if 1 //blue noise-ish distribution
-    f = bluenoise(p);
+float uhash2b_blue(vec2 p, float seed) {
+    float f = bluenoise(p);
     
-    const float steps = 19.0;
+    const float steps = 13.0;
     //f = fract(f+T);
     
-    f = floor(f*steps)/steps;
+    float f2 = hash2(p);
     
-    //f = fract(p.x*10232.234 + sin(p.y*324.234)*32343.0 + sin((seed+T)*230.234));
-    //f = fract(1.0 / (0.00001 + 0.00001*(f+sin(T)+seed)));
+    f = floor(f*steps)/steps;
+    f2 = floor(f2*steps)/steps;
     
     f = hash(f+T+seed);
     f += hash(f+T+0.32432+seed);
@@ -505,16 +665,17 @@ float uhash2b(vec2 p, float seed) {
     f *= 0.333333;
     
     return f*2.0 - 1.0;
-#else
-    f = hash2(p);
+}
+
+float uhash2b(vec2 p, float seed) {
+    float f = hash2(p);
     
-    f += hash2(p + vec2(2.234, 0.63));
-    f += hash2(p + vec2(-10.8, 0.95));
-    
-    f /= 3.0;
+    f = hash(f+T+seed);
+    f += hash(f+T+0.32432+seed);
+    f += hash(f+T+1.23423+seed);
+    f *= 0.333333;
     
     return f*2.0 - 1.0;
-#endif
 }
 
 vec2 uhash2v(vec2 p) {
@@ -526,17 +687,25 @@ vec2 uhash2v(vec2 p) {
 
   `.trim(),
   fragment   : `
+  
+uniform float varianceBlur;
+
 #ifndef CUSTOM_MAIN
 float mainImage( vec2 uv, out float w) {
 #if 0
     w = 1.0;
-    //return uhash2(uv)*0.5 + 0.5;
-    return bluenoise(uv);
+    return uhash2(uv)*0.5 + 0.5;
+    //return bluenoise(uv);
 #endif
 
 #ifdef PER_PIXEL_RANDOM
+  #ifdef PER_PIXEL_BLUE
+    float dx = uhash2b_blue(uv, 0.0);
+    float dy = uhash2b_blue(-uv.yx, 2.53223);
+  #else
     float dx = uhash2b(uv, 0.0);
     float dy = uhash2b(-uv.yx, 2.53223);
+  #endif
 #else
     float dx = uhash2(vec2(0.,0.));
     float dy = uhash2(-vec2(0.,0.) + 2.53223);
@@ -557,10 +726,19 @@ float mainImage( vec2 uv, out float w) {
     w = w*w*(1.0 + eps) - eps*1.5;
 #else    
     float filterw = filterWidth;
-    //w = max(1.0 - length(vec2(dx, dy)) / sqrt(2.0), 0.0) + 0.25;
+    
+  #ifdef USE_WEIGHTED_FILTER
+    w = 1.0 - length(vec2(dx, dy)) / 1.414213;
+    
+    // Sinc
+    //w = 1.0 - w;
+    w = w == 0.0 ? 1.0 : 1.0 - sin(w*M_PI)/(w*M_PI);
+    
+    // Smoothstep
     //w = w*w*(3.0 - 2.0*w);
-    //w = w*w;
+  #else
     w = 1.0;
+  #endif
 #endif
 
     if (enableAccum == 0.0) {
@@ -582,18 +760,68 @@ float mainImage( vec2 uv, out float w) {
     return f;
 }
 
-void main() {
-  float w;
-  
-  float f = mainImage(vUv*iRes, w);
-  
+void main() {  
   vec2 uv = vCo;
   vec4 color;
+
+  const float varDecay = 0.9;
+  const float minVarProb = 0.05;
   
-  color = vec4(f, f, f, 1.0) * w;
+  float w;
   
   vec4 old = texture(rgba, uv);
-  gl_FragColor = color + old*enableAccum;
+  vec4 oldvar = texture(rgba2, uv);
+  
+  vec2 iUv = vUv*iRes;
+  
+#ifdef USE_VARIANCE
+  if (oldvar.w*enableAccum > 0.0) {
+    vec3 var1 = oldvar.rgb / oldvar.w;
+    float f1 = hash2(uv);
+    float var = max(max(var1[0], var1[1]), var1[2]);
+    
+    if (f1 > var && f1 > minVarProb) {
+      fragColor = old*enableAccum;
+      fragVar = oldvar*enableAccum;
+      return;
+    }
+    
+    /* Blur extremely high variance pixels a bit. */
+    if (var < 1.0) {
+      var = pow(var, 5.0);
+    }
+    iUv += uhash2v(iUv)*min(var*varianceBlur, varianceBlur)*filterWidth; 
+  }
+#endif
+
+  float f = mainImage(iUv, w);
+  color = vec4(f, f, f, 1.0) * w;
+    
+  vec4 var;
+  if (old.w*enableAccum != 0.0) {
+    float fa = old.r / old.w;
+    float fb = (old.r + color.r) / (old.w + w);
+    vec3 a = colorize(fa);
+    vec3 b = colorize(fb);
+    
+    /* We have to calc final shader
+     * value to get proper variance. 
+     */
+
+    var = vec4(abs(a - b)*10.0, 1.0);
+         
+    const float exp = 0.5;
+    var.r = pow(var.r, exp);
+    var.g = pow(var.g, exp);
+    var.b = pow(var.b, exp);
+  }
+  
+  /* Decay variance. */
+  oldvar.w *= varDecay;
+  oldvar.rgb *= varDecay*varDecay;
+  
+  fragColor = color + old*enableAccum;
+  fragVar = var; //(var + oldvar*enableAccum);
 }
 #endif
 
@@ -612,6 +840,8 @@ const finalShader = {
   attributes: ["co"],
   fragment  : `
         uniform sampler2D rgba;
+        uniform sampler2D rgba2;
+        
         uniform vec2 iRes;
         uniform float sharpness;
         uniform float SLIDERS[MAX_SLIDERS];
@@ -621,29 +851,7 @@ const finalShader = {
         ${CurveSet.getShaderCode("CURVE")}
         
         varying vec2 vCo;
-
-        #ifndef OLD_GRADIENT
-        uniform float rgrad[GRAD_STEPS];
-        uniform float ggrad[GRAD_STEPS];
-        uniform float bgrad[GRAD_STEPS];
-        uniform float agrad[GRAD_STEPS];
-        #endif
         
-        #ifndef GAIN
-        #define GAIN 1.0
-        #endif
-        
-        #ifndef COLOR_SCALE
-        #define COLOR_SCALE 1.0
-        #endif
-        
-        #ifndef BRIGHTNESS
-        #define BRIGHTNESS 1.0
-        #endif
-        
-        #ifndef COLOR_SHIFT
-        #define COLOR_SHIFT 1.5
-        #endif
 
       float tent(float f) {
         return 1.0 - abs(fract(f)-0.5)*2.0;
@@ -652,6 +860,9 @@ const finalShader = {
       vec2 tent(vec2 p) {
         return vec2(tent(p.x), tent(p.y));
       }
+
+      //needs tent
+      ${ColorizeShaderCode.pre} 
 
       float hash(float seed) {
           float f = fract(sin(seed*13.0) + seed*8.9);
@@ -727,21 +938,6 @@ const finalShader = {
       
       
 #ifndef NO_GRADIENT
-#ifndef OLD_GRADIENT
-        float evalgrad(float t, float grad[GRAD_STEPS]) {
-          float t1 = floor(t*float(GRAD_STEPS));
-          float t2 = ceil(t*float(GRAD_STEPS));
-          float s = fract(t*float(GRAD_STEPS));
-
-          int i1 = int(t1);
-          int i2 = int(t2);
-
-          i2 = max(0, min(i2, GRAD_STEPS-1));
-
-          return mix(grad[i1], grad[i2], s);
-        }
-#endif
-
         vec3 tsample(vec2 uv) {
           vec4 color = texture(rgba, uv);
           
@@ -782,33 +978,8 @@ const finalShader = {
 
           float value = color.r;
           
-#ifndef OLD_GRADIENT
-          float f = color.r;
-
-          color.r = evalgrad(f, rgrad);
-          color.g = evalgrad(f, ggrad);
-          color.b = evalgrad(f, bgrad);
+          color.rgb = colorize(color.r);
           color.a = 1.0;
-#else
-          float f = color.r + VALUE_OFFSET;
-          
-          f = mix(f*1.5, pow(f, 1.0 / GAIN), 0.5);
-          f = tent(f*COLOR_SCALE+0.5);
-          
-          float off = COLOR_SHIFT;
-          float f2 = f*pow(off*0.05, 0.25) + off + 0.45;
-          
-          color.r = tent(f2);
-          color.g = tent(f2*2.0+0.234);
-          color.b = tent(f2*3.0+0.7324);
-          color.a = 1.0;
-          
-          color.rgb = normalize(color.rgb);
-          //color.b *= 0.1;
-          color.rgb *= f*1.5*BRIGHTNESS;
-          //color.rgb = vec3(f, f, f)*BRIGHTNESS*1.5;
-         
-#endif
 
 #ifdef MULTIPLY_ORIG
           color.rgb *= pow(1.0-min(value, 1.0), MULTIPLY_ORIG_EXP);
@@ -848,19 +1019,19 @@ const finalShader = {
           
           w2 = w3 = w4 = w5 = -sharpness*0.5;
           
-          gl_FragColor = fsample(vCo)*w1
+          fragColor = fsample(vCo)*w1
                     + fsample(vCo + vec2(-du, -dv))*w2
                     + fsample(vCo + vec2(-du, dv))*w3
                     + fsample(vCo + vec2(du, dv))*w3
                     + fsample(vCo + vec2(du, -dv))*w5;
                     
-          gl_FragColor /= w1+w2+w3+w4+w5;
+          fragColor /= w1+w2+w3+w4+w5;
 #else
-          gl_FragColor = fsample(vCo);
+          fragColor = fsample(vCo);
 #endif        
   
   #ifdef PRINT_TEST
-          vec3 hsv = rgb_to_hsv(gl_FragColor.r, gl_FragColor.g, gl_FragColor.b);
+          vec3 hsv = rgb_to_hsv(fragColor.r, fragColor.g, fragColor.b);
           
           float cutoff = hsv[1]*0.5 + 0.5;
           cutoff = pow(cutoff, 0.5);
@@ -872,14 +1043,22 @@ const finalShader = {
           hsv[2] = value;
           hsv[1] = max(hsv[1] - delta*0.5, 0.0);
           
-          gl_FragColor.rgb = hsv_to_rgb(hsv.r, hsv.g, hsv.b);
+          fragColor.rgb = hsv_to_rgb(hsv.r, hsv.g, hsv.b);
           
           //float f = abs(1.5-hsv[1]);
-          //gl_FragColor.rgb = vec3(f, f, f);
+          //fragColor.rgb = vec3(f, f, f);
   #endif
            vec3 dither = (vec3(hash2(vCo), hash2(vCo+0.23423), hash2(vCo+0.432))-0.5) / 255.0;
-           gl_FragColor.rgb += dither;
-           
+           fragColor.rgb += dither;
+        
+  #ifdef SHOW_VARIANCE
+      float eps = 0.0001; /* Offset slightly to avoid making 1.0 into 0.0. */
+      
+      vec4 col = texture(rgba2, vCo);
+      col.rgb /= col.a;
+      col.rgb = vec3(fract(col.r+eps), fract(col.g+eps), fract(col.b+eps));      
+      fragColor = vec4(col.rgb, 1.0);
+  #endif   
         }`.trim()
 }
 

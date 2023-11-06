@@ -206,9 +206,9 @@ void main() {
     c1.rgb += c2.rgb;
     c1.a += 1.0;
     
-    gl_FragColor = c1;
+    fragColor = c1;
   } else {
-    gl_FragColor = vec4(c2.rgb, 1.0);
+    fragColor = vec4(c2.rgb, 1.0);
   } 
 }
 `,
@@ -478,7 +478,7 @@ void main() {
   f = tent(f + vTime*10.0*decay);
 #endif
 
-  gl_FragColor = vec4(f, f, f, alpha);
+  fragColor = vec4(f, f, f, alpha);
 }
 `,
   attributes: ['co'],
@@ -745,11 +745,11 @@ void main() {
   //dv = dv*0.5 + 0.5;
   
   dv = normalize(dv1)*0.5 + 0.5;
-  gl_FragColor = vec4(dv.x, dv.y, 0.0, 1.0);
+  fragColor = vec4(dv.x, dv.y, 0.0, 1.0);
   
-  gl_FragColor.r += (uhash2(vCo)-0.5)/255.0;
-  gl_FragColor.g += (uhash2(vCo+0.1)-0.5)/255.0;
-  gl_FragColor.b += (uhash2(vCo+0.2)-0.5)/255.0;
+  fragColor.r += (uhash2(vCo)-0.5)/255.0;
+  fragColor.g += (uhash2(vCo+0.1)-0.5)/255.0;
+  fragColor.b += (uhash2(vCo+0.2)-0.5)/255.0;
 }
 #endif
 

@@ -1666,48 +1666,35 @@ export function inrect_2d(p, pos, size) {
     return false;
   }
   return p[0] >= pos[0] && p[0] <= pos[0] + size[0] && p[1] >= pos[1] && p[1] <= pos[1] + size[1];
-};
-let $smin_aabb_isect_line_2d = new Vector2();
-let $ssize_aabb_isect_line_2d = new Vector2();
-let $sv1_aabb_isect_line_2d = new Vector2();
-let $ps_aabb_isect_line_2d = [new Vector2(), new Vector2(), new Vector2()];
-let $l1_aabb_isect_line_2d = [0, 0];
-let $smax_aabb_isect_line_2d = new Vector2();
-let $sv2_aabb_isect_line_2d = new Vector2();
-let $l2_aabb_isect_line_2d = [0, 0];
+}
 
+let $ps_aabb_isect_line_2d = [new Vector2(), new Vector2(), new Vector2(), new Vector2()];
 export function aabb_isect_line_2d(v1, v2, min, max) {
-  for (let i = 0; i < 2; i++) {
-    $smin_aabb_isect_line_2d[i] = Math.min(min[i], v1[i]);
-    $smax_aabb_isect_line_2d[i] = Math.max(max[i], v2[i]);
+  if (point_in_aabb_2d(v1, min, max) || point_in_aabb(v2, min, max)) {
+    return true;
   }
-  $smax_aabb_isect_line_2d.sub($smin_aabb_isect_line_2d);
-  $ssize_aabb_isect_line_2d.load(max).sub(min);
-  if (!aabb_isect_2d($smin_aabb_isect_line_2d, $smax_aabb_isect_line_2d, min, $ssize_aabb_isect_line_2d))
-    return false;
+
+  let lines = $ps_aabb_isect_line_2d;
+  lines[0][0] = min[0];
+  lines[0][1] = min[1];
+
+  lines[1][0] = min[0];
+  lines[1][1] = max[1];
+
+  lines[2][0] = max[0];
+  lines[2][1] = max[1];
+
+  lines[3][0] = max[0];
+  lines[3][1] = min[1];
+
   for (let i = 0; i < 4; i++) {
-    if (inrect_2d(v1, min, $ssize_aabb_isect_line_2d))
+    if (line_line_cross(v1, v2, lines[i], lines[(i + 1)%4])) {
       return true;
-    if (inrect_2d(v2, min, $ssize_aabb_isect_line_2d))
-      return true;
+    }
   }
-  $ps_aabb_isect_line_2d[0] = min;
-  $ps_aabb_isect_line_2d[1][0] = min[0];
-  $ps_aabb_isect_line_2d[1][1] = max[1];
-  $ps_aabb_isect_line_2d[2] = max;
-  $ps_aabb_isect_line_2d[3][0] = max[0];
-  $ps_aabb_isect_line_2d[3][1] = min[1];
-  $l1_aabb_isect_line_2d[0] = v1;
-  $l1_aabb_isect_line_2d[1] = v2;
-  for (let i = 0; i < 4; i++) {
-    let a = $ps_aabb_isect_line_2d[i], b = $ps_aabb_isect_line_2d[(i + 1)%4];
-    $l2_aabb_isect_line_2d[0] = a;
-    $l2_aabb_isect_line_2d[1] = b;
-    if (line_line_cross($l1_aabb_isect_line_2d, $l2_aabb_isect_line_2d))
-      return true;
-  }
+
   return false;
-};
+}
 
 
 export function expand_rect2d(pos, size, margin) {
@@ -1733,23 +1720,52 @@ export function expand_line(l, margin) {
   l[0].add(c);
   l[1].add(c);
   return l;
-};
+}
 
-//stupidly ancient function, todo: rewrite
-export function colinear(a, b, c, limit = 2.2e-16) {
-  for (let i = 0; i < 3; i++) {
-    _cross_vec1[i] = b[i] - a[i];
-    _cross_vec2[i] = c[i] - a[i];
+export function colinear(a, b, c, limit = 2.2e-16, distLimit = 0.00001**2) {
+  let t1 = _cross_vec1;
+  let t2 = _cross_vec2;
+
+  let axes = a.length;
+
+  for (let i = 0; i < axes; i++) {
+    t1[i] = b[i] - a[i];
+    t2[i] = c[i] - a[i];
   }
 
-  if (a.vectorDistance(b) < feps*100 && a.vectorDistance(c) < feps*100) {
+  for (let i = axes; i < 3; i++) {
+    t1[i] = t2[i] = 0.0;
+  }
+
+  if (t1.dot(t1) <= distLimit || t2.dot(t2) <= distLimit) {
     return true;
   }
-  if (_cross_vec1.dot(_cross_vec1) < limit || _cross_vec2.dot(_cross_vec2) < limit)
-    return true;
-  _cross_vec1.cross(_cross_vec2);
-  return _cross_vec1.dot(_cross_vec1) < limit;
-};
+
+  t1.normalize();
+  t2.normalize();
+
+  t1.cross(t2);
+  return t1.dot(t1) <= limit;
+}
+
+export function colinear2d(a, b, c, limit = 0.00001, precise=false) {
+  let dx1 = a[0]-b[0];
+  let dy1 = a[1]-b[1];
+  let dx2 = c[0]-b[0];
+  let dy2 = c[1]-b[1];
+
+  let det = Math.abs(dx1*dy2 - dy1*dx2);
+  if (precise) {
+    let len = (dx1**2 + dy1**2)**0.5 + (dx2**2 + dy2**2)**0.5;
+    if (len <= 0.00001) {
+      return true;
+    }
+
+    det /= len;
+  }
+
+  return det <= limit;
+}
 
 let _llc_l1 = [new Vector3(), new Vector3()];
 let _llc_l2 = [new Vector3(), new Vector3()];
@@ -1850,7 +1866,7 @@ export function line_line_isect(v1, v2, v3, v4, test_segment = true) {
   let xb1 = v3[0], xb2 = v4[0], yb1 = v3[1], yb2 = v4[1];
 
   let div = ((xa1 - xa2)*(yb1 - yb2) - (xb1 - xb2)*(ya1 - ya2));
-  if (div < 0.00000001) { //parallel but intersecting lines.
+  if (Math.abs(div) < 0.00000001) { //parallel but intersecting lines.
     return COLINEAR_ISECT;
   } else { //intersection exists
     let t1 = (-((ya1 - yb2)*xb1 - (yb1 - yb2)*xa1 - (ya1 - yb1)*xb2))/div;
@@ -3409,4 +3425,31 @@ export function tri_angles(v1, v2, v3) {
   return ret;
 }
 
+let angle_v2_temps = util.cachering.fromConstructor(Vector2, 32);
+let angle_v3_temps = util.cachering.fromConstructor(Vector3, 32);
 
+export function angle_between_vecs(v1, vcent, v2) {
+  let t1, t2;
+
+  if (v1.length === 2) {
+    t1 = angle_v2_temps.next();
+    t2 = angle_v2_temps.next();
+  } else {
+    t1 = angle_v3_temps.next();
+    t2 = angle_v3_temps.next();
+  }
+
+  t1.load(v1).sub(vcent).normalize();
+  t2.load(v2).sub(vcent).normalize();
+
+  let d = t1.dot(t2);
+
+  /* Handle numerical error. */
+  if (d < -1.0) {
+    return Math.PI;
+  } else if (d > 1.0) {
+    return 0.0;
+  } else {
+    return Math.acos(d);
+  }
+}

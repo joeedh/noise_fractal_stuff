@@ -167,7 +167,7 @@ export class Curve1dBSplineOpBase extends ToolOp {
         dataPath: new StringProperty()
       },
       outputs: {},
-    }
+    };
   }
 
   _undo = undefined;
@@ -361,7 +361,7 @@ export class BSplineTransformOp extends ToolOp {
       },
       is_modal: true,
       outputs : {},
-    }
+    };
   }
 
   _undo = undefined;

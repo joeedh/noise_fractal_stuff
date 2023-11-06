@@ -493,6 +493,7 @@ ToolProperty {
   radix          : float;
   decimalPlaces  : int;
   uiname         : string | this.uiname || this.apiname || "";
+  wasSet         : bool;
 }
 `;
 nstructjs.register(ToolProperty);
@@ -815,6 +816,9 @@ export class IntProperty extends _NumberPropertyBase {
 
     //remember to update NumberConstraintsBase et al when adding new number
     //constraints
+
+    /* Integer properties don't use default unit. */
+    this.baseUnit = this.displayUnit = "none";
 
     this.radix = 10;
   }

@@ -199,6 +199,7 @@ float pattern(float ix, float iy) {
         m = inverse(m);
         
         vec2 off = -m * a;
+        off = rot2d(off, SLIDERS[16]);
         
 #if 0
         if (i % 2 == 1) {
@@ -301,13 +302,14 @@ export class NewtonPattern extends Pattern {
         "y",  //6
         {name: "colorscale", value: 5.9, noReset: true},//7
         {name: "brightness", value: 1.0, range: [0.001, 10.0], noReset: true}, //8
-        {name: "hoff", value: 0.1, range: [0.0001, 10.0]}, //9
+        {name: "hoff", value: 0.1, range: [-10.0001, 100.0]}, //9
         {name: "poff", value: 0.39, range: [-8.0, 8.0], speed: 0.1, exp: 1.0}, //10
         {name: "simple", value: 0.5, range: [-44.0, 44.0]}, //11
         {name: "offset2", value: 0.0, range: [-5, 5], speed: 0.2},//12
         {name: "valueoff", value: 0.0, range: [-15.0, 45.0], speed: 0.15, exp: 1.35, noReset: true}, //13
         {name: "offset3", value: 0.0, range: [-2.0, 10.0], speed: 0.025}, //14
         {name: "d", value: 1.0, range: [-25.0, 25.0]}, //15
+        {name: "rot", value: 0.0, rnage: [-5, 5], baseUnit : "radian", displayUnit : "degree"}, //16
       ],
       shader,
       shaderPre
