@@ -47,28 +47,17 @@ export function termColor(s, c) {
   return '\u001b[' + c + 'm' + s + '\u001b[0m'
 };
 
-if (globalThis.haveElectron || globalThis.require) {
-  let mod = require('../extern/shaderfrog/glsl-parser/dist/index.js')
+promise = new Promise((accept, reject) => {
+  import('../extern/shaderfrog/glsl-parser/dist/index.js').then(mod => {
+    parser = mod;
+    hasAutoDiff = true;
 
-  parser = mod;
-  hasAutoDiff = true;
+    globalThis._glslMod = mod;
 
-  globalThis._glslMod = mod;
-} else {
-  promise = new Promise((accept, reject) => {
-    import('../extern/shaderfrog/glsl-parser/dist/index.js').then(mod => {
-      mod = mod.default;
-
-      parser = mod;
-      hasAutoDiff = true;
-
-      globalThis._glslMod = mod;
-
-      accept(mod);
-      promise = undefined;
-    });
+    accept(mod);
+    promise = undefined;
   });
-}
+});
 
 function traverse(ast, handlers, scope, onArrayPre = undefined) {
   function rec(node, scope) {
@@ -534,9 +523,9 @@ export const VectorSizes = {
 };
 
 export const VectorTypes = {
-  2 : "vec2",
-  3 : "vec3",
-  4 : "vec4"
+  2: "vec2",
+  3: "vec3",
+  4: "vec4"
 };
 
 const axes = {
@@ -941,10 +930,10 @@ export function transformVectors(ast, astState) {
       console.log("Type:", type, op, "Type2:", type2, node.right);
 
       let namemap = {
-        "*" : "mul",
-        "/" : "div",
-        "+" : "add",
-        "-" : "sub",
+        "*": "mul",
+        "/": "div",
+        "+": "add",
+        "-": "sub",
       };
 
       if (op in namemap) {
@@ -959,16 +948,16 @@ export function transformVectors(ast, astState) {
       console.log("KEY", key);
 
       let fcall = astState.new("function_call", {
-        identifier : astState.new("identifier", {
-          identifier : type + namemap[op]
+        identifier: astState.new("identifier", {
+          identifier: type + namemap[op]
         }),
-        lp : astState.new("literal", {literal : "("}),
-        args : [
+        lp        : astState.new("literal", {literal: "("}),
+        args      : [
           node.left,
-          astState.new("literal", {literal : ","}),
+          astState.new("literal", {literal: ","}),
           node.right
         ],
-        rp : astState.new("literal", {literal : ")"}),
+        rp        : astState.new("literal", {literal: ")"}),
       });
 
       astState.check(fcall);
@@ -1015,22 +1004,22 @@ vec normalize(vec a) {
   }
 
   let opmap = {
-    '*' : 'mul',
-    '/' : 'div',
-    '+' : 'add',
-    '-' : 'sub'
+    '*': 'mul',
+    '/': 'div',
+    '+': 'add',
+    '-': 'sub'
   };
 
-  for (let i=2; i<=4; i++) {
+  for (let i = 2; i <= 4; i++) {
     let vec = 'vec' + i;
     for (let op in opmap) {
       let name = `vec${i}${opmap[op]}`;
 
       s += `${vec} ${name}(${vec} a, ${vec} b) {\n`;
       s += `  return ${vec}(\n`;
-      for (let j=0; j<i; j++) {
+      for (let j = 0; j < i; j++) {
         s += `    a[${j}] ${op} b[${j}]`;
-        if (j < i-1) {
+        if (j < i - 1) {
           s += ',';
         }
         s += '\n';
@@ -1039,9 +1028,9 @@ vec normalize(vec a) {
 
       s += `${vec} ${name}(float a, ${vec} b) {\n`;
       s += `  return ${vec}(\n`;
-      for (let j=0; j<i; j++) {
+      for (let j = 0; j < i; j++) {
         s += `    a ${op} b[${j}]`;
-        if (j < i-1) {
+        if (j < i - 1) {
           s += ',';
         }
         s += '\n';
@@ -1050,9 +1039,9 @@ vec normalize(vec a) {
 
       s += `${vec} ${name}(${vec} a, float b) {\n`;
       s += `  return ${vec}(\n`;
-      for (let j=0; j<i; j++) {
+      for (let j = 0; j < i; j++) {
         s += `    a[${j}] ${op} b`;
-        if (j < i-1) {
+        if (j < i - 1) {
           s += ',';
         }
         s += '\n';

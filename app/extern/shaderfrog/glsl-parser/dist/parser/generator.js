@@ -1,6 +1,8 @@
 "use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-var ast_1 = require("../core/ast");
+import ast_1 from '../core/ast.js';
+
+let exports = {};
+
 var generators = {
     program: function (node) { return generate(node.ws) + generate(node.program); },
     preprocessor: function (node) { return generate(node.line) + generate(node._); },
@@ -227,4 +229,5 @@ var generators = {
 };
 var generate = (0, ast_1.makeGenerator)(generators);
 var generateWithEveryOther = (0, ast_1.makeEveryOtherGenerator)(generate);
-exports.default = generate;
+
+export default generate;
