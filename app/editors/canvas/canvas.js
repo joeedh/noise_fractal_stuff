@@ -67,7 +67,7 @@ export class CanvasEditor extends EditorGL {
   }
 
 
-  transform(p, size=this.glSize, dpi=UIBase.getDPI()) {
+  transform(p, size = this.glSize, dpi = UIBase.getDPI()) {
     const pat = this.ctx.pattern;
     dpi *= pat.pixel_size;
 
@@ -89,7 +89,7 @@ export class CanvasEditor extends EditorGL {
     p[1] *= pat.scale;
   }
 
-  untransform(p, size=this.glSize, dpi=UIBase.getDPI()) {
+  untransform(p, size = this.glSize, dpi = UIBase.getDPI()) {
     const pat = this.ctx.pattern;
     dpi *= pat.pixel_size;
 
@@ -173,7 +173,8 @@ export class CanvasEditor extends EditorGL {
 
   _doMouseEvent(e) {
     if (!this.ctx || !this.ctx.screen) {
-      console.error("_doMouseEvent: missing context and/or parent screen", this.ctx, this.ctx !== undefined ? this.ctx.screen : undefined);
+      console.error("_doMouseEvent: missing context and/or parent screen", this.ctx, this.ctx !== undefined
+                                                                                     ? this.ctx.screen : undefined);
       return true;
     }
 
@@ -220,7 +221,7 @@ export class CanvasEditor extends EditorGL {
     if (gl.contextBad) {
       return;
     }
-    
+
     if (isRendering()) {
       return;
     }
@@ -237,15 +238,15 @@ export class CanvasEditor extends EditorGL {
       let time = util.time_ms();
 
       //while (util.time_ms() - time < 10) {
-        pat._doViewportDraw(this.ctx, canvas, gl, !this._drawReset);
-        this._drawReset = false;
+      pat._doViewportDraw(this.ctx, canvas, gl, !this._drawReset);
+      this._drawReset = false;
       //}
     }
 
     //console.log("viewport draw!");
   }
 
-  ensureFbos(gl, count, pixel_size = 1.0) {
+  ensureFbos(gl, count, pixel_size = 1.0, fboOutputs = 1) {
     //prune any extra fbos
     for (let i = count; i < this.fbos.length; i++) {
       this.fbos[i].destroy(gl);
@@ -263,6 +264,8 @@ export class CanvasEditor extends EditorGL {
 
       if (!fbo) {
         fbo = this.fbos[i] = new FBO(gl, w, h);
+        fbo.extraBuffers = fboOutputs - 1;
+
         updated = true;
       } else {
         updated |= fbo.update(gl, w, h);

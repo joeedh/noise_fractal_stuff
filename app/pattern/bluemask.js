@@ -1,10 +1,13 @@
 import {getSearchOff} from '../util/util.js';
 import {util} from '../path.ux/pathux.js';
 import {Texture} from '../webgl/webgl.js';
+import {decompress} from './preset.js';
 
 let _bluemasks = {};
 let _bluetexs = {};
 let loading_masks = {};
+
+window._bluetexs = _bluetexs;
 
 export function getBlueMaskTex(gl, dimen) {
   if (gl.contextBad) {
@@ -50,13 +53,13 @@ export function blueMaskValid(dimen) {
 function load_mask_from_ls(dimen) {
   let key = bluekey(dimen);
   
-  console.log(localStorage[key]);
   console.log("loading bluenoise mask from localStorage");
   
   loading_masks[dimen] = true;
   
   let img = new Image(); //document.createElement("img");
-  img.src = localStorage[key];
+
+  img.src = decompress(localStorage[key]);
   img.onload = () => {
     delete loading_masks[dimen];
     

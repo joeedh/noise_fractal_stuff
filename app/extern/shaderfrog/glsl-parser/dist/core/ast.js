@@ -1,6 +1,6 @@
 "use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.makeEveryOtherGenerator = exports.makeGenerator = exports.visit = exports.evaluate = void 0;
+let exports = {};
+
 var isNode = function (node) { return !!(node === null || node === void 0 ? void 0 : node.type); };
 var isTraversable = function (node) { return isNode(node) || Array.isArray(node); };
 var evaluate = function (ast, visitors) {
@@ -129,3 +129,5 @@ var makeEveryOtherGenerator = function (generate) {
     return everyOther;
 };
 exports.makeEveryOtherGenerator = makeEveryOtherGenerator;
+
+export default exports;

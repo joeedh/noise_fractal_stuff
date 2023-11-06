@@ -264,7 +264,7 @@ void main() {
 #ifndef FIRST_TIME
   //f = vis[0];
 #endif
-  gl_FragColor = vec4(f, f, f, 1.0);
+  fragColor = vec4(f, f, f, 1.0);
 }
 
 `;
