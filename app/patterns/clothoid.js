@@ -86,7 +86,7 @@ export class ClothoidPattern extends Pattern {
       },
       presets      : ClothoidPresets,
       sliderDef    : [
-        {name: "steps", value: 15, range: [1, 575]}, //0
+        {name: "steps", value: 15, range: [1, 575], type: "int"}, //0
         {name: "theta", value: -0.75, speed: 0.05, range: [-Math.PI, Math.PI]}, //1
         {name: "gain", value: 1.1, range: [0, 750]}, //2
         {name: "color", value: 0.65, range: [0, 10]}, //3

@@ -661,6 +661,8 @@ export class Sliders extends Array {
   merge(paramDef) {
     paramDef = paramDef.concat([]); //copy
 
+    this.unbindProperties();
+
     let newlist = new Array(paramDef.length);
     let map = {};
 
@@ -685,13 +687,25 @@ export class Sliders extends Array {
     //add any missing parameters
     for (let i = 0; i < paramDef.length; i++) {
       let pdef = paramDef[i];
+      let param = new SliderParam(pdef.name, SliderTypeMap[pdef.type], pdef.value);
+
+      let is_new = false;
 
       if (newlist[i] === undefined) {
-        let param = new SliderParam(pdef.name, SliderTypeMap[pdef.type], pdef.value);
+        newlist[i] = param;
+        is_new = true;
+      } else {
+        param.value = newlist[i].value;
         newlist[i] = param;
       }
 
       newlist[i].noReset = !!pdef.noReset;
+
+      if (pdef.name === "d" && newlist[i].value === 0) {
+        debugger;
+        param = new SliderParam(pdef.name, SliderTypeMap[pdef.type], pdef.value, is_new);
+        console.log("PARAM", param, pdef);
+      }
     }
 
     this.length = 0;
@@ -706,7 +720,6 @@ export class Sliders extends Array {
       this.push(item);
     }
 
-    this.unbindProperties();
     this.bindProperties();
   }
 

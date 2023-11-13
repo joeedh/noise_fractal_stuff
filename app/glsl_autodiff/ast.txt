@@ -1,0 +1,237 @@
+preprocessor {
+}
+declaration_statement {
+ declaration: precision {
+  prefix: keyword token="precision" {
+  }
+  qualifier: keyword token="highp" {
+  }
+  specifier: type_specifier {
+   specifier: keyword token="float" {
+   }
+  }
+ }
+}
+function {
+ prototype: function_prototype {
+  header: function_header {
+   returnType: fully_specified_type {
+    specifier: type_specifier {
+     specifier: keyword token="vec2" {
+     }
+    }
+   }
+   name: identifier ident="cmul" {
+   }
+  }
+  parameter_declaration {
+   declaration: parameter_declarator {
+    specifier: type_specifier {
+     specifier: keyword token="vec2" {
+     }
+    }
+    identifier: identifier ident="a" {
+    }
+   }
+  }
+  parameter_declaration {
+   declaration: parameter_declarator {
+    specifier: type_specifier {
+     specifier: keyword token="vec2" {
+     }
+    }
+    identifier: identifier ident="b" {
+    }
+   }
+  }
+ }
+ body: compound_statement {
+  return_statement {
+   return: keyword token="return" {
+   }
+   expression: function_call {
+    identifier: type_specifier {
+     specifier: keyword token="vec2" {
+     }
+    }
+    binary {
+     operator: literal literal="-" {
+     }
+     left: binary {
+      operator: literal literal="*" {
+      }
+      left: postfix {
+       expr: identifier ident="a" {
+       }
+       postfix: quantifier {
+        expr: int_constant {
+        }
+       }
+      }
+      right: postfix {
+       expr: identifier ident="b" {
+       }
+       postfix: quantifier {
+        expr: int_constant {
+        }
+       }
+      }
+     }
+     right: binary {
+      operator: literal literal="*" {
+      }
+      left: postfix {
+       expr: identifier ident="a" {
+       }
+       postfix: quantifier {
+        expr: int_constant {
+        }
+       }
+      }
+      right: postfix {
+       expr: identifier ident="b" {
+       }
+       postfix: quantifier {
+        expr: int_constant {
+        }
+       }
+      }
+     }
+    }
+    binary {
+     operator: literal literal="+" {
+     }
+     left: binary {
+      operator: literal literal="*" {
+      }
+      left: postfix {
+       expr: identifier ident="a" {
+       }
+       postfix: quantifier {
+        expr: int_constant {
+        }
+       }
+      }
+      right: postfix {
+       expr: identifier ident="b" {
+       }
+       postfix: quantifier {
+        expr: int_constant {
+        }
+       }
+      }
+     }
+     right: binary {
+      operator: literal literal="*" {
+      }
+      left: postfix {
+       expr: identifier ident="a" {
+       }
+       postfix: quantifier {
+        expr: int_constant {
+        }
+       }
+      }
+      right: postfix {
+       expr: identifier ident="b" {
+       }
+       postfix: quantifier {
+        expr: int_constant {
+        }
+       }
+      }
+     }
+    }
+   }
+  }
+ }
+}
+function {
+ prototype: function_prototype {
+  header: function_header {
+   returnType: fully_specified_type {
+    specifier: type_specifier {
+     specifier: keyword token="float" {
+     }
+    }
+   }
+   name: identifier ident="func" {
+   }
+  }
+  parameter_declaration {
+   declaration: parameter_declarator {
+    specifier: type_specifier {
+     specifier: keyword token="vec2" {
+     }
+    }
+    identifier: identifier ident="p" {
+    }
+   }
+  }
+ }
+ body: compound_statement {
+  declaration_statement {
+   declaration: declarator_list {
+    specified_type: fully_specified_type {
+     specifier: type_specifier {
+      specifier: keyword token="float" {
+      }
+     }
+    }
+    declaration {
+     identifier: identifier ident="f" {
+     }
+     initializer: function_call {
+      identifier: type_specifier {
+       specifier: identifier ident="cmul" {
+       }
+      }
+      identifier ident="p" {
+      }
+      function_call {
+       identifier: type_specifier {
+        specifier: keyword token="vec2" {
+        }
+       }
+       float_constant {
+       }
+       float_constant {
+       }
+      }
+     }
+    }
+   }
+  }
+  declaration_statement {
+   declaration: declarator_list {
+    specified_type: fully_specified_type {
+     specifier: type_specifier {
+      specifier: keyword token="float" {
+      }
+     }
+    }
+    declaration {
+     identifier: identifier ident="dp" {
+     }
+     initializer: function_call {
+      identifier: type_specifier {
+       specifier: identifier ident="df" {
+       }
+      }
+      identifier ident="f" {
+      }
+      postfix {
+       expr: identifier ident="p" {
+       }
+       postfix: field_selection {
+        selection: identifier ident="x" {
+        }
+       }
+      }
+     }
+    }
+   }
+  }
+ }
+}
+

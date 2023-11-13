@@ -11,29 +11,29 @@ export const FractalTracePresets = [];
 let presetCountBase = 1;
 
 export const LightingModes = {
-  SHADOW : 1,
-  AO     : 2,
-  GI     : 4
+  SHADOW: 1,
+  AO    : 2,
+  GI    : 4
 };
 
-export function add_preset(sliders, opts={}, hide = false) {
+export function add_preset(sliders, opts = {}, hide = false) {
   let pat = new TraceFractalPattern();
-  
+
   opts.filter_width = opts.filter_width ?? pat.filter_width;
   opts.pixel_size = opts.pixel_size ?? pat.pixel_size;
   opts.sharpness = opts.sharpness ?? pat.sharpness;
-  
+
   for (let k in opts) {
     pat[k] = opts[k];
   }
-  
-  for (let i=0; i<Math.min(sliders.length, pat.sliders.length); i++) {
+
+  for (let i = 0; i < Math.min(sliders.length, pat.sliders.length); i++) {
     pat.sliders[i] = sliders[i];
   }
-  
+
   let name = "Builtin " + (presetCountBase++);
   let preset = savePreset(pat, name, "Builtin");
-  
+
   FractalTracePresets.push(preset);
 }
 
@@ -273,9 +273,6 @@ bool rtrace(inout RenderState state) {
   return false;
 }
 
-uniform sampler2D blueMask;
-uniform float blueMaskDimen;
-
 vec3 hash3d(float seed) {
   vec2 uv = fract(vUv * iRes / blueMaskDimen);
   uv.x += hash(T); 
@@ -448,15 +445,19 @@ float pattern(float ix, float iy) {
 }
 `
 
-let default_sliders = [70, 1.0086, 0.20860501848141141, 0.6836952474556159, 1, 1, 0, 0, 2.297188368736352, 3.9658733928804786, 1.2325426537437414, 0.49248862576479524, 1, 0.001, 1, 0.4501880372834175];
-default_sliders = [152.37224431195685, 1.0086, 0.20860501848141141, 0.6836952474556159, 1, 1, 0, 0, 8.914427341384965, 18.003225416500808, 2.8441258045923496, 1.7600876549476536, 0.21775237010364984, 0.004018407461037092, 10, 1.7317459596674998, 0.17536971222644349, 0.28000184668988803, 0, 0, 0.47596035168546613, 0.46141607216409053];
+let default_sliders = [70, 1.0086, 0.20860501848141141, 0.6836952474556159, 1, 1, 0, 0, 2.297188368736352,
+                       3.9658733928804786, 1.2325426537437414, 0.49248862576479524, 1, 0.001, 1, 0.4501880372834175];
+default_sliders = [152.37224431195685, 1.0086, 0.20860501848141141, 0.6836952474556159, 1, 1, 0, 0, 8.914427341384965,
+                   18.003225416500808, 2.8441258045923496, 1.7600876549476536, 0.21775237010364984,
+                   0.004018407461037092, 10, 1.7317459596674998, 0.17536971222644349, 0.28000184668988803, 0, 0,
+                   0.47596035168546613, 0.46141607216409053];
 
 export class TraceFractalPattern extends Pattern {
   constructor() {
     super();
 
     this.lighting_mode = 0;
-    
+
     this.renderTiles = false;
     this.samplesPerTile = 5;
     this.pixel_size = 0.7;
@@ -468,54 +469,55 @@ export class TraceFractalPattern extends Pattern {
 
   static patternDef() {
     let i = 0;
-    
+
     let sliderdef = [
-        {
-          name : "steps", integer: true,
-          range: [5, 955],
-          value: 100,
-          speed: 7.0,
-          exp  : 1.5,
-        }, //0
-        {name: "gain", value: 0.19, range: [0.001, 1000], speed: 4.0, exp: 2.0, noReset : true},  //1
-        {name: "color", value: 0.75, range: [-50, 50], speed: 0.25, exp: 1.0, noReset : true}, //2
-        {name: "colorscale", value: 5.9, noReset : true},//3
-        {name: "brightness", value: 1.0, range: [0.001, 10.0], noReset : true}, //4
-        {name: "scale", value: 1.0, range: [0.001, 1000000.0]}, //5
-        "x",  //6
-        "y",  //7
-        {name: "pitch", value : 0.0}, //8
-        {name: "roll", value : 0.0}, //9
-        {name: "fov", value : 0.1, speed : 0.1}, //10
-        {name: "dist", value : 5.0, speed: 1.0}, //11
-        {name: "eps", value : 0.675, speed : 0.0025}, //12
-        {name: "rlimit", value : 0.001, speed : 0.00025, exp : 1.0, range : [0.00001, 0.1]},//13
-        {name: "levels", value : 1, range : [1, 20]},//14
-        {name : "lvlScale", value : 1.5, range : [0.1, 5.0]},//15
-        {name : "lvlLimit", value : 0.5, range : [0.01, 2.0]},//16
-        {name : "lvlRot1", value : 0.0, range : [-15, 15.0]},//17
-        {name : "lvlRot2", value : 0.0, range : [-15, 15.0]},//18
-        {name : "lvlMode", value : 0, range : [0, 5]}, //19
-        {name : "smoothFac", value: 0.1, range: [-1.0, 10.0]}, //20
-        {name : "offset", value: 0.1, range: [-1.0, 10.0]}, //21
-      ];
-    
-    for (let i=0; i<sliderdef.length; i++) {
+      {
+        name : "steps",
+        type : "int",
+        range: [5, 955],
+        value: 100,
+        speed: 7.0,
+        exp  : 1.5,
+      }, //0
+      {name: "gain", value: 0.19, range: [0.001, 1000], speed: 4.0, exp: 2.0, noReset: true},  //1
+      {name: "color", value: 0.75, range: [-50, 50], speed: 0.25, exp: 1.0, noReset: true}, //2
+      {name: "colorscale", value: 5.9, noReset: true},//3
+      {name: "brightness", value: 1.0, range: [0.001, 10.0], noReset: true}, //4
+      {name: "scale", value: 1.0, range: [0.001, 1000000.0]}, //5
+      "x",  //6
+      "y",  //7
+      {name: "pitch", value: 0.0}, //8
+      {name: "roll", value: 0.0}, //9
+      {name: "fov", value: 0.1, speed: 0.1}, //10
+      {name: "dist", value: 5.0, speed: 1.0}, //11
+      {name: "eps", value: 0.675, speed: 0.0025}, //12
+      {name: "rlimit", value: 0.001, speed: 0.00025, exp: 1.0, range: [0.00001, 0.1]},//13
+      {name: "levels", value: 1, range: [1, 20]},//14
+      {name: "lvlScale", value: 1.5, range: [0.1, 5.0]},//15
+      {name: "lvlLimit", value: 0.5, range: [0.01, 2.0]},//16
+      {name: "lvlRot1", value: 0.0, range: [-15, 15.0]},//17
+      {name: "lvlRot2", value: 0.0, range: [-15, 15.0]},//18
+      {name: "lvlMode", value: 0, range: [0, 5]}, //19
+      {name: "smoothFac", value: 0.1, range: [-1.0, 10.0]}, //20
+      {name: "offset", value: 0.1, range: [-1.0, 10.0]}, //21
+    ];
+
+    for (let i = 0; i < sliderdef.length; i++) {
       if (i >= default_sliders.length) {
         break;
       }
-      
+
       let sdef = sliderdef[i];
-      
+
       if (typeof sdef === "string") {
-        sdef = {name : sdef};
+        sdef = {name: sdef};
       }
-      
+
       sdef.value = default_sliders[i];
-      
+
       sliderdef[i] = sdef;
     }
-    
+
     return {
       typeName     : "fractal_trace",
       uiName       : "Fractal Trace",
@@ -530,26 +532,26 @@ export class TraceFractalPattern extends Pattern {
       presets      : FractalTracePresets,
       sliderDef    : sliderdef,
       shader,
-      shaderPre : ''
+      shaderPre    : ''
     }
   }
 
   static apiDefine(api) {
     let st = super.apiDefine(api);
-    
-    let onchange = function() {
+
+    let onchange = function () {
       this.dataref.drawGen++;
       window.redraw_viewport();
     }
-    
+
     let redraw = window.redraw_viewport;
-    
+
     st.flags("lighting_mode", "lighting_mode", LightingModes, "Lighting")
-    .on('change', onchange);
-    
+      .on('change', onchange);
+
     return st;
   }
-  
+
   setup(ctx, gl, uniforms, defines) {
     let skey = (name) => {
       let i = 0;
@@ -557,40 +559,40 @@ export class TraceFractalPattern extends Pattern {
         if (sdef === name || (typeof sdef === "object" && sdef.name === name)) {
           return `SLIDERS[${i}]`;
         }
-        
+
         i++;
       }
-      
+
       throw new Error("bad key " + name);
     }
 
     let lvec = new Vector3([5, 6, 7]);
     let ln = new Vector3(lvec);
     ln.negate().normalize();
-    
+
     uniforms.lightCo = util.list(lvec);
     uniforms.lightNo = util.list(ln);
-    
+
     defines.LIGHTING = this.lighting_mode;
-    
+
     defines.OFFSET = skey("offset");
     defines.SMOOTH_FAC = skey("smoothFac");
-    
+
     defines.LEVEL_SCALE = skey("lvlScale");
     defines.LEVEL_LIMIT = skey("lvlLimit");
     defines.LEVELS = ~~this.sliders.levels;
-    
+
     defines.LEVEL_ROT1 = skey("lvlRot1");
     defines.LEVEL_ROT2 = skey("lvlRot2");
     defines.LEVEL_MODE = ~~this.sliders.lvlMode;
-    
+
     defines.PITCH = skey("pitch");
     defines.ROLL = skey("roll");
     defines.DIST = skey("dist");
     defines.EPS = skey("eps");
     defines.RLIMIT = skey("rlimit");
     defines.FOV = skey("fov");
-    
+
     //defines.VALUE_OFFSET = "SLIDERS[13]";
     defines.GAIN = skey("gain");
     defines.COLOR_SHIFT = skey("color");
@@ -603,13 +605,13 @@ export class TraceFractalPattern extends Pattern {
     super.buildSidebar(ctx, con);
 
     con.useIcons(false);
-    
+
     con.prop("samplesPerTile");
     con.prop("renderTiles");
     con.prop("lighting_mode");
   }
-  
-  savePresetText(opt={}) {
+
+  savePresetText(opt = {}) {
     opt.sharpness = opt.sharpness ?? this.sharpness;
     opt.filter_width = opt.filter_width ?? this.filter_width;
     opt.max_samples = opt.max_samples ?? this.max_samples;
@@ -623,6 +625,7 @@ export class TraceFractalPattern extends Pattern {
 add_preset(${sliders}, ${opt});
     `.trim();
   }
+
   viewportDraw(ctx, gl, uniforms, defines) {
     defines.STEPS = ~~this.sliders[0];
 
@@ -631,7 +634,7 @@ add_preset(${sliders}, ${opt});
 
   copyTo(b) {
     super.copyTo(b);
-    
+
     b.lighting_mode = this.lighting_mode;
   }
 }

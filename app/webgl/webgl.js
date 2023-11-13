@@ -24,6 +24,8 @@ export class FBO {
     this.target = gl !== undefined ? gl.TEXTURE_2D : 3553;
     this.layer = undefined; //used if target is not gl.TEXTURE_2D
 
+    this._old_buffer = 0;
+
     this.contextGen = gl ? gl.contextGen : undefined;
 
     this.ctype = undefined; //RGBA32F;
@@ -36,6 +38,9 @@ export class FBO {
     this.texDepth = undefined;
     this.texColor = undefined;
     this.contextGen = gl ? gl.contextGen : 0;
+
+    this.extraBuffers = 0;
+    this.texBuffers = [];
   }
 
   _check(gl) {
@@ -111,8 +116,17 @@ export class FBO {
       gl.deleteTexture(this.texColor.texture);
     }
 
+    for (let tex of this.texBuffers) {
+      gl.deleteTexture(tex.texture);
+    }
+    this.texBuffers.length = 0;
+
     this.texDepth = new Texture(gl.createTexture(), gl);
     this.texColor = new Texture(gl.createTexture(), gl);
+
+    for (let i = 0; i < this.extraBuffers; i++) {
+      this.texBuffers.push(new Texture(gl.createTexture(), gl));
+    }
 
     let target = this.target;
     let layer = this.layer;
@@ -138,6 +152,10 @@ export class FBO {
     }
 
     texParams(this.target, this.texColor);
+
+    for (let tex of this.texBuffers) {
+      texParams(this.target, tex);
+    }
 
     let initTex = (tex, dtype, dtype2, dtype3) => {
       if (this.target !== gl.TEXTURE_2D) {
@@ -170,11 +188,20 @@ export class FBO {
     gl.bindTexture(target, this.texColor.texture);
     initTex(this.texColor, ctype, ctype2, ctype3);
 
+    for (let tex of this.texBuffers) {
+      initTex(tex, ctype, ctype2, ctype3);
+    }
+
     gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo);
 
     if (this.target === gl.TEXTURE_2D) {
       gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.texColor.texture, 0);
       gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_STENCIL_ATTACHMENT, gl.TEXTURE_2D, this.texDepth.texture, 0);
+
+      let attach = gl.COLOR_ATTACHMENT1;
+      for (let tex of this.texBuffers) {
+        gl.framebufferTexture2D(gl.FRAMEBUFFER, attach++, gl.TEXTURE_2D, tex.texture, 0);
+      }
     } else {
       let target2 = target;
 
@@ -209,6 +236,8 @@ export class FBO {
       return;
     }
 
+    this._old_buffer = gl.getParameter(gl.DRAW_BUFFER0);
+
     if (gl.contextGen !== this.contextGen) {
       console.warn("context loss detected in fbo");
 
@@ -235,10 +264,16 @@ export class FBO {
     }
 
     //if (gl.drawBuffers) {
-      //gl.drawBuffers([gl.COLOR_ATTACHMENT0]);
+    //gl.drawBuffers([gl.COLOR_ATTACHMENT0]);
     //}
 
+    let bufs = [gl.COLOR_ATTACHMENT0];
+    for (let i = 0; i < this.extraBuffers; i++) {
+      bufs.push(gl.COLOR_ATTACHMENT1 + i);
+    }
+
     gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo);
+    gl.drawBuffers(bufs);
     gl.viewport(0, 0, this.size[0], this.size[1]);
   }
 
@@ -254,6 +289,7 @@ export class FBO {
       return;
     }
 
+    gl.drawBuffers([this._old_buffer]);
     gl.viewport(vb[0], vb[1], vb[2], vb[3]);
   }
 
@@ -323,7 +359,7 @@ export class FBO {
 
 //params are passed to canvas.getContext as-is
 export function init_webgl(canvas, params, webgl2) {
-//  webgl2 = false;
+  //webgl2 = false;
 
   params.powerPreference = params.powerPreference ?? "high-performance";
   params.premultipliedAlpha = params.premultipliedAlpha ?? false;
@@ -368,7 +404,7 @@ export function init_webgl(canvas, params, webgl2) {
 
 
   gl.texture_float = gl.getExtension("OES_texture_float");
-  gl.texture_float = gl.getExtension("OES_texture_float_linear");
+  gl.texture_float_linear = gl.getExtension("OES_texture_float_linear");
   gl.float_blend = gl.getExtension("EXT_float_blend");
   gl.getExtension("OES_standard_derivatives");
   gl.getExtension("ANGLE_instanced_arrays");
@@ -391,7 +427,7 @@ export function init_webgl(canvas, params, webgl2) {
       try {
         if (typeof v === "function") {
           gl[k2] = function () {
-            v(...arguments);
+            v.call(gl.draw_buffers, ...arguments);
           }
         } else {
           gl[k2] = v;
@@ -428,8 +464,8 @@ function format_lines(script, errortext) {
   var maxcol = Math.ceil(Math.log(lines.length)/Math.log(10)) + 1;
 
   if (typeof linenr === "number") {
-    let a = Math.max(linenr-25, 0);
-    let b = Math.min(linenr+5, lines.length);
+    let a = Math.max(linenr - 25, 0);
+    let b = Math.min(linenr + 5, lines.length);
 
     i = a + 1;
     lines = lines.slice(a, b);
@@ -1071,7 +1107,6 @@ export class Texture {
     //console.warn("new webgl.Texture()", texture, gl !== undefined);
 
     this.texture = texture;
-    this.texture_slot = undefined;
     this.target = target;
 
     this.createParams = {
@@ -1088,7 +1123,7 @@ export class Texture {
     this._params = {};
   }
 
-  static load(gl, width, height, data, target = gl.TEXTURE_2D) {
+  static load(gl, width, height, data, format = gl.RGBA, useMipMaps = true, target = gl.TEXTURE_2D) {
     let tex = gl.createTexture();
 
     gl.bindTexture(target, tex);
@@ -1097,15 +1132,17 @@ export class Texture {
     use_byte_width = use_byte_width || gl.haveWebGL2;
 
     if (data instanceof Float32Array) {
-      gl.texImage2D(target, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.FLOAT, data);
+      gl.texImage2D(target, 0, format, width, height, 0, format, gl.FLOAT, data);
     } else if (use_byte_width) {
-      gl.texImage2D(target, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, data);
+      gl.texImage2D(target, 0, format, width, height, 0, format, gl.UNSIGNED_BYTE, data);
     } else {
-      gl.texImage2D(target, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, data);
+      gl.texImage2D(target, 0, format, format, gl.UNSIGNED_BYTE, data);
     }
 
-    gl.generateMipmap(target);
-    gl.texParameteri(target, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+    if (useMipMaps) {
+      gl.generateMipmap(target);
+      gl.texParameteri(target, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+    }
 
     let ret = new Texture(undefined, tex, undefined, gl);
 
@@ -1252,7 +1289,6 @@ export class Texture {
     tex.texture = gl.createTexture();
     tex.createParams = Object.assign({}, this.createParams);
     tex.createParamsList = this.createParamsList.concat([]);
-    tex.texture_slot = this.texture_slot;
 
     gl.bindTexture(this.createParams.target, tex.texture);
 
@@ -1298,7 +1334,25 @@ export class Texture {
     gl.deleteTexture(this.texture);
   }
 
-  load(gl, width, height, data, target = gl.TEXTURE_2D) {
+  static getInternalFormal(gl, format, type) {
+    if (!gl.haveWebGL2) {
+      return format;
+    }
+
+    switch (format) {
+      case gl.RGBA:
+        if (type === gl.UNSIGNED_BYTE) {
+          return gl.RGBA8UI;
+        } else if (type === gl.FLOAT) {
+          return gl.RGBA32F;
+        }
+        break;
+    }
+
+    return format;
+  }
+
+  load(gl, width, height, data, format = gl.RGBA, useMipMaps = true, target = gl.TEXTURE_2D) {
     if (this.contextGen !== gl.contextGen) {
       console.warn("context loss detected in texture!");
       this.contextGen = gl.contextGen;
@@ -1313,16 +1367,19 @@ export class Texture {
     this.contextGen = gl.contextGen;
     this.texture = tex;
 
-    this.createParams = {width, height, target, border: 0, level: 0, format: gl.RGBA, internalformat: gl.RGBA};
+    this.createParams = {width, height, target, border: 0, level: 0, format: format, internalformat: format};
 
     gl.bindTexture(target, tex);
 
+    let type = data instanceof Float32Array ? gl.FLOAT : gl.UNSIGNED_BYTE;
+    let internal_format = Texture.getInternalFormal(gl, format, type);
+
     if (data instanceof Float32Array) {
-      gl.texImage2D(target, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.FLOAT, data);
+      gl.texImage2D(target, 0, internal_format, width, height, 0, format, gl.FLOAT, data);
     } else if (use_byte_width) {
-      gl.texImage2D(target, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, data);
+      gl.texImage2D(target, 0, internal_format, width, height, 0, format, gl.UNSIGNED_BYTE, data);
     } else {
-      gl.texImage2D(target, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, data);
+      gl.texImage2D(target, 0, internal_format, format, gl.UNSIGNED_BYTE, data);
     }
 
     if (data) {
@@ -1330,10 +1387,10 @@ export class Texture {
     }
 
     this.defaultParams(gl, tex, target);
-    this.makeMipMaps(gl);
 
-    this.texParameteri(gl, target, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-    this.texParameteri(gl, target, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    if (useMipMaps) {
+      this.makeMipMaps(gl);
+    }
 
     return this;
   }
@@ -1347,7 +1404,7 @@ export class Texture {
     this.texParameteri(gl, target, gl.TEXTURE_WRAP_T, gl.REPEAT);
   }
 
-  bind(gl, uniformloc, slot = this.texture_slot) {
+  bind(gl, uniformloc, slot = 0) {
     if (gl.contextBad) {
       return;
     }
@@ -1359,7 +1416,10 @@ export class Texture {
 
     gl.activeTexture(gl.TEXTURE0 + slot);
     gl.bindTexture(this.target, this.texture);
-    gl.uniform1i(uniformloc, slot);
+
+    if (uniformloc !== undefined) {
+      gl.uniform1i(uniformloc, slot);
+    }
   }
 }
 

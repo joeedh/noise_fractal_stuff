@@ -37,8 +37,11 @@ export function add_preset(sliders, options, fixScale = true, hide = false) {
 
   /* we don't want to use normal defaults, stick with zero--
      except for hoff*/
+  let sdef = NewtonPattern.getPatternDef().sliderDef;
+
   while (sliders.length < preset.sliders.length) {
-    sliders.push(sliders.length === 9 ? 0.32 : 0.0);
+    let val = sdef[sliders.length].value || 0.0;
+    sliders.push(sliders.length === 9 ? 0.32 : val);
   }
 
   let tot = Math.min(sliders.length, preset.sliders.length);
@@ -70,7 +73,8 @@ const shader = `
 
 //$ is replaced with pattern.id
 vec2 fsample$(vec2 z, vec2 p) {
-    const float d = 1.0;
+    float d = SLIDERS[15];
+    
     //(z-1)(z+1)(z-p)
     vec2 a = z - vec2(d, 0.0+SLIDERS[12]);
     vec2 b = z + vec2(d, 0.0-SLIDERS[12]);
@@ -195,6 +199,7 @@ float pattern(float ix, float iy) {
         m = inverse(m);
         
         vec2 off = -m * a;
+        off = rot2d(off, SLIDERS[16]);
         
 #if 0
         if (i % 2 == 1) {
@@ -282,26 +287,29 @@ export class NewtonPattern extends Pattern {
       presets      : NewtonPresets,
       sliderDef    : [
         {
-          name : "steps", integer: true,
+          name : "steps",
+          type : "int",
           range: [5, 955],
           value: 100,
           speed: 7.0,
           exp  : 1.5,
         }, //0
         {name: "offset", value: 0.54, range: [-5.0, 5.0], speed: 0.1}, //1
-        {name: "gain", value: 0.19, range: [0.001, 1000], speed: 4.0, exp: 2.0, noReset : true},  //2
-        {name: "color", value: 0.75, range: [-50, 50], speed: 0.25, exp: 1.0, noReset : true}, //3
+        {name: "gain", value: 0.19, range: [0.001, 1000], speed: 4.0, exp: 2.0, noReset: true},  //2
+        {name: "color", value: 0.75, range: [-50, 50], speed: 0.25, exp: 1.0, noReset: true}, //3
         {name: "scale", value: 4.75, range: [0.001, 1000000.0]}, //4
         "x",  //5
         "y",  //6
-        {name: "colorscale", value: 5.9, noReset : true},//7
-        {name: "brightness", value: 1.0, range: [0.001, 10.0], noReset : true}, //8
-        {name: "hoff", value: 0.1, range: [0.0001, 10.0]}, //9
+        {name: "colorscale", value: 5.9, noReset: true},//7
+        {name: "brightness", value: 1.0, range: [0.001, 10.0], noReset: true}, //8
+        {name: "hoff", value: 0.1, range: [-10.0001, 100.0]}, //9
         {name: "poff", value: 0.39, range: [-8.0, 8.0], speed: 0.1, exp: 1.0}, //10
         {name: "simple", value: 0.5, range: [-44.0, 44.0]}, //11
-        {name: "offset2", value: 0.0, range : [-5, 5], speed : 0.2},//12
-        {name: "valueoff", value: 0.0, range : [-15.0, 45.0], speed : 0.15, exp : 1.35, noReset: true}, //13
+        {name: "offset2", value: 0.0, range: [-5, 5], speed: 0.2},//12
+        {name: "valueoff", value: 0.0, range: [-15.0, 45.0], speed: 0.15, exp: 1.35, noReset: true}, //13
         {name: "offset3", value: 0.0, range: [-2.0, 10.0], speed: 0.025}, //14
+        {name: "d", value: 1.0, range: [-25.0, 25.0]}, //15
+        {name: "rot", value: 0.0, rnage: [-5, 5], baseUnit : "radian", displayUnit : "degree"}, //16
       ],
       shader,
       shaderPre
@@ -318,7 +326,7 @@ export class NewtonPattern extends Pattern {
     defines.BRIGHTNESS = "SLIDERS[8]";
   }
 
-  savePresetText(opt={}) {
+  savePresetText(opt = {}) {
     opt.sharpness = opt.sharpness ?? this.sharpness;
     opt.filter_width = opt.filter_width ?? this.filter_width;
     //opt.max_samples = opt.max_samples ?? this.max_samples;
@@ -336,6 +344,7 @@ export class NewtonPattern extends Pattern {
 add_preset_new(${sliders}, ${opt});
     `.trim();
   }
+
   viewportDraw(ctx, gl, uniforms, defines) {
     defines.STEPS = ~~this.sliders[0];
 

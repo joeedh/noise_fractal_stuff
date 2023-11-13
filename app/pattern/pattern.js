@@ -56,9 +56,14 @@ export class Pattern {
     this.old_gradient = true;
     this.use_monty_sharpness = false;
     this.print_test = false;
+    this.show_variance = false;
+    this.use_variance = false;
+    this.variance_blur = 1.5;
     this.use_sharpness = true;
     this.sharpness = 0.5;
     this.per_pixel_random = true;
+    this.per_pixel_blue = false;
+    this.use_weighted_filter = true;
 
     this.DT = 0.001;
     this.T = 0.0;
@@ -247,7 +252,7 @@ float pattern(float ix, float iy) {
 
     con.prop("fast_mode");
     con.slider("filter_width", {
-      packflag : PackFlags.FORCE_ROLLER_SLIDER
+      packflag: PackFlags.FORCE_ROLLER_SLIDER
     });
     con.prop("pixel_size");
     con.prop("max_samples");
@@ -257,7 +262,12 @@ float pattern(float ix, float iy) {
     con.prop("use_monty_sharpness");
     con.prop("sharpness");
     con.prop("per_pixel_random");
+    con.prop("per_pixel_blue");
+    con.prop("use_weighted_filter");
     con.prop("print_test");
+    con.prop("show_variance");
+    con.prop("use_variance");
+    con.prop("variance_blur");
     //con.prop("old_gradient");
   }
 
@@ -302,14 +312,32 @@ float pattern(float ix, float iy) {
       .on('change', redraw);
     st.bool("old_gradient", "old_gradient", "Old Gradient")
       .on('change', redraw);
-    st.bool("use_monty_sharpness", "use_monty_sharpness", "Monty Sharpness")
+    st.bool("use_monty_sharpness", "use_monty_sharpness", "Monty Sharpness", "Monte Carlo based sharpening")
       .on('change', onchange);
 
     st.bool("print_test", "print_test", "Printer Test")
       .on('change', redraw);
+
+    st.bool("show_variance", "show_variance", "Show Variance")
+      .on('change', redraw);
+    st.bool("use_variance", "use_variance", "Use Variance")
+      .on('change', onchange)
+      .description("Do more work on high-variance pixels.");
+    st.float("variance_blur", "variance_blur", "Variance Blur")
+      .range(0, 10.0)
+      .step(0.1)
+      .decimalPlaces(2)
+      .noUnits()
+      .on('change', onchange)
+      .description("Increase filter width for  high-variance pixels.")
+
     st.bool("use_sharpness", "use_sharpness", "Use Sharpness")
       .on('change', redraw);
     st.bool("per_pixel_random", "per_pixel_random", "Pixel Random")
+      .on('change', onchange);
+    st.bool("per_pixel_blue", "per_pixel_blue", "Pixel Blue")
+      .on('change', onchange);
+    st.bool("use_weighted_filter", "use_weighted_filter", "Weighted Filter")
       .on('change', onchange);
 
     st.float("sharpness", "sharpness", "Sharpness")
@@ -351,9 +379,6 @@ float pattern(float ix, float iy) {
       }
     ]);
 
-    class dummy {
-    }
-
     function getIndex(path) {
       //grab index from datapath
 
@@ -394,14 +419,26 @@ float pattern(float ix, float iy) {
       return sliders[wrapSymbol];
     }
 
-    let floatst = api.mapStruct(dummy, true);
+    class FloatDummyClass {
+    }
+
+    class IntDummyClass {
+    }
+
+    let floatst = api.mapStruct(FloatDummyClass, true);
+    let intst = api.mapStruct(IntDummyClass, true);
+
+    let sdef = this !== Pattern ? this.getSliderDef() : [];
+
     floatst.float("value", "value", "Value")
       .noUnits().rollerSlider();
+    intst.int("value", "value", "Value")
+      .noUnits().rollerSlider().step(1);
 
     st.string("typeName", "type", "").readOnly();
     st.list("sliders", "sliders", [
       function getStruct(api, list, key) {
-        return floatst;
+        return sdef[key].type === "int" ? intst : floatst;
       },
 
       function get(api, list, key) {
@@ -530,9 +567,14 @@ float pattern(float ix, float iy) {
     b.old_gradient = this.old_gradient;
     b.use_monty_sharpness = this.use_monty_sharpness;
     b.print_test = this.print_test;
+    b.show_variance = this.show_variance;
+    b.use_variance = this.use_variance;
+    b.variance_blur = this.variance_blur;
     b.use_sharpness = this.use_sharpness;
     b.sharpness = this.sharpness;
     b.per_pixel_random = this.per_pixel_random;
+    b.per_pixel_blue = this.per_pixel_blue;
+    b.use_weighted_filter = this.use_weighted_filter;
 
     b.max_samples = this.max_samples;
 
@@ -613,7 +655,7 @@ float pattern(float ix, float iy) {
     }
 
     let editor = ctx.canvas;
-    let fbosUpdated = editor.ensureFbos(gl, this.fboCount, this.getPixelSize());
+    let fbosUpdated = editor.ensureFbos(gl, this.fboCount, this.getPixelSize(), 2);
     let fbos = editor.fbos;
 
     let w = fbos[0].size[0];
@@ -671,13 +713,13 @@ float pattern(float ix, float iy) {
     if (1 || this.constructor.getPatternDef().flag & PatternFlags.NEED_BLUEMASK) {
       uniforms.blueMaskDimen = 128;
       uniforms.blueMask = getBlueMaskTex(gl, uniforms.blueMaskDimen);
-      
+
       defines.HAVE_BLUE_NOISE = blueMaskValid(uniforms.blueMaskDimen);
     }
 
     if (this.use_curves) {
       defines.USE_CURVES = true;
-      this.curveset.setUniforms("CURVE", uniforms);
+      this.curveset.setUniforms(gl, "CURVE", uniforms);
     }
 
     if (this.no_gradient) {
@@ -699,8 +741,25 @@ float pattern(float ix, float iy) {
       defines.PRINT_TEST = null;
     }
 
+    if (this.show_variance) {
+      defines.SHOW_VARIANCE = null;
+    }
+
+    if (this.use_variance) {
+      uniforms.varianceBlur = this.variance_blur;
+      defines.USE_VARIANCE = null;
+    }
+
     if (this.per_pixel_random) {
       defines.PER_PIXEL_RANDOM = null;
+    }
+
+    if (this.per_pixel_blue) {
+      defines.PER_PIXEL_BLUE = null;
+    }
+
+    if (this.use_weighted_filter) {
+      defines.USE_WEIGHTED_FILTER = null;
     }
 
     if (this.flag & PatternFlags.CUSTOM_SHADER) {
@@ -737,6 +796,7 @@ float pattern(float ix, float iy) {
     uniforms.aspect = w/h;
     uniforms.filterWidth = this.filter_width;
     uniforms.rgba = fbos[1].texColor;
+    uniforms.rgba2 = fbos[1].texBuffers[0];
     uniforms.enableAccum = enableAccum && this.drawSample > 0 ? 1.0 : 0.0;
     uniforms.uSample = this.drawSample;
     uniforms.T = this.T;
@@ -801,6 +861,7 @@ float pattern(float ix, float iy) {
       }
 
       uniforms.rgba = fbos[0].texColor;
+      uniforms.rgba2 = fbos[0].texBuffers[0];
       this.finalShader.bind(gl, uniforms, defines);
 
       gl.enable(gl.SCISSOR_TEST);
@@ -935,7 +996,7 @@ float pattern(float ix, float iy) {
 
     let shader = this.shader;
     this.setup(ctx, gl, uniforms, defines);
-    
+
     shader.bind(gl, uniforms, defines);
 
     //this.vbuf.bind(gl, 0);
@@ -953,7 +1014,12 @@ Pattern {
   pixel_size          : double;
   filter_width        : double;  
   per_pixel_random    : bool;
+  per_pixel_blue      : bool;
+  use_weighted_filter : bool;
   print_test          : bool;
+  show_variance       : bool;
+  use_variance        : bool;
+  variance_blur       : float;
   use_monty_sharpness : bool;
   old_gradient        : bool;
   no_gradient         : bool;

@@ -1,0 +1,74 @@
+{
+  "_from": "@shaderfrog/glsl-parser",
+  "_id": "@shaderfrog/glsl-parser@0.1.21",
+  "_inBundle": false,
+  "_integrity": "sha512-AMr6cM5tGZaoJICSe71deXHht00Vw+ntOsHgDZ7GfLvYLnXr7LxuCUyuCv5Mb3HpexMaqaBg3H3CpmnuTqYeHQ==",
+  "_location": "/@shaderfrog/glsl-parser",
+  "_phantomChildren": {},
+  "_requested": {
+    "type": "tag",
+    "registry": true,
+    "raw": "@shaderfrog/glsl-parser",
+    "name": "@shaderfrog/glsl-parser",
+    "escapedName": "@shaderfrog%2fglsl-parser",
+    "scope": "@shaderfrog",
+    "rawSpec": "",
+    "saveSpec": null,
+    "fetchSpec": "latest"
+  },
+  "_requiredBy": [
+    "#USER",
+    "/"
+  ],
+  "_resolved": "https://registry.npmjs.org/@shaderfrog/glsl-parser/-/glsl-parser-0.1.21.tgz",
+  "_shasum": "19d628d34749e87fbe5faf7170dd4694dfcab06c",
+  "_spec": "@shaderfrog/glsl-parser",
+  "_where": "C:\\dev\\noise template 2\\app",
+  "author": {
+    "name": "Andrew Ray"
+  },
+  "bugs": {
+    "url": "https://github.com/ShaderFrog/glsl-parser/issues"
+  },
+  "bundleDependencies": false,
+  "deprecated": false,
+  "description": "A GLSL ES 1.0 and 3.0 parser and preprocessor that can preserve whitespace and comments",
+  "devDependencies": {
+    "@babel/core": "^7.15.5",
+    "@babel/preset-env": "^7.15.6",
+    "@babel/preset-typescript": "^7.15.0",
+    "@types/jest": "^27.0.2",
+    "@types/node": "^16.10.2",
+    "babel-jest": "^27.2.4",
+    "jest": "^27.0.2",
+    "peggy": "^1.2.0",
+    "prettier": "^2.1.2",
+    "typescript": "^4.4.3"
+  },
+  "engines": {
+    "node": ">=16"
+  },
+  "files": [
+    "dist"
+  ],
+  "homepage": "https://github.com/ShaderFrog/glsl-parser#readme",
+  "keywords": [
+    "glsl",
+    "parser",
+    "shaderfrog"
+  ],
+  "license": "ISC",
+  "main": "./dist/index.js",
+  "name": "@shaderfrog/glsl-parser",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ShaderFrog/glsl-parser.git"
+  },
+  "scripts": {
+    "build": "./build.sh",
+    "prepare": "npm run build",
+    "test": "jest",
+    "watch-test": "jest --watch"
+  },
+  "version": "0.1.21"
+}

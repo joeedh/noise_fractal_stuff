@@ -269,7 +269,8 @@ export class Newton2Pattern extends Pattern {
       presets      : Newton2Presets,
       sliderDef    : [
         {
-          name : "steps", integer: true,
+          name : "steps",
+          type : "int",
           range: [5, 955],
           value: 100,
           speed: 7.0,
