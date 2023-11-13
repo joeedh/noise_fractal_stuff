@@ -460,6 +460,8 @@ varying vec2 vUv;//possibly mapped coordinates
 
 #define M_PI 3.14159265358
 
+float Seed = 0.0;
+
 vec2 cmul(vec2 a, vec2 b) {
     return vec2(
         a[0]*b[0] - a[1]*b[1],
@@ -531,13 +533,13 @@ float hash(float seed) {
 
 float hash2(vec2 p) {
     p *= 1.0;
-    float a = 0.445325234;// + 0.01*fract(uSample*0.001);
+    float a = 0.445325234;// + 0.01*fract(Seed*0.001);
     
     p += tent(p*4.1234)*2.0 - 1.0;
     
     float f = p[0]*a + p[1]/a;
     
-    f += uSample;
+    f += Seed;
     
     return hash(f);
     return fract(f);
@@ -561,8 +563,8 @@ float bluenoise(vec2 p) {
   float f;
   vec2 op = p;
 
-  p.x += tent(hash(fract(T*12.53423)*10.32432))*1500.0;
-  p.y += tent(hash(fract(T*12.3234)*20.9234+10.4234))*1500.0;
+  p.x += tent(hash(fract(Seed*12.53423)*10.32432))*1500.0;
+  p.y += tent(hash(fract(Seed*12.3234)*20.9234+10.4234))*1500.0;
   
   float a = 0.24976; //0.55947; //1.42083; //1.2569;
   float b;
@@ -628,11 +630,11 @@ float uhash2(vec2 p) {
     f += f2;
 #endif
     
-    f = fract(f*100.0 + sin(T*100.234) + T);
+    f = fract(f*100.0 + sin(Seed*100.234) + Seed);
     
-    f = hash(f+T);
-    f += hash(f+T+0.32432);
-    f += hash(f+T+1.23423);
+    f = hash(f+Seed);
+    f += hash(f+Seed+0.32432);
+    f += hash(f+Seed+1.23423);
     f *= 0.333333;
     
     return f*2.0 - 1.0;
@@ -652,16 +654,16 @@ float uhash2b_blue(vec2 p, float seed) {
     float f = bluenoise(p);
     
     const float steps = 13.0;
-    //f = fract(f+T);
+    //f = fract(f+Seed);
     
     float f2 = hash2(p);
     
     f = floor(f*steps)/steps;
     f2 = floor(f2*steps)/steps;
     
-    f = hash(f+T+seed);
-    f += hash(f+T+0.32432+seed);
-    f += hash(f+T+1.23423+seed);
+    f = hash(f+Seed+seed);
+    f += hash(f+Seed+0.32432+seed);
+    f += hash(f+Seed+1.23423+seed);
     f *= 0.333333;
     
     return f*2.0 - 1.0;
@@ -670,9 +672,9 @@ float uhash2b_blue(vec2 p, float seed) {
 float uhash2b(vec2 p, float seed) {
     float f = hash2(p);
     
-    f = hash(f+T+seed);
-    f += hash(f+T+0.32432+seed);
-    f += hash(f+T+1.23423+seed);
+    f = hash(f+Seed+seed);
+    f += hash(f+Seed+0.32432+seed);
+    f += hash(f+Seed+1.23423+seed);
     f *= 0.333333;
     
     return f*2.0 - 1.0;
@@ -722,6 +724,7 @@ float mainImage( vec2 uv, out float w) {
     
     w = max(1.0 - (length(vec2(dx, dy)) / sqrt(2.0)), 0.0);
     //w = w*w*(3.0 - 2.0*w);
+    
     float eps = 0.3 + sharpness*0.2;
     w = w*w*(1.0 + eps) - eps*1.5;
 #else    
@@ -760,12 +763,14 @@ float mainImage( vec2 uv, out float w) {
     return f;
 }
 
-void main() {  
+void main() {
+  Seed = uSample + T;
+    
   vec2 uv = vCo;
   vec4 color;
 
-  const float varDecay = 0.9;
-  const float minVarProb = 0.05;
+  const float varDecay = 0.95;
+  const float minVarProb = 0.1;
   
   float w;
   
@@ -774,33 +779,34 @@ void main() {
   
   vec2 iUv = vUv*iRes;
   
-#ifdef USE_VARIANCE
+  float f = mainImage(iUv, w);
+  color += vec4(f, f, f, 1.0) * w;
+  
+  #ifdef USE_VARIANCE
   if (oldvar.w*enableAccum > 0.0) {
     vec3 var1 = oldvar.rgb / oldvar.w;
     float f1 = hash2(uv);
     float var = max(max(var1[0], var1[1]), var1[2]);
     
-    if (f1 > var && f1 > minVarProb) {
-      fragColor = old*enableAccum;
-      fragVar = oldvar*enableAccum;
-      return;
+    if (f1 < var && f1 > minVarProb) {
+      /* Blur extremely high variance pixels a bit. */
+      if (var < 1.0) {
+        var = pow(var, 5.0);
+      }
+      iUv += uhash2v(iUv)*min(var*varianceBlur, varianceBlur)*filterWidth*5.0; 
+
+      Seed += -0.124223;
+      float f = mainImage(iUv, w);
+      color += vec4(f, f, f, 1.0) * w;
+      color *= 0.5;      
     }
-    
-    /* Blur extremely high variance pixels a bit. */
-    if (var < 1.0) {
-      var = pow(var, 5.0);
-    }
-    iUv += uhash2v(iUv)*min(var*varianceBlur, varianceBlur)*filterWidth; 
   }
 #endif
-
-  float f = mainImage(iUv, w);
-  color = vec4(f, f, f, 1.0) * w;
-    
+  
   vec4 var;
   if (old.w*enableAccum != 0.0) {
     float fa = old.r / old.w;
-    float fb = (old.r + color.r) / (old.w + w);
+    float fb = (old.r + color.r) / (old.w + color.w);
     vec3 a = colorize(fa);
     vec3 b = colorize(fb);
     
@@ -810,7 +816,7 @@ void main() {
 
     var = vec4(abs(a - b)*10.0, 1.0);
          
-    const float exp = 0.5;
+    const float exp = 1.0;
     var.r = pow(var.r, exp);
     var.g = pow(var.g, exp);
     var.b = pow(var.b, exp);
@@ -821,7 +827,7 @@ void main() {
   oldvar.rgb *= varDecay*varDecay;
   
   fragColor = color + old*enableAccum;
-  fragVar = var; //(var + oldvar*enableAccum);
+  fragVar = var + oldvar*enableAccum;
 }
 #endif
 
@@ -847,6 +853,8 @@ const finalShader = {
         uniform float SLIDERS[MAX_SLIDERS];
         uniform float T;
         
+        float Seed;
+
         ${CurveSet.makeUniforms("CURVE")}
         ${CurveSet.getShaderCode("CURVE")}
         
@@ -872,13 +880,13 @@ const finalShader = {
 
       float hash2(vec2 p) {
           p *= 1.0;
-          float a = 0.445325234;// + 0.01*fract(T*0.1);
+          float a = 0.445325234;// + 0.01*fract(Seed*0.1);
           
           p += tent(p*4.1234)*2.0 - 1.0;
           
           float f = p[0]*a + p[1]/a;
           
-          f += T*100.0;
+          f += Seed*100.0;
           
           return hash(f);
           return fract(f);

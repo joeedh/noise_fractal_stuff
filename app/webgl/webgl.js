@@ -464,7 +464,7 @@ function format_lines(script, errortext) {
   var maxcol = Math.ceil(Math.log(lines.length)/Math.log(10)) + 1;
 
   if (typeof linenr === "number") {
-    let a = Math.max(linenr - 25, 0);
+    let a = 0; //Math.max(linenr - 25, 0);
     let b = Math.min(linenr + 5, lines.length);
 
     i = a + 1;

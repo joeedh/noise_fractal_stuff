@@ -209,7 +209,9 @@ void main() {
     fragColor = c1;
   } else {
     fragColor = vec4(c2.rgb, 1.0);
-  } 
+  }
+  
+  fragVar = vec4(0.0, 0.0, 0.0, 1.0); 
 }
 `,
   attributes: ["co"],
@@ -479,6 +481,7 @@ void main() {
 #endif
 
   fragColor = vec4(f, f, f, alpha);
+  fragVar = vec4(0.0, 0.0, 0.0, alpha);
 }
 `,
   attributes: ['co'],

@@ -324,12 +324,13 @@ float pattern(float ix, float iy) {
       .on('change', onchange)
       .description("Do more work on high-variance pixels.");
     st.float("variance_blur", "variance_blur", "Variance Blur")
-      .range(0, 10.0)
+      .range(0, 10000.0)
       .step(0.1)
       .decimalPlaces(2)
       .noUnits()
       .on('change', onchange)
       .description("Increase filter width for  high-variance pixels.")
+      .rollerSlider()
 
     st.bool("use_sharpness", "use_sharpness", "Use Sharpness")
       .on('change', redraw);
@@ -343,7 +344,13 @@ float pattern(float ix, float iy) {
     st.float("sharpness", "sharpness", "Sharpness")
       .range(0.0, 1.0)
       .noUnits()
-      .on('change', redraw);
+      .on('change', function () {
+        if (this.dataref.use_monty_sharpness) {
+          onchange.call(this, ...arguments);
+        } else {
+          redraw.call(this, ...arguments);
+        }
+      });
 
     st.float("filter_width", "filter_width", "Filter Width")
       .noUnits()
