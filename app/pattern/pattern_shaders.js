@@ -691,6 +691,8 @@ vec2 uhash2v(vec2 p) {
   fragment   : `
   
 uniform float varianceBlur;
+uniform float varianceColorFac;
+uniform float varianceDecay;
 
 #ifndef CUSTOM_MAIN
 float mainImage( vec2 uv, out float w) {
@@ -769,7 +771,13 @@ void main() {
   vec2 uv = vCo;
   vec4 color;
 
-  const float varDecay = 0.95;
+
+#ifndef COLOR_VARIANCE
+  float varDecay = varianceDecay;
+#else
+  const float varDecay = 1.0;
+#endif
+
   const float minVarProb = 0.1;
   
   float w;
@@ -780,6 +788,11 @@ void main() {
   vec2 iUv = vUv*iRes;
   
   float f = mainImage(iUv, w);
+  #ifdef COLOR_VARIANCE
+    if (enableAccum*oldvar.w != 0.0) {
+      f += (oldvar.r / oldvar.w)*enableAccum*varianceColorFac;
+    }
+  #endif
   color += vec4(f, f, f, 1.0) * w;
   
   #ifdef USE_VARIANCE

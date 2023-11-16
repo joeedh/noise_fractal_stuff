@@ -58,6 +58,9 @@ export class Pattern {
     this.print_test = false;
     this.show_variance = false;
     this.use_variance = false;
+    this.variance_decay = 0.975;
+    this.variance_color_fac = 1.0;
+    this.color_variance = false;
     this.variance_blur = 1.5;
     this.use_sharpness = true;
     this.sharpness = 0.5;
@@ -266,7 +269,10 @@ float pattern(float ix, float iy) {
     con.prop("use_weighted_filter");
     con.prop("print_test");
     con.prop("show_variance");
+    con.prop("color_variance");
     con.prop("use_variance");
+    con.prop("variance_decay")
+    con.prop("variance_color_fac")
     con.prop("variance_blur");
     //con.prop("old_gradient");
   }
@@ -319,10 +325,31 @@ float pattern(float ix, float iy) {
       .on('change', redraw);
 
     st.bool("show_variance", "show_variance", "Show Variance")
+      .description("Sample high variance areas more\nand enable variance blur.")
       .on('change', redraw);
+    st.bool("color_variance", "color_variance", "Variance Color")
+      .description("Feed variance back into coloring.")
+      .on('change', onchange)
     st.bool("use_variance", "use_variance", "Use Variance")
       .on('change', onchange)
       .description("Do more work on high-variance pixels.");
+    st.float("variance_decay", "variance_decay", "Variance Decay")
+      .description("Decay rate (only if Variance Color is off)")
+      .range(0.0, 1.0)
+      .step(0.01)
+      .noUnits()
+      .rollerSlider()
+      .decimalPlaces(4)
+      .on('change', onchange);
+    st.float("variance_color_fac", "variance_color_fac", "Color Fac")
+      .range(-50.0, 50.0)
+      .step(0.1)
+      .decimalPlaces(3)
+      .noUnits()
+      .on('change', onchange)
+      .description("Variance feedback color factor")
+      .rollerSlider()
+
     st.float("variance_blur", "variance_blur", "Variance Blur")
       .range(0, 10000.0)
       .step(0.1)
@@ -576,6 +603,9 @@ float pattern(float ix, float iy) {
     b.print_test = this.print_test;
     b.show_variance = this.show_variance;
     b.use_variance = this.use_variance;
+    b.variance_decay = this.variance_decay;
+    b.variance_color_fac = this.variance_color_fac;
+    b.color_variance = this.color_variance;
     b.variance_blur = this.variance_blur;
     b.use_sharpness = this.use_sharpness;
     b.sharpness = this.sharpness;
@@ -755,6 +785,12 @@ float pattern(float ix, float iy) {
     if (this.use_variance) {
       uniforms.varianceBlur = this.variance_blur;
       defines.USE_VARIANCE = null;
+      uniforms.varianceDecay = this.variance_decay;
+    }
+
+    if (this.color_variance) {
+      uniforms.varianceColorFac = this.variance_color_fac*0.025;
+      defines.COLOR_VARIANCE = null;
     }
 
     if (this.per_pixel_random) {
@@ -1026,6 +1062,9 @@ Pattern {
   print_test          : bool;
   show_variance       : bool;
   use_variance        : bool;
+  variance_color_fac  : float;
+  variance_decay      : float;
+  color_variance      : bool;
   variance_blur       : float;
   use_monty_sharpness : bool;
   old_gradient        : bool;
