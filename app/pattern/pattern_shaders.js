@@ -790,7 +790,7 @@ void main() {
   float f = mainImage(iUv, w);
   #ifdef COLOR_VARIANCE
     if (enableAccum*oldvar.w != 0.0) {
-      f += (oldvar.r / oldvar.w)*enableAccum*varianceColorFac;
+      //f += (oldvar.r / oldvar.w)*enableAccum*varianceColorFac;
     }
   #endif
   color += vec4(f, f, f, 1.0) * w;
@@ -865,6 +865,7 @@ const finalShader = {
         uniform float sharpness;
         uniform float SLIDERS[MAX_SLIDERS];
         uniform float T;
+        uniform float varianceColorFac;
         
         float Seed;
 
@@ -999,7 +1000,16 @@ const finalShader = {
 
           float value = color.r;
           
-          color.rgb = colorize(color.r);
+#ifdef COLOR_VARIANCE
+        {
+          vec4 var = texture(rgba2, vCo);
+          if (var.w != 0.0) {
+            value += varianceColorFac*(var.r+var.g+var.b)/(var.w*3.0);
+          }
+        } 
+#endif
+
+          color.rgb = colorize(value);
           color.a = 1.0;
 
 #ifdef MULTIPLY_ORIG

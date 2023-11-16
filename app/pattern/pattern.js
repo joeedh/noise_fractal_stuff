@@ -346,7 +346,7 @@ float pattern(float ix, float iy) {
       .step(0.1)
       .decimalPlaces(3)
       .noUnits()
-      .on('change', onchange)
+      .on('change', redraw)
       .description("Variance feedback color factor")
       .rollerSlider()
 
