@@ -281,7 +281,7 @@ export var theme = {
     'background-color': 'rgba(219,219,219, 1)',
     'border-color'    : 'black',
     'border-radius'   : 6,
-    height            : 18,
+    height            : 25,
     width             : 135,
   },
 
