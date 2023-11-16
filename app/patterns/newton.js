@@ -309,7 +309,7 @@ export class NewtonPattern extends Pattern {
         {name: "valueoff", value: 0.0, range: [-15.0, 45.0], speed: 0.15, exp: 1.35, noReset: true}, //13
         {name: "offset3", value: 0.0, range: [-2.0, 10.0], speed: 0.025}, //14
         {name: "d", value: 1.0, range: [-25.0, 25.0]}, //15
-        {name: "rot", value: 0.0, rnage: [-5, 5], baseUnit : "radian", displayUnit : "degree"}, //16
+        {name: "rot", value: 0.0, rnage: [-5, 5], baseUnit: "radian", displayUnit: "degree"}, //16
       ],
       shader,
       shaderPre

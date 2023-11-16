@@ -265,6 +265,7 @@ void main() {
   //f = vis[0];
 #endif
   fragColor = vec4(f, f, f, 1.0);
+  fragVar = vec4(0.0, 0.0, 0.0, 1.0);
 }
 
 `;
