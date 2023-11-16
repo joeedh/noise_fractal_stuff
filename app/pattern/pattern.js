@@ -58,6 +58,7 @@ export class Pattern {
     this.print_test = false;
     this.show_variance = false;
     this.use_variance = false;
+    this.variance_color_direct = false;
     this.variance_decay = 0.975;
     this.variance_color_fac = 1.0;
     this.color_variance = false;
@@ -269,11 +270,15 @@ float pattern(float ix, float iy) {
     con.prop("use_weighted_filter");
     con.prop("print_test");
     con.prop("show_variance");
-    con.prop("color_variance");
     con.prop("use_variance");
     con.prop("variance_decay")
-    con.prop("variance_color_fac")
     con.prop("variance_blur");
+
+    let panel = con.panel("Variance Feedback")
+    panel.prop("color_variance");
+    panel.prop("variance_color_direct");
+    panel.prop("variance_color_fac")
+
     //con.prop("old_gradient");
   }
 
@@ -324,12 +329,21 @@ float pattern(float ix, float iy) {
     st.bool("print_test", "print_test", "Printer Test")
       .on('change', redraw);
 
+    function var_color_onchange() {
+      console.log(this);
+      if (this.dataref.variance_color_direct) {
+        onchange.call(this, ...arguments);
+      } else {
+        redraw.call(this, ...arguments);
+      }
+    }
+
     st.bool("show_variance", "show_variance", "Show Variance")
       .description("Sample high variance areas more\nand enable variance blur.")
       .on('change', redraw);
-    st.bool("color_variance", "color_variance", "Variance Color")
+    st.bool("color_variance", "color_variance", "Enabled")
       .description("Feed variance back into coloring.")
-      .on('change', onchange)
+      .on('change', var_color_onchange)
     st.bool("use_variance", "use_variance", "Use Variance")
       .on('change', onchange)
       .description("Do more work on high-variance pixels.");
@@ -342,13 +356,16 @@ float pattern(float ix, float iy) {
       .decimalPlaces(4)
       .on('change', onchange);
     st.float("variance_color_fac", "variance_color_fac", "Color Fac")
-      .range(-50.0, 50.0)
+      .range(-5000.0, 5000.0)
       .step(0.1)
       .decimalPlaces(3)
       .noUnits()
-      .on('change', redraw)
+      .on('change', var_color_onchange)
       .description("Variance feedback color factor")
       .rollerSlider()
+    st.bool("variance_color_direct", "variance_color_direct", "Direct")
+      .on('change', onchange)
+      .description("Apply variance color feedback in\nmain shader instead of final display\shader");
 
     st.float("variance_blur", "variance_blur", "Variance Blur")
       .range(0, 10000.0)
@@ -603,6 +620,7 @@ float pattern(float ix, float iy) {
     b.print_test = this.print_test;
     b.show_variance = this.show_variance;
     b.use_variance = this.use_variance;
+    b.variance_color_direct = this.variance_color_direct;
     b.variance_decay = this.variance_decay;
     b.variance_color_fac = this.variance_color_fac;
     b.color_variance = this.color_variance;
@@ -789,6 +807,10 @@ float pattern(float ix, float iy) {
     }
 
     if (this.color_variance) {
+      if (this.variance_color_direct) {
+        defines.VARIANCE_COLOR_DIRECT = null;
+      }
+
       uniforms.varianceColorFac = this.variance_color_fac*0.025;
       defines.COLOR_VARIANCE = null;
     }
@@ -1062,6 +1084,7 @@ Pattern {
   print_test          : bool;
   show_variance       : bool;
   use_variance        : bool;
+  variance_color_direct : bool;
   variance_color_fac  : float;
   variance_decay      : float;
   color_variance      : bool;

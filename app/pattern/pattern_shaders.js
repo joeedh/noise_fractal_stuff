@@ -788,9 +788,10 @@ void main() {
   vec2 iUv = vUv*iRes;
   
   float f = mainImage(iUv, w);
-  #ifdef COLOR_VARIANCE
+  #if defined(COLOR_VARIANCE) && defined(VARIANCE_COLOR_DIRECT)
     if (enableAccum*oldvar.w != 0.0) {
-      //f += (oldvar.r / oldvar.w)*enableAccum*varianceColorFac;
+      f += (oldvar.r / oldvar.w)*enableAccum*varianceColorFac;
+      f = max(f, 0.0);
     }
   #endif
   color += vec4(f, f, f, 1.0) * w;
@@ -1000,11 +1001,12 @@ const finalShader = {
 
           float value = color.r;
           
-#ifdef COLOR_VARIANCE
+#if defined(COLOR_VARIANCE) && !defined(VARIANCE_COLOR_DIRECT)
         {
           vec4 var = texture(rgba2, vCo);
           if (var.w != 0.0) {
             value += varianceColorFac*(var.r+var.g+var.b)/(var.w*3.0);
+            value = max(value, 0.0);
           }
         } 
 #endif
