@@ -357,9 +357,10 @@ float pattern(float ix, float iy) {
       .on('change', onchange);
     st.float("variance_color_fac", "variance_color_fac", "Color Fac")
       .range(-5000.0, 5000.0)
-      .step(0.1)
+      .step(0.15)
       .decimalPlaces(3)
       .noUnits()
+      .expRate(1.5)
       .on('change', var_color_onchange)
       .description("Variance feedback color factor")
       .rollerSlider()
