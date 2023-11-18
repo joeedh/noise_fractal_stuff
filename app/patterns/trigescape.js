@@ -1,9 +1,17 @@
 import {Pattern} from '../pattern/pattern.js';
 import {NewtonPresets} from './newton.js';
-import {savePreset} from '../pattern/preset.js';
+import {loadPreset, savePreset} from '../pattern/preset.js';
 import {nstructjs, PackFlags} from '../path.ux/pathux.js';
+import {SliderParam} from '../pattern/pattern_types.js';
 
 export const TrigEscapePresets = [];
+
+export const WaveModes = {
+  COS   : 0,
+  SAW   : 1,
+  SQUARE: 2,
+  TENT  : 3
+}
 
 export const RotModes = {
   LENGTH_POWER: 0,
@@ -23,6 +31,10 @@ export function trigescape_preset(opt) {
   let preset = new TrigEscapePattern();
 
   for (let k in opt) {
+    if (typeof k === "object" && k !== "sliders") {
+      continue;
+    }
+
     if (k === "sliders") {
       for (let i = 0; i < opt.sliders.length; i++) {
         preset.sliders[i] = opt.sliders[i];
@@ -39,8 +51,41 @@ export function trigescape_preset(opt) {
 function getShader() {
   return {
     shaderPre: `
+
+    float wave(float f) {
+      f *= ${0.5/Math.PI};
+
+#if defined(WAVE_MODE_SAW)
+      f = fract(f);
+#elif defined(WAVE_MODE_SQUARE)
+      f = float(f > 0.5);
+#elif defined(WAVE_MODE_TENT)
+      f = tent(f);
+#endif
+      return f*2.0 - 1.0;
+    }
+    float rcos$(float f) {
+#if defined(WAVE_MODE_COS)
+      return cos(f);
+#else
+      return wave$(f);
+#endif
+    }
+
+    float rsin$(float f) {
+      return rcos$(f - M_PI*0.5);
+    }
+    
+vec2 rot2dfunc$(vec2 p, float th) {
+  float costh = rcos$(th);
+  float sinth = rsin$(th);
+  return vec2(
+    costh*p.x + sinth*p.y,
+    costh*p.y - sinth*p.x
+  );
+}
 vec2 rot2dorigin(vec2 p, vec2 o, float th) {
-    return rot2d(p - o, th) + o;
+    return rot2dfunc(p - o, th) + o;
 }
 `,
 
@@ -75,6 +120,8 @@ vec2 rot2dorigin(vec2 p, vec2 o, float th) {
           th = 2.0;
           #endif
 
+          vec2 origin2 = -p*0.5;
+          
           for (int i=0; i<STEPS; i++) {
             #ifdef ROT_LENGTH_POWER
             th = pow(dot(p, p), _%rotLengthPW + 0.5);
@@ -91,6 +138,9 @@ vec2 rot2dorigin(vec2 p, vec2 o, float th) {
             th = atan(p[1], p[0])*_%rotAtan;
             #endif
 
+            //th = p.x*uv.y - p.y*uv.x;
+            //th = dot(p, uv);
+            
             vec2 origin;
             #ifdef ORIGIN_EXPONENT
             origin[0] = pow(abs(p[0]), _%originExp)*sign(p[0]);
@@ -102,9 +152,10 @@ vec2 rot2dorigin(vec2 p, vec2 o, float th) {
             origin[0] = p[0] - pow(abs(p[0]), _%originSubExp)*sign(p[0]);
             origin[1] = p[1] - pow(abs(p[1]), _%originSubExp)*sign(p[1]);
             #endif
-            
-            p = rot2dorigin(origin, p, th)*_%finalScale;
 
+            p = rot2dorigin(origin, p, th)*_%finalScale;
+            p = rot2d(p, _%postRotate);
+          
             if (length(p) > 10000000.0) {
               break;
             }
@@ -123,6 +174,7 @@ vec2 rot2dorigin(vec2 p, vec2 o, float th) {
 export class TrigEscapePattern extends Pattern {
   static STRUCT = nstructjs.inlineRegister(TrigEscapePattern, `
   TrigEscapePattern {
+    waveMode   : int;
     rotMode    : int;
     originMode : int;
   }
@@ -188,6 +240,11 @@ export class TrigEscapePattern extends Pattern {
           name        : "finalScale", value: 1.0, range: [-15, 1000], speed: 2.0, step: 0.1, exp: 1.35,
           decialPlaces: 3, description: "Final scaling value"
         }, //18
+        {
+          name        : "postRotate", value: 0.0, range: [-Math.PI*2.0, Math.PI*2.0], speed: 2.0, step: 0.1, exp: 1.35,
+          decialPlaces: 3, description: "Final scaling value"
+        }, //18
+
       ],
       ...getShader(),
       pollShaderForUpdates: true,
@@ -206,6 +263,8 @@ export class TrigEscapePattern extends Pattern {
       window.redraw_viewport()
     }
 
+    st.enum("waveMode", "waveMode", WaveModes)
+      .on('change', reset);
     st.enum("rotMode", "rotMode", RotModes)
       .on('change', reset);
     st.enum("originMode", "originMode", OriginModes)
@@ -221,8 +280,10 @@ export class TrigEscapePattern extends Pattern {
 
     const dropboxPackFlag = PackFlags.FORCE_PROP_LABELS; // | PackFlags.LABEL_ON_RIGHT;
 
-    panel.prop('params.finalScale');
+    panel.prop("params.postRotate");
+    panel.prop("params.finalScale");
 
+    panel.prop("waveMode");
     panel.prop("rotMode", dropboxPackFlag);
     let lastMode;
     panel.prop("paramDef[10].value").update.after(function () {
@@ -264,8 +325,27 @@ export class TrigEscapePattern extends Pattern {
   constructor() {
     super();
 
+    this.use_sharpness = false;
     this.rotMode = RotModes.LENGTH_POWER;
+    this.waveMode = WaveModes.COS;
     this.originMode = OriginModes.EXPONENT;
+
+    let preset = this.constructor.patternDef().presets[0];
+
+    /* Note: trigescape_preset creates TrigPattern instances, so preset may not exist */
+    if (preset) {
+      preset = preset.preset;
+      let sliders = preset.sliders._items;
+      for (let i=0; i<sliders.length; i++) {
+        this.sliders[i] = sliders[i];
+      }
+
+      for (let k in preset) {
+        if (k in this && typeof(this[k]) !== "object") {
+          this[k] = preset[k];
+        }
+      }
+    }
   }
 
   setup(ctx, gl, uniforms, defines) {
@@ -288,6 +368,12 @@ export class TrigEscapePattern extends Pattern {
         defines["ORIGIN_" + k.toUpperCase()] = null;
       }
     }
+
+    for (let k in WaveModes) {
+      if (WaveModes[k] === this.waveMode) {
+        defines["WAVE_MODE_" + k.toUpperCase()] = null;
+      }
+    }
   }
 
   savePresetText(opt) {
@@ -295,6 +381,7 @@ export class TrigEscapePattern extends Pattern {
 
     opt.originMode ??= this.originMode;
     opt.rotMode ??= this.rotMode;
+    opt.waveMode ??= this.waveMode;
 
     return `trigescape_preset(${JSON.stringify(opt)})`;
   }
@@ -304,6 +391,7 @@ export class TrigEscapePattern extends Pattern {
 
     b.rotMode = this.rotMode;
     b.originMode = this.originMode;
+    b.waveMode = this.waveMode;
   }
 }
 

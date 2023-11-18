@@ -205,20 +205,17 @@ export function savePreset(pat,
   });
 }
 
-export function loadPreset(preset) {
+export function loadPreset(preset, existingObject = undefined) {
   if (typeof preset === "string") {
     preset = JSON.parse(preset);
   }
 
   console.warn("loadPreset", preset);
 
-  let schema = preset.schema;
-  let data = preset.preset;
-
   let istruct = new nstructjs.STRUCT();
   istruct.parse_structs(preset.schema);
 
-  return istruct.readJSON(data, getPatternClass(data.typeName));
+  return istruct.readJSON(preset.preset, getPatternClass(preset.preset.typeName), existingObject);
 }
 
 export const PRecalcFlags = {
