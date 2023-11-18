@@ -807,6 +807,7 @@ void main() {
   #if defined(COLOR_VARIANCE) && defined(VARIANCE_COLOR_DIRECT)
     if (enableAccum*oldvar.w != 0.0) {
       f += (oldvar.r / oldvar.w)*enableAccum*varianceColorFac;
+      //f /= 1.0 + (oldvar.r / oldvar.w)*enableAccum*varianceColorFac;
       f = max(f, 0.0);
     }
   #endif
@@ -1021,7 +1022,11 @@ const finalShader = {
         {
           vec4 var = texture(rgba2, vCo);
           if (var.w != 0.0) {
-            value += varianceColorFac*(var.r+var.g+var.b)/(var.w*3.0);
+            float fac = varianceColorFac*(var.r+var.g+var.b)/(var.w*3.0);
+            //value += fac;
+            fac = fac < 0.0 ? 1.0 - fac : 1.0 / (1.0 + fac);
+            value /= fac;
+            
             value = max(value, 0.0);
           }
         } 
