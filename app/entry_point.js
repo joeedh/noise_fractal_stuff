@@ -12,7 +12,12 @@ import {resolveURL} from './util/urlutil.js';
 let pathux_config = {
   simpleNumSliders       : true,
   useNumSliderTextboxes  : true,
-  autoLoadSplineTemplates: false
+  autoLoadSplineTemplates: false,
+  DEBUG                  : {
+    ...cconst.DEBUG,
+    modalEvents: true,
+    datapaths  : true
+  }
 };
 
 function setupToolOpBase() {

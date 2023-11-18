@@ -1,5 +1,5 @@
 //used for nstructjs
-import {nstructjs, util, Vector2, Vector3, Vector4} from '../path.ux/scripts/pathux.js';
+import {nstructjs, PropFlags, util, Vector2, Vector3, Vector4} from '../path.ux/scripts/pathux.js';
 import {} from '../ml/ml_base.js';
 
 export const SliderTypes = {
@@ -115,12 +115,17 @@ export class SliderParam {
     this.enumDef = undefined;
     this.flagsDef = undefined;
 
+    this.noReset = false;
+    this.description = "";
+
+    this.slideSpeed = 1.0;
+    this.decimalPlaces = 3;
+    this.rollerSlider = true;
     this.min = -1e17;
     this.max = 1e17;
     this.unit = "none";
     this.expRate = 1.5;
     this.step = 0.01;
-    this.noReset = false;
 
     /*graph stuff*/
     this.links = [];
@@ -218,22 +223,26 @@ export class SliderParam {
     st.string("name", "name", "Name").readOnly();
     st.enum("type", "type", SliderTypes, "Type").readOnly();
 
+    let min = this.min ?? -10000000;
+    let max = this.max ?? 10000000;
+    console.log(uiname, "MINMAX", min, max);
+
     switch (this.type) {
       case SliderTypes.FLOAT:
-        def = st.float("value", "value", uiname);
+        def = st.float("value", "value", uiname)
 
         break;
       case SliderTypes.INT:
-        def = st.int("value", "value", uiname);
+        def = st.int("value", "value", uiname)
         break;
       case SliderTypes.VECTOR2:
-        def = st.vec2("value", "value", uiname);
+        def = st.vec2("value", "value", uiname)
         break;
       case SliderTypes.VECTOR3:
-        def = st.vec3("value", "value", uiname);
+        def = st.vec3("value", "value", uiname)
         break;
       case SliderTypes.VECTOR4:
-        def = st.vec4("value", "value", uiname);
+        def = st.vec4("value", "value", uiname)
         break;
       case SliderTypes.STRING:
         def = st.string("value", "value", uiname);
@@ -246,15 +255,34 @@ export class SliderParam {
         break;
     }
 
+    if (this.type === SliderTypes.ENUM) {
+      def.data.flag |= PropFlags.LABEL;
+    }
+
     if (!(this.type & (SliderTypes.STRING | SliderTypes.ENUM | SliderTypes.FLAGS))) {
       def.expRate(this.expRate)
         .range(this.min, this.max)
         .step(this.step)
+        .slideSpeed(this.slideSpeed)
+        .expRate(this.expRate)
         .baseUnit(this.unit)
-        .displayUnit(this.unit);
+        .decimalPlaces(this.decimalPlaces)
+        .displayUnit(this.unit)
+        .description(this.description);
+
+      if (this.rollerSlider) {
+        def.rollerSlider();
+      } else {
+        def.simpleSlider();
+      }
     }
 
     def.on('change', function () {
+      if (!this.dataref.noReset) {
+        this.ctx.pattern.drawGen++;
+        window.redraw_viewport();
+        window._appstate.autoSave();
+      }
       window.redraw_viewport();
     });
 
@@ -268,10 +296,55 @@ export class SliderParam {
     return st;
   }
 
-  range(min, max) {
-    this.min = min;
-    this.max = max;
+  setDescription(desc) {
+    this.description = desc;
+    return this;
+  }
 
+  setStep(n) {
+    this.step = n;
+    return this;
+  }
+
+  setSlideSpeed(n) {
+    this.slideSpeed = n;
+    return this;
+  }
+
+  setExpRate(n) {
+    this.expRate = n;
+    return this;
+  }
+
+  setDecimalPlaces(n) {
+    this.decimalPlaces = n;
+    return this;
+  }
+
+  range(min, max) {
+    console.warn("Deprecated: SliderParam.prototype.range, use setRange instead.");
+    return this.setRange(min, max);
+  }
+
+  setRange(min, max) {
+    if (Array.isArray(min)) {
+      this.min = min[0];
+      this.max = min[1];
+    } else {
+      this.min = min;
+      this.max = max;
+    }
+
+    return this;
+  }
+
+  useRollerSlider() {
+    this.rollerSlider = true;
+    return this;
+  }
+
+  useSimpleSlider() {
+    this.rollerSlider = false;
     return this;
   }
 
@@ -685,9 +758,17 @@ export class Sliders extends Array {
     }
 
     //add any missing parameters
+    let defparam = new SliderParam("", SliderTypes.FLOAT, 0);
+
     for (let i = 0; i < paramDef.length; i++) {
       let pdef = paramDef[i];
-      let param = new SliderParam(pdef.name, SliderTypeMap[pdef.type], pdef.value);
+      let param = new SliderParam(pdef.name, SliderTypeMap[pdef.type], pdef.value)
+        .setRange(pdef.range ?? [-100000000, 100000000])
+        .setDecimalPlaces(pdef.decimalPlaces ?? defparam.decimalPlaces)
+        .setExpRate(pdef.expRate ?? defparam.expRate)
+        .setSlideSpeed(pdef.slideSpeed ?? defparam.slideSpeed)
+        .setStep(pdef.step ?? defparam.step)
+        .setDescription(pdef.description ?? "")
 
       let is_new = false;
 
@@ -703,7 +784,13 @@ export class Sliders extends Array {
 
       if (pdef.name === "d" && newlist[i].value === 0) {
         debugger;
-        param = new SliderParam(pdef.name, SliderTypeMap[pdef.type], pdef.value, is_new);
+        param = new SliderParam(pdef.name, SliderTypeMap[pdef.type], pdef.value, is_new)
+          .setRange(pdef.range ?? [-100000000, 100000000])
+          .setDecimalPlaces(pdef.decimalPlaces ?? defparam.decimalPlaces)
+          .setExpRate(pdef.expRate ?? defparam.expRate)
+          .setSlideSpeed(pdef.slideSpeed ?? defparam.slideSpeed)
+          .setStep(pdef.step ?? defparam.step)
+
         console.log("PARAM", param, pdef);
       }
     }

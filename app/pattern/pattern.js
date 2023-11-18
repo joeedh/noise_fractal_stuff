@@ -28,6 +28,9 @@ export class Pattern {
       throw new Error("patternDef is missing typeName!");
     }
 
+    this.pollShaderForUpdates = def.pollShaderForUpdates ?? false;
+    this._lastShaderHash = undefined;
+
     this.use_curves = false;
     this.curveset = new CurveSet();
 
@@ -63,6 +66,7 @@ export class Pattern {
     this.variance_color_fac = 1.0;
     this.color_variance = false;
     this.variance_blur = 1.5;
+    this.variance_bleed = 0.0;
     this.use_sharpness = true;
     this.sharpness = 0.5;
     this.per_pixel_random = true;
@@ -236,8 +240,10 @@ export class Pattern {
         },
         "x", "y", "scale"
       ],
-      shaderPre    : ``,
-      shader       : `
+      //Poll shader code regularly for updates, useful for live debugging in chrome
+      pollShaderForUpdates: false,
+      shaderPre           : ``,
+      shader              : `
 //uniform vec2 iRes;
 //uniform vec2 iInvRes;
 //uniform float T;
@@ -260,21 +266,26 @@ float pattern(float ix, float iy) {
     });
     con.prop("pixel_size");
     con.prop("max_samples");
-    con.prop("mul_with_orig");
-    con.prop("no_gradient");
-    con.prop("use_sharpness");
-    con.prop("use_monty_sharpness");
-    con.prop("sharpness");
-    con.prop("per_pixel_random");
-    con.prop("per_pixel_blue");
-    con.prop("use_weighted_filter");
-    con.prop("print_test");
-    con.prop("show_variance");
-    con.prop("use_variance");
-    con.prop("variance_decay")
-    con.prop("variance_blur");
 
-    let panel = con.panel("Variance Feedback")
+    let panel = con.panel("Pixel Settings");
+    panel.prop("mul_with_orig");
+    panel.prop("no_gradient");
+    panel.prop("use_sharpness");
+    panel.prop("use_monty_sharpness");
+    panel.prop("sharpness");
+    panel.prop("per_pixel_random");
+    panel.prop("per_pixel_blue");
+    panel.prop("use_weighted_filter");
+    panel.prop("print_test");
+    panel.prop("show_variance");
+    panel.prop("use_variance");
+
+    panel = con.panel("Variance");
+    panel.prop("variance_decay")
+    panel.prop("variance_blur");
+    panel.prop("variance_bleed");
+
+    panel = panel.panel("Variance Feedback")
     panel.prop("color_variance");
     panel.prop("variance_color_direct");
     panel.prop("variance_color_fac")
@@ -369,13 +380,21 @@ float pattern(float ix, float iy) {
       .description("Apply variance color feedback in\nmain shader instead of final display\shader");
 
     st.float("variance_blur", "variance_blur", "Variance Blur")
-      .range(0, 10000.0)
+      .range(0, 1000000.0)
       .step(0.1)
       .decimalPlaces(2)
       .noUnits()
       .on('change', onchange)
-      .description("Increase filter width for  high-variance pixels.")
+      .description("Increase filter width for  high-variance pixels\n(do not confuse with Variance Bleed).")
       .rollerSlider()
+    st.float("variance_bleed", "variance_bleed", "Variance Bleed")
+      .range(0.0, 1.0)
+      .step(0.1)
+      .decimalPlaces(4)
+      .sliderDisplayExp(0.25)
+      .noUnits()
+      .description("How much to blur variance pixels\n(do not confuse with Variance Blur)")
+      .on('change', onchange)
 
     st.bool("use_sharpness", "use_sharpness", "Use Sharpness")
       .on('change', redraw);
@@ -490,7 +509,9 @@ float pattern(float ix, float iy) {
     st.string("typeName", "type", "").readOnly();
     st.list("sliders", "sliders", [
       function getStruct(api, list, key) {
-        return sdef[key].type === "int" ? intst : floatst;
+        let st = sdef[key].type === "int" ? intst : floatst;
+        st.pathmap.value.data.uiname = sdef[key].name;
+        return st;
       },
 
       function get(api, list, key) {
@@ -535,19 +556,19 @@ float pattern(float ix, float iy) {
 
       switch (type) {
         case SliderTypes.FLOAT:
-          def = pst.float(path, pdef.name, ToolProperty.makeUIName(pdef.name));
+          def = pst.float(path, pdef.name, ToolProperty.makeUIName(pdef.name)).rollerSlider();
           break;
         case SliderTypes.INT:
-          def = pst.int(path, pdef.name, ToolProperty.makeUIName(pdef.name));
+          def = pst.int(path, pdef.name, ToolProperty.makeUIName(pdef.name)).rollerSlider();
           break;
         case SliderTypes.VECTOR2:
-          def = pst.vec2(path, pdef.name, ToolProperty.makeUIName(pdef.name));
+          def = pst.vec2(path, pdef.name, ToolProperty.makeUIName(pdef.name)).rollerSlider();
           break;
         case SliderTypes.VECTOR3:
-          def = pst.vec3(path, pdef.name, ToolProperty.makeUIName(pdef.name));
+          def = pst.vec3(path, pdef.name, ToolProperty.makeUIName(pdef.name)).rollerSlider();
           break;
         case SliderTypes.VECTOR4:
-          def = pst.vec4(path, pdef.name, ToolProperty.makeUIName(pdef.name));
+          def = pst.vec4(path, pdef.name, ToolProperty.makeUIName(pdef.name)).rollerSlider();
           break;
         case SliderTypes.ENUM:
           def = pst.enum(path, pdef.name, pdef.enumDef, ToolProperty.makeUIName(pdef.name));
@@ -556,6 +577,20 @@ float pattern(float ix, float iy) {
           def = pst.flags(path, pdef.name, pdef.enumDef, ToolProperty.makeUIName(pdef.name));
           break;
       }
+
+      if (type & (SliderTypes.FLOAT|SliderTypes.INT|SliderTypes.VECTOR2|SliderTypes.VECTOR3|SliderTypes.VECTOR4)) {
+        def.range(pdef.min ?? -100000, pdef.max ?? 100000);
+        if (type !== SliderTypes.INT) {
+          def.decimalPlaces(pdef.decimalPlaces ?? 3);
+        }
+        def.slideSpeed(pdef.slideSpeed ?? 3);
+        def.baseUnit(pdef.unit ?? "none");
+        def.displayUnit(pdef.unit ?? "none");
+        def.expRate(pdef.expRate ?? 1.35);
+        def.step(pdef.step ?? 0.1);
+      }
+
+      def.description(pdef.description ?? "");
 
       if (!pdef.noReset) {
         def.on('change', onchange);
@@ -577,6 +612,30 @@ float pattern(float ix, float iy) {
 
     PatternClasses.push(cls);
     nstructjs.register(cls);
+  }
+
+  savePresetText(opt = {}) {
+    opt.sharpness = opt.sharpness ?? this.sharpness;
+    opt.filter_width = opt.filter_width ?? this.filter_width;
+    //opt.max_samples = opt.max_samples ?? this.max_samples;
+
+    if (this.use_curves) {
+      opt.use_curves = true;
+      opt.curveset = JSON.parse(JSON.stringify(this.curveset));
+    }
+
+    opt.no_gradient ??= this.no_gradient;
+    opt.color_variance ??= this.color_variance;
+    opt.use_variance ??= this.use_variance;
+    opt.variance_color_direct ??= this.variance_color_direct;
+    opt.variance_decay ??= this.variance_decay;
+    opt.variance_blur ??= this.variance_blur;
+    opt.variance_color_fac ??= this.variance_color_fac;
+    opt.variance_bleed ??= this.variance_bleed;
+
+    opt.sliders = util.list(this.sliders);
+
+    return opt;
   }
 
   savePreset() {
@@ -626,6 +685,7 @@ float pattern(float ix, float iy) {
     b.variance_color_fac = this.variance_color_fac;
     b.color_variance = this.color_variance;
     b.variance_blur = this.variance_blur;
+    b.variance_bleed = this.variance_bleed;
     b.use_sharpness = this.use_sharpness;
     b.sharpness = this.sharpness;
     b.per_pixel_random = this.per_pixel_random;
@@ -661,6 +721,20 @@ float pattern(float ix, float iy) {
 
     code = code.replace(/\$/g, idsubst);
 
+    let i = 0;
+    for (let slider of def.sliderDef) {
+      let k = typeof slider === "string" ? slider : slider.name;
+
+      if (typeof k === "symbol") {
+        continue;
+      }
+
+
+      let re = new RegExp(`_%${k}\\b`, "g");
+      code = code.replace(re, `SLIDERS[${i}]`);
+      i++;
+    }
+
     return code;
   }
 
@@ -692,13 +766,34 @@ float pattern(float ix, float iy) {
     return this.pixel_size;
   }
 
+  shaderNeedsCompile() {
+    if (!this.shader) {
+      return true;
+    }
+
+    if (!this.pollShaderForUpdates) {
+      return false;
+    }
+
+    let def = this.constructor.patternDef();
+    let hash = def.shader + ":" + def.shaderPre;
+
+    if (hash !== this._lastShaderHash) {
+      this._lastShaderHash = hash;
+      this.drawGen++;
+      return true;
+    }
+
+    return false;
+  }
+
   _doViewportDraw(ctx, canvas, gl, enableAccum,
                   finalOnly = false, finalFbo = undefined,
                   customUVs                   = undefined,
                   customSize                  = undefined) {
     enableAccum = enableAccum && this.enableAccum;
 
-    if (!this.shader) {
+    if (this.shaderNeedsCompile()) {
       this.compileShader(gl);
     }
 
@@ -799,6 +894,11 @@ float pattern(float ix, float iy) {
 
     if (this.show_variance) {
       defines.SHOW_VARIANCE = null;
+    }
+
+    if (this.variance_bleed > 0.0) {
+      defines.USE_VARIANCE_BLEED = null;
+      uniforms.varianceBleed = this.variance_bleed;
     }
 
     if (this.use_variance) {
@@ -1090,6 +1190,7 @@ Pattern {
   variance_decay      : float;
   color_variance      : bool;
   variance_blur       : float;
+  variance_bleed      : float;
   use_monty_sharpness : bool;
   old_gradient        : bool;
   no_gradient         : bool;

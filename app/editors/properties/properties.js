@@ -151,7 +151,7 @@ export class PropsEditor extends Editor {
     if (pat) {
       let sdefs = pat.constructor.patternDef().sliderDef;
 
-      for (let i = 0; i < pat.sliders.length; i++) {
+      for (let i = 0; i < Math.min(pat.sliders.length, sdefs.length); i++) {
         let sdef = sdefs[i];
 
         if (typeof sdef === "string") {

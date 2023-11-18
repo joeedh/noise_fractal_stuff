@@ -327,22 +327,7 @@ export class NewtonPattern extends Pattern {
   }
 
   savePresetText(opt = {}) {
-    opt.sharpness = opt.sharpness ?? this.sharpness;
-    opt.filter_width = opt.filter_width ?? this.filter_width;
-    //opt.max_samples = opt.max_samples ?? this.max_samples;
-
-    if (this.use_curves) {
-      opt.use_curves = true;
-      opt.curveset = JSON.parse(JSON.stringify(this.curveset));
-    }
-
-    opt.color_variance ??= this.color_variance;
-    opt.use_variance ??= this.use_variance;
-    opt.variance_color_direct ??= this.variance_color_direct;
-    opt.variance_decay ??= this.variance_decay;
-    opt.variance_blur ??= this.variance_blur;
-    opt.variance_color_fac ??= this.variance_color_fac;
-
+    opt = super.savePresetText(opt);
     opt = JSON.stringify(opt);
 
     let sliders = JSON.stringify(util.list(this.sliders));

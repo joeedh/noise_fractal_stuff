@@ -40,6 +40,13 @@ export class AppState {
   update() {
     let title;
 
+    if (this.ctx && this.ctx.pattern && this.ctx.canvas && this.ctx.canvas.gl) {
+      if (this.ctx.pattern.shaderNeedsCompile()) {
+        this.ctx.pattern.compileShader(this.ctx.canvas.gl);
+        window.redraw_viewport();
+      }
+    }
+
     for (let node of document.head.childNodes) {
       if (node.tagName === "TITLE") {
         title = node;
@@ -51,7 +58,7 @@ export class AppState {
       let s = title.innerHTML;
 
       if (!this.toolstack.fileModified && s.startsWith("*")) {
-        s = s.slice(1, s.length-1);
+        s = s.slice(1, s.length - 1);
         title.innerHTML = s;
       } else if (this.toolstack.fileModified && !s.startsWith("*")) {
         s = "*" + s;
@@ -90,7 +97,21 @@ export class AppState {
     console.log("saved startup file:", (s.length/1024.0).toFixed(2) + "kb");
   }
 
-  reset(screen=makeScreen(this.ctx), resetToolStack=true, resetModel=true) {
+  makeScreen() {
+    if (this.screen) {
+      this.screen.unlisten();
+      this.screen.remove();
+    }
+
+    let screen = makeScreen(this.ctx);
+    this.screen = screen;
+
+    screen.ctx = this.ctx;
+    document.body.appendChild(this.screen);
+    this.screen.listen();
+  }
+
+  reset(screen = makeScreen(this.ctx), resetToolStack = true, resetModel = true) {
     if (this.screen) {
       this.screen.remove();
     }
@@ -123,13 +144,13 @@ export class AppState {
     return loadFile(this, buf, {screen: false});
   }
 
-  saveFile(args={}) {
+  saveFile(args = {}) {
     args.screen = args.screen ?? true;
 
     return saveFile(this, args);
   }
 
-  loadFile(buf, args={}) {
+  loadFile(buf, args = {}) {
     args.screen = args.screen ?? true;
 
     return loadFile(this, buf, args);

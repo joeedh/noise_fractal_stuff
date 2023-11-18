@@ -693,6 +693,7 @@ vec2 uhash2v(vec2 p) {
 uniform float varianceBlur;
 uniform float varianceColorFac;
 uniform float varianceDecay;
+uniform float varianceBleed;
 
 #ifndef CUSTOM_MAIN
 float mainImage( vec2 uv, out float w) {
@@ -783,8 +784,23 @@ void main() {
   float w;
   
   vec4 old = texture(rgba, uv);
+  vec2 duv = 1.001 * iInvRes;
+
+#ifndef USE_VARIANCE_BLEED
   vec4 oldvar = texture(rgba2, uv);
-  
+#else
+  vec4 oldvar = mix(texture(rgba2, uv), (
+     texture(rgba2, uv + vec2(-duv.x, -duv.y))
+   + texture(rgba2, uv + vec2(-duv.x, 0.0))
+   + texture(rgba2, uv + vec2(-duv.x, duv.y))
+   + texture(rgba2, uv + vec2(0.0, duv.y))
+   + texture(rgba2, uv + vec2(duv.x, duv.y))
+   + texture(rgba2, uv + vec2(duv.x, 0.0))
+   + texture(rgba2, uv + vec2(duv.x, -duv.y))
+   + texture(rgba2, uv + vec2(0.0, -duv.y))
+   ) / 8.0, varianceBleed);
+#endif
+
   vec2 iUv = vUv*iRes;
   
   float f = mainImage(iUv, w);

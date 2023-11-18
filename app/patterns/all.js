@@ -29,3 +29,7 @@ import './mountain_presets.js';
 
 import './clothoid.js';
 import './clothoid_presets.js';
+
+import './trigescape_presets.js';
+import './trigescape.js'
+
