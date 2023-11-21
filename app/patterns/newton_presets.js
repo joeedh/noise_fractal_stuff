@@ -2428,3 +2428,9 @@ add_preset_new([203,0.54,0.19,0.75,0.10527611429076511,16.10819972880277,-9.8266
 /*339*/
 
 /*340*/
+add_preset_new([251, 0.54, 0.19, 0.75, 0.0043895375270529766, -93.46774542339907, 273.23980743014886,
+                11.932458538764783, 1, 0.1, 0.39, 0.5, 0, 0.16469934723199325, 0, 0.2577123763723368, 0], {
+  "sharpness"            : 0.40625, "filter_width": 1.55, "no_gradient": false, "color_variance": true,
+  "use_variance"         : true, "variance_color_direct": false, "variance_decay": 0.9750000238418579,
+  "variance_blur"        : 1.5, "variance_color_fac": -77, "variance_bleed": 0
+});
