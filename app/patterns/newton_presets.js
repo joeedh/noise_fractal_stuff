@@ -2508,3 +2508,12 @@ add_preset_new([251, 0.54, 0.19, 0.7777773371961262, 0.008410231855170258, 245.3
   "use_variance"      : true, "variance_color_direct": false, "variance_decay": 0.9750000238418579, "variance_blur": 5,
   "variance_color_fac": 222, "variance_bleed": 0
 });
+
+add_preset_new([251, 0.54, 0.19, 0.7777773371961262, 0.0014202559509629842, 542.713049509652, -259.0460563240528,
+                1.7840449928765312, 1.2000000000000002, 0.005, 0.39, 0.5, 0, 0.10074729583599797, 0, 1.269725288279384,
+                -0.1030019524333374], {
+  "sharpness"         : 0.6667542016806722, "filter_width": 1.12, "no_gradient": false, "color_variance": true,
+  "use_variance"      : true, "variance_color_direct": false, "variance_decay": 0.9750000238418579, "variance_blur": 5,
+  "variance_color_fac": 222, "variance_bleed": 0
+});
+
