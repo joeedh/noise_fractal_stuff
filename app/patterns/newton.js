@@ -328,6 +328,8 @@ export class NewtonPattern extends Pattern {
 
   savePresetText(opt = {}) {
     opt = super.savePresetText(opt);
+    delete opt.sliders;
+
     opt = JSON.stringify(opt);
 
     let sliders = JSON.stringify(util.list(this.sliders));

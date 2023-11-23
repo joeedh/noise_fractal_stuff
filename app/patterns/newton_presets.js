@@ -2421,10 +2421,7 @@ add_preset_new([100, 0.54, 0.99, 0.75, 0.030044008981980008, 3.7582720588235174,
                 1, 0.9999999999999999, 0.39, 0.5, 0, 0.156518070222359, 0, -1.0555140573761517, -0.31195123066525754], {
   "sharpness"         : 0.46087184873949577, "filter_width": 1.4, "no_gradient": false, "color_variance": true,
   "use_variance"      : true, "variance_color_direct": false, "variance_decay": 0.9750000238418579, "variance_blur": 55,
-  "variance_color_fac": -20.72708024153494, "variance_bleed": 0,
-  "sliders"           : [100, 0.54, 0.99, 0.75, 0.030044008981980008, 3.7582720588235174, 40.59400799793594,
-                         15.617417095072017, 1, 0.9999999999999999, 0.39, 0.5, 0, 0.156518070222359, 0,
-                         -1.0555140573761517, -0.31195123066525754]
+  "variance_color_fac": -20.72708024153494, "variance_bleed": 0
 });
 
 /*337*/
@@ -2433,11 +2430,7 @@ add_preset_new([100, 0.54, 0.99, 0.7627704320217574, 0.028369729843665314, 10.66
                 -1.0555140573761517, -0.31195123066525754], {
   "sharpness"         : 0.5617121848739496, "filter_width": 1.4, "no_gradient": false, "color_variance": true,
   "use_variance"      : true, "variance_color_direct": false, "variance_decay": 0.9750000238418579, "variance_blur": 55,
-  "variance_color_fac": 55, "variance_bleed": 0, "sliders": [100, 0.54, 0.99, 0.7627704320217574, 0.028369729843665314,
-                                                             10.668123861566475, -2.4861395719489847, 9.060943963623602,
-                                                             1.3000000000000003, 0.9999999999999999, 0.39, 0.5, 0,
-                                                             0.156518070222359, 0, -1.0555140573761517,
-                                                             -0.31195123066525754]
+  "variance_color_fac": 55, "variance_bleed": 0
 });
 
 /*338*/
@@ -2445,24 +2438,15 @@ add_preset_new([203, 0.54, 0.19, 0.75, 0.10527611429076511, 16.10819972880277, -
                 0.1, 0.39, 0.5, 0, 0.09192154094027724, 0, 0.2577123763723368, 0], {
   "sharpness"    : 0.33, "filter_width": 1.4, "no_gradient": false, "color_variance": false,
   "use_variance" : false, "variance_color_direct": false, "variance_decay": 0.9750000238418579,
-  "variance_blur": 1.5, "variance_color_fac": 1, "variance_bleed": 0, "sliders": [203, 0.54, 0.19, 0.75,
-                                                                                  0.10527611429076511,
-                                                                                  16.10819972880277,
-                                                                                  -9.82663316582916,
-                                                                                  13.463902080633881, 1, 0.1,
-                                                                                  0.39, 0.5, 0,
-                                                                                  0.09192154094027724, 0,
-                                                                                  0.2577123763723368, 0]
+  "variance_blur": 1.5, "variance_color_fac": 1, "variance_bleed": 0
 });
 
 /*339*/
 add_preset_new([100, 0.54, 0.19, 0.75, 0.9961472000000005, 0, 0, 3.161615018270583, 1.1143402454356695, 0.1, 0.39, 0.5,
                 0, 0.20438672542691672, 0, 1, -0.0358841383260615], {
-  "sharpness"         : 0.45173622413917824, "filter_width": 1.302811641680289, "no_gradient": false,
-  "color_variance"    : true, "use_variance": true, "variance_color_direct": false,
-  "variance_decay"    : 0.9750000238418579, "variance_blur": 1.5, "variance_color_fac": -200, "variance_bleed": 0,
-  "sliders"           : [100, 0.54, 0.19, 0.75, 0.9961472000000005, 0, 0, 3.161615018270583, 1.1143402454356695, 0.1,
-                         0.39, 0.5, 0, 0.20438672542691672, 0, 1, -0.0358841383260615]
+  "sharpness"     : 0.45173622413917824, "filter_width": 1.302811641680289, "no_gradient": false,
+  "color_variance": true, "use_variance": true, "variance_color_direct": false,
+  "variance_decay": 0.9750000238418579, "variance_blur": 1.5, "variance_color_fac": -200, "variance_bleed": 0
 });
 
 /*340*/
