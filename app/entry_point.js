@@ -117,6 +117,7 @@ export function setupDrawGlobals() {
     }
   }
 
+   
   /* start main rendering loop */
   window.setInterval(() => {
     if (!window._appstate || !_appstate.ctx || !_appstate.ctx.pattern) {

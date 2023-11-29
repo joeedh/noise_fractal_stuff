@@ -2496,6 +2496,14 @@ add_preset_new([251, 0.54, 0.19, 0.7777773371961262, 0.008410231855170258, 245.3
 
 });
 
+add_preset_new([174, 0.5477207303302585, 0.18750000000000028, 0.6846016291787373, 0.3492829204693617, 9.872340425531897,
+                2.6028368794326187, 1.9797371404482447, 1.3813571428571423, 0.01, 0.39285714285714257, 0.5, 0,
+                0.2800622238783407, 0, 1, 0], {
+  "sharpness"         : 0.7759978991596639, "filter_width": 1, "no_gradient": false, "color_variance": true,
+  "use_variance"      : true, "variance_color_direct": false, "variance_decay": 0.975, "variance_blur": 1.5,
+  "variance_color_fac": -333, "variance_bleed": 0
+});
+
 /*345*/
 add_preset_new([251, 0.54, 0.19, 0.7777773371961262, 0.008410231855170258, 245.39469051711774, 106.84325805590392,
                 1.7840449928765312, 1.2000000000000002, 0.005, 0.39, 0.5, 0, 0.10074729583599797, 0, 1.269725288279384,
@@ -2525,7 +2533,16 @@ add_preset_new([178, 0.54, 0.19, 0.75, 0.04019617820189458, -48.61276411263456, 
 add_preset_new([251, 0.54, 0.19, 0.7777773371961262, 0.012237352729695755, 47.351543942993004, -33.408287147004536,
                 2.3798571609165466, 1.2000000000000002, 0.005, 0.39, 0.5, 0, 0.10074729583599797, 0, 1.269725288279384,
                 -0.1030019524333374], {
-  "sharpness"         : 0.2928046218487395, "filter_width": 1.12, "no_gradient": false, "color_variance": false,
-  "use_variance"      : true, "variance_color_direct": false, "variance_decay": 0.9750000238418579,
-  "variance_blur"     : 555, "variance_color_fac": 222, "variance_bleed": 0
+  "sharpness"    : 0.2928046218487395, "filter_width": 1.12, "no_gradient": false, "color_variance": false,
+  "use_variance" : true, "variance_color_direct": false, "variance_decay": 0.9750000238418579,
+  "variance_blur": 555, "variance_color_fac": 222, "variance_bleed": 0
 });
+
+add_preset_new([174, 0.5477207303302585, 0.18750000000000028, 0.6846016291787373, 0.3492829204693617, 9.872340425531897,
+                2.6028368794326187, 1.9797371404482447, 1.3813571428571423, 0.01, 0.39285714285714257, 0.5, 0,
+                0.2800622238783407, 0, 1, 0], {
+  "sharpness"         : 0.7759978991596639, "filter_width": 1, "no_gradient": false, "color_variance": true,
+  "use_variance"      : true, "variance_color_direct": false, "variance_decay": 0.9750000238418579,
+  "variance_blur"     : 1.5, "variance_color_fac": -333, "variance_bleed": 0
+});
+
