@@ -578,7 +578,7 @@ float pattern(float ix, float iy) {
           break;
       }
 
-      if (type & (SliderTypes.FLOAT|SliderTypes.INT|SliderTypes.VECTOR2|SliderTypes.VECTOR3|SliderTypes.VECTOR4)) {
+      if (type & (SliderTypes.FLOAT | SliderTypes.INT | SliderTypes.VECTOR2 | SliderTypes.VECTOR3 | SliderTypes.VECTOR4)) {
         def.range(pdef.min ?? -100000, pdef.max ?? 100000);
         if (type !== SliderTypes.INT) {
           def.decimalPlaces(pdef.decimalPlaces ?? 3);

@@ -15,15 +15,15 @@ function api_define_preset(api) {
   let st = api.mapStruct(Preset, true);
 
   st.string("name", "name", "Name")
-    .customGetSet(undefined, function (name) {
-      presetManager.rename(this.dataref, name);
-    });
+      .customGetSet(undefined, function (name) {
+        presetManager.rename(this.dataref, name);
+      });
 
   st.string("typeName", "typeName", "Type").readOnly();
   st.string("category", "category", "Category")
-    .customGetSet(undefined, function (cat) {
-      presetManager.changeCategory(this.dataref, cat);
-    });
+      .customGetSet(undefined, function (cat) {
+        presetManager.changeCategory(this.dataref, cat);
+      });
 
   let cst = api.mapStruct(CategoryList, true);
   cst.string("typeName", "typeName", "Type").readOnly();
@@ -63,7 +63,7 @@ function api_define_preset(api) {
       return obj.typeName;
     },
     function getIter(api, list) {
-      return (function*() {
+      return (function* () {
         for (let key of list.manager.categoryKeys) {
           yield list.getCategoryList(list.typeName, key);
         }
@@ -104,6 +104,15 @@ function api_define_preset(api) {
 
 function api_define_model(api) {
   let st = api.mapStruct(FileState, true);
+
+  st.bool("limitGPUPower", "limitGPUPower", "Limit GPU")
+      .description("Try to prevent GPU\n from overheating.")
+  st.float("gpuSkipFactor", "gpuSkipFactor", "GPU Skip")
+      .description("Bigger values produce more GPU frame skipping in Limit GPU mode")
+      .range(0, 1.0)
+      .step(0.2)
+      .noUnits()
+      .decimalPlaces(2);
 
   st.list("patterns", "patterns", [
     function getStruct(api, list, key) {

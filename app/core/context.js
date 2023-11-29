@@ -97,6 +97,10 @@ export class ViewOverlay extends ContextOverlay {
     return contextWrangler.getLastArea(CanvasEditor);
   }
 
+  get limitGPUPower() {
+    return this.state.model.limitGPUPower;
+  }
+
   static contextDefine() {
     return {
       name: "base",

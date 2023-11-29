@@ -10,13 +10,13 @@ import {initPresets} from './pattern/preset.js';
 import {resolveURL} from './util/urlutil.js';
 
 let pathux_config = {
-  simpleNumSliders       : true,
-  useNumSliderTextboxes  : true,
+  simpleNumSliders: true,
+  useNumSliderTextboxes: true,
   autoLoadSplineTemplates: false,
-  DEBUG                  : {
+  DEBUG: {
     ...cconst.DEBUG,
     modalEvents: true,
-    datapaths  : true
+    datapaths: true
   }
 };
 
@@ -72,10 +72,18 @@ export function setupPathUX() {
 }
 
 export function setupDrawGlobals() {
+  let last_time = util.time_ms();
+  let skip = 0;
+
+  let fps = 30.0;
+  let skip_ma = new util.MovingAvg(5)
+
   let animreq = undefined;
 
   function draw() {
     animreq = undefined;
+
+    let time = util.time_ms();
 
     gl.scissor(0, 0, canvas.width, canvas.height);
 
@@ -94,6 +102,33 @@ export function setupDrawGlobals() {
         area.viewportDraw(canvas, gl);
         area.pop_ctx_active();
       }
+    }
+
+    /* Force GPU to fully flush. */
+    gl.flush()
+
+    /* Sample GPU just to be sure; some systems ignore gl.flush(). */
+    let pix = new Uint8Array(4);
+    gl.readPixels(1, 1, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pix);
+
+    const limit_gpu = window._appstate && _appstate.model && _appstate.model.limitGPUPower;
+
+    if (limit_gpu) {
+      let factor = _appstate.model.gpuSkipFactor * 12.0;
+      let goal = 1000.0 / 30.0;
+
+      time = util.time_ms() - time;
+      console.log("time:", time.toFixed(2) + "ms");
+
+      if (time > goal) {
+        skip = (time - goal) * factor;
+        skip = Math.min(skip, 1500);
+        skip = skip_ma.add(skip);
+
+        console.log("skip:", skip)
+      }
+    } else {
+      skip = 0.0;
     }
   }
 
@@ -117,19 +152,26 @@ export function setupDrawGlobals() {
     }
   }
 
-   
   /* start main rendering loop */
   window.setInterval(() => {
     if (!window._appstate || !_appstate.ctx || !_appstate.ctx.pattern) {
       return;
     }
 
-    let pat = _appstate.ctx.pattern;
+    if (animreq) {
+      return;
+    }
 
+    if (skip !== 0 && util.time_ms() - last_time < skip) {
+      return;
+    }
+
+    let pat = _appstate.ctx.pattern;
     if (pat.isDrawing) {
       window.force_redraw_viewport();
+      last_time = util.time_ms();
     }
-  }, 33);
+  }, 1000.0 / fps);
 }
 
 export function start() {

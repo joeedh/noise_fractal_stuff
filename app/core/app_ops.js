@@ -30,7 +30,7 @@ export function makeScreen(ctx) {
   return screen;
 }
 
-export function loadDefaultFile(appstate, loadLocalStorage=true) {
+export function loadDefaultFile(appstate, loadLocalStorage = true) {
   let key = cconst.STARTUP_FILE_KEY;
 
   if (loadLocalStorage && key in localStorage) {
@@ -57,7 +57,7 @@ export function loadDefaultFile(appstate, loadLocalStorage=true) {
     appstate.reset(makeScreen(appstate.ctx), true, true);
     appstate.api.execTool(appstate.ctx, "app.root_file_op");
     appstate.toolstack.onFileSaved(); /* ensure toolstack.fileModified is up to date */
-    
+
     appstate.screen.completeSetCSS();
     appstate.screen.completeUpdate();
   }
@@ -174,9 +174,9 @@ export class SaveFileOp extends ToolOp {
       addToRecentList: true,
       filters        : [
         {
-          name : "Fractals",
-          mime : "text/json",
-          extensions : [FILE_EXT]
+          name      : "Fractals",
+          mime      : "text/json",
+          extensions: [FILE_EXT]
         }
       ]
     }).catch(error => {
@@ -188,7 +188,7 @@ export class SaveFileOp extends ToolOp {
       console.warn("KEY", key);
 
       ctx.message("Saved project");
-        _appstate.fileKey = key;
+      _appstate.fileKey = key;
       _appstate.toolstack.onFileSaved();
     });
   }
@@ -239,9 +239,9 @@ export class OpenFileOp extends ToolOp {
       addToRecentList: true,
       filters        : [
         {
-          name : "Fractals",
-          mime : "text/json",
-          extensions : [FILE_EXT]
+          name      : "Fractals",
+          mime      : "text/json",
+          extensions: [FILE_EXT]
         }
       ]
     }).then(handles => {

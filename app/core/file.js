@@ -149,19 +149,22 @@ export class FileState extends FileHeader {
   constructor() {
     super();
 
+    this.limitGPUPower = true;
+    this.gpuSkipFactor = 0.2;
     this.patterns = new PatternList();
   }
 
   shallowCopyTo(b) {
     super.shallowCopyTo(b);
     b.patterns = this.patterns;
+    b.limitGPUPower = this.limitGPUPower;
+    b.gpuSkipFactor = this.gpuSkipFactor;
+
     return this;
   }
 
   shallowCopyFrom(b) {
-    super.shallowCopyFrom(b);
-
-    this.patterns = b.patterns;
+    b.shallowCopyTo(this);
     return this;
   }
 
@@ -199,6 +202,8 @@ export class FileState extends FileHeader {
 
 FileState.STRUCT = nstructjs.inherit(FileState, FileHeader) + `
   patterns      : PatternList;
+  limitGPUPower : bool;
+  gpuSkipFactor : float;
 }
 `;
 

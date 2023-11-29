@@ -220,8 +220,6 @@ export class CanvasZoomOp extends CanvasOp {
     //scale = pat.scale;
     this.inputs.offset.setValue(min);
     this.inputs.scale.setValue(scale);
-
-    console.error(scale);
   }
 
   on_mouseup(e) {
