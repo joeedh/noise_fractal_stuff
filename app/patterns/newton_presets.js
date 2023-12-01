@@ -2546,3 +2546,87 @@ add_preset_new([174, 0.5477207303302585, 0.18750000000000028, 0.6846016291787373
   "variance_blur"     : 1.5, "variance_color_fac": -333, "variance_bleed": 0
 });
 
+add_preset_new([187.71258134053616, -1.8915582101004504, 1.274095191951857, 1.748571177891324, 0.00394636935513204,
+                52.601290543662415, 70.66678334685186, 4.311449034019556, 1.7094283158438546, 0.008199990844726564,
+                1.5120981078147835, 1.7457144907542652, 0, 15.15338039810342, 0, 1, 0], {
+  "sharpness"     : 0.3852415966386555, "filter_width": 1.335, "use_curves": true, "curveset": {
+    "r"   : {
+      "generators": [{
+        "type": "BounceCurve", "params": {"decay": 1, "scale": 1, "freq": 1, "phase": 0, "offset": 0}
+      }, {
+        "type": "BSplineCurve", "points": [{
+          "co": [0, 0], "eid": 1, "flag": 0, "tangent": 1, "rco": [0, 0], "startco": [0, 0]
+        }, {"co": [1, 1], "eid": 2, "flag": 0, "tangent": 1, "rco": [1, 1], "startco": [0, 0]}], "deg": 6,
+        "interpolating": false, "eidgen": {"cur": 3}
+      }, {"type": "EaseCurve", "params": {"mode_in": 1, "mode_out": 1, "amplitude": 1}},
+                     {"type": "ElasticCurve", "params": {"mode": 0, "amplitude": 1, "period": 1}},
+                     {"type": "EquationCurve", "equation": "x"},
+                     {"type": "GuassianCurve", "height": 1, "offset": 1, "deviation": 0.30000001192092896},
+                     {"type": "RandCurve", "params": {"amplitude": 1, "decay": 1, "in_mode": 1}}], "uiZoom": 1,
+      "VERSION": 1.1, "active_generator": "BSplineCurve", "xRange": [0, 1], "yRange": [0, 1], "clipToRange": false
+    }, "g": {
+      "generators": [{
+        "type": "BounceCurve", "params": {"decay": 1, "scale": 1, "freq": 1, "phase": 0, "offset": 0}
+      }, {
+        "type"                                                                                        : "BSplineCurve",
+        "points"                                                                                      : [{
+          "co": [0, 0], "eid": 1, "flag": 0, "tangent": 1, "rco": [0, 0], "startco": [0, 0]
+        }, {
+          "co" : [0.4851599931716919, 0.5078099966049194], "eid": 3, "flag": 1, "tangent": 1,
+          "rco": [0.4851599931716919, 0.5078099966049194], "startco": [0, 0]
+        }, {"co": [1, 1], "eid": 2, "flag": 0, "tangent": 1, "rco": [1, 1], "startco": [0, 0]}], "deg": 6,
+        "interpolating"                                                                               : false,
+        "eidgen"                                                                                      : {"cur": 4}
+      }, {"type": "EaseCurve", "params": {"mode_in": 1, "mode_out": 1, "amplitude": 1}},
+                     {"type": "ElasticCurve", "params": {"mode": 0, "amplitude": 1, "period": 1}},
+                     {"type": "EquationCurve", "equation": "x"},
+                     {"type": "GuassianCurve", "height": 1, "offset": 1, "deviation": 0.30000001192092896},
+                     {"type": "RandCurve", "params": {"amplitude": 1, "decay": 1, "in_mode": 1}}], "uiZoom": 1,
+      "VERSION": 1.1, "active_generator": "BSplineCurve", "xRange": [0, 1], "yRange": [0, 1], "clipToRange": false
+    }, "b": {
+      "generators": [{
+        "type": "BounceCurve", "params": {"decay": 1, "scale": 1, "freq": 1, "phase": 0, "offset": 0}
+      }, {
+        "type"                                                                                        : "BSplineCurve",
+        "points"                                                                                      : [{
+          "co": [0, 0], "eid": 1, "flag": 0, "tangent": 1, "rco": [0, 0], "startco": [0, 0]
+        }, {
+          "co" : [0.5320299863815308, 0.47968998551368713], "eid": 3, "flag": 1, "tangent": 1,
+          "rco": [0.5320299863815308, 0.47968998551368713], "startco": [0, 0]
+        }, {"co": [1, 1], "eid": 2, "flag": 0, "tangent": 1, "rco": [1, 1], "startco": [0, 0]}], "deg": 6,
+        "interpolating"                                                                               : false,
+        "eidgen"                                                                                      : {"cur": 4}
+      }, {"type": "EaseCurve", "params": {"mode_in": 1, "mode_out": 1, "amplitude": 1}},
+                     {"type": "ElasticCurve", "params": {"mode": 0, "amplitude": 1, "period": 1}},
+                     {"type": "EquationCurve", "equation": "x"},
+                     {"type": "GuassianCurve", "height": 1, "offset": 1, "deviation": 0.30000001192092896},
+                     {"type": "RandCurve", "params": {"amplitude": 1, "decay": 1, "in_mode": 1}}], "uiZoom": 1,
+      "VERSION": 1.1, "active_generator": "BSplineCurve", "xRange": [0, 1], "yRange": [0, 1], "clipToRange": false
+    }, "v": {
+      "generators": [{"type": "BounceCurve", "params": {"decay": 1, "scale": 1, "freq": 1, "phase": 0, "offset": 0}}, {
+        "type"                                                                                        : "BSplineCurve",
+        "points"                                                                                      : [{
+          "co": [0, 0], "eid": 1, "flag": 0, "tangent": 1, "rco": [0, 0], "startco": [0, 0]
+        }, {
+          "co"     : [0.1414099931716919, 0], "eid": 5, "flag": 0, "tangent": 1, "rco": [0.1414099931716919, 0],
+          "startco": [0, 0]
+        }, {
+          "co" : [0.26015999913215637, 0.09218999743461609], "eid": 4, "flag": 0, "tangent": 1,
+          "rco": [0.26015999913215637, 0.09218999743461609], "startco": [0, 0]
+        }, {
+          "co" : [0.43827998638153076, 0.9328100085258484], "eid": 3, "flag": 1, "tangent": 1,
+          "rco": [0.43827998638153076, 0.9328100085258484], "startco": [0, 0]
+        }, {"co": [1, 1], "eid": 2, "flag": 0, "tangent": 1, "rco": [1, 1], "startco": [0, 0]}], "deg": 6,
+        "interpolating"                                                                               : false,
+        "eidgen"                                                                                      : {"cur": 6}
+      }, {"type": "EaseCurve", "params": {"mode_in": 1, "mode_out": 1, "amplitude": 1}},
+                     {"type": "ElasticCurve", "params": {"mode": 0, "amplitude": 1, "period": 1}},
+                     {"type": "EquationCurve", "equation": "x"},
+                     {"type": "GuassianCurve", "height": 1, "offset": 1, "deviation": 0.30000001192092896},
+                     {"type": "RandCurve", "params": {"amplitude": 1, "decay": 1, "in_mode": 1}}], "uiZoom": 1,
+      "VERSION": 1.1, "active_generator": "BSplineCurve", "xRange": [0, 1], "yRange": [0, 1], "clipToRange": false
+    }
+  }, "no_gradient": false, "color_variance": true, "use_variance": false, "variance_color_direct": false,
+  "variance_decay": 0.9750000238418579, "variance_blur": 1.5, "variance_color_fac": -25, "variance_bleed": 0
+});
+
