@@ -127,7 +127,7 @@ export function setupDrawGlobals() {
 
         console.log("skip:", skip)
       } else {
-        skip = 0.0
+        skip = 0.0;
       }
     } else {
       skip = 0.0;
