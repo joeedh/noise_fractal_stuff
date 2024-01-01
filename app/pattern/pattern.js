@@ -321,7 +321,7 @@ float pattern(float ix, float iy) {
 
     st.int("max_samples", "max_samples", "Samples", "Maximum number of samples to take")
       .noUnits()
-      .range(1, 1024)
+      .range(1, 40240)
       .expRate(1.5)
       .step(1)
       .rollerSlider();
