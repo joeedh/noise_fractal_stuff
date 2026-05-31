@@ -119,8 +119,19 @@ All of this is gated behind `__DEV__` (an esbuild `define`, true in `pnpm dev`, 
 - **Electron build:** `app/package.json` keeps the electron-builder config. `./package.sh`
   (root) or `app/build_package.sh` copies sources into a `package/` dir and runs
   electron-builder. `electron_base/` is the Electron shell.
-- **GitHub Pages:** `./update_gh_pages.sh` merges `master` into the `gh-pages` branch,
-  repackages, and pushes. Live demo: https://joeedh.github.io/noise_fractal_stuff/
+- **GitHub Pages (web demo):** automated via `.github/workflows/deploy-pages.yml` — on every
+  push to `master` it builds and publishes with the official Pages actions (repo Pages source
+  must be set to "GitHub Actions"). The site is assembled by `pnpm build:pages`
+  (`scripts/build-pages.mjs`), which bundles into a clean `dist/` (index.html + `.dev/` bundle +
+  `assets/`). The bootstrap import in `app/index.html` is **relative** (`./.dev/entry_point.js`)
+  so it resolves under the `/noise_fractal_stuff/` project subpath. Live demo:
+  https://joeedh.github.io/noise_fractal_stuff/
+  - **Minification caveat:** `build:pages` uses **whitespace-only** minification, not esbuild's
+    full `minify`. The app registers nstructjs structs by constructor name, so identifier
+    minification renames classes and throws "Struct a is already registered"; esbuild's
+    `keepNames` is not a usable workaround (its `__name()` wrappers break the render loop).
+  - The legacy `./update_gh_pages.sh` (merge `master`→`gh-pages` + Electron `package.sh`) is no
+    longer the web-deploy path.
 
 ## Notes
 
