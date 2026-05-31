@@ -124,7 +124,7 @@ const serv = http.createServer({
 });
 
 serv.listen(PORT, HOST, () => {
-  console.log("Server listening at http://" + HOST + ":" + PORT); 
+  console.log("Server listening on http://" + HOST + ":" + PORT); 
 });
 
 

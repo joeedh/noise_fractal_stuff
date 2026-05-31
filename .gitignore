@@ -1,1 +1,8 @@
 node_modules
+app/.dev
+dist
+test-results
+playwright-report
+blob-report
+.idea
+*.tsbuildinfo

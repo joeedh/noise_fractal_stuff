@@ -1,14 +1,29 @@
 {
+  "name": "noise_fractal_stuff",
+  "version": "0.0.1",
+  "description": "Fractal Explorer — browser/WebGL fractal & noise pattern explorer",
+  "author": "Joseph Eagar",
   "type": "module",
   "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "build": "node scripts/build.mjs",
+    "typecheck": "tsgo --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "dependencies": {
+    "@shaderfrog/glsl-parser": "^0.1.21"
   },
   "devDependencies": {
-    "@pathtx/prettier": "^3.3.0-dev",
-    "@typescript-eslint/eslint-plugin": "^6.19.1",
-    "acorn": "^8.11.2",
-    "acorn-walk": "^8.3.0",
+    "@playwright/test": "^1.49.0",
+    "@types/node": "^22.10.0",
+    "@typescript/native-preview": "latest",
     "esbuild": "^0.24.0",
-    "eslint": "^8.56.0",
-    "typescript": "^5.6.3"
+    "prettier": "^3.4.0",
+    "typescript": "^5.7.0",
+    "vitest": "^2.1.0"
   }
 }

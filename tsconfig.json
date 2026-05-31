@@ -1,0 +1,30 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ES2022",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "strictNullChecks": true,
+    "esModuleInterop": true,
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": false,
+    "noEmit": true,
+    "sourceMap": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "lib": ["ES2022", "DOM", "DOM.Iterable", "ESNext.Disposable", "WebWorker"],
+    "types": []
+  },
+  "include": ["app/**/*.ts"],
+  "exclude": [
+    "node_modules",
+    "oldstuff",
+    "dist",
+    "app/path.ux/dist",
+    "app/path.ux/example",
+    "app/path.ux/node_modules",
+    "app/extern",
+    "app/electron_base",
+    "**/*.test.ts"
+  ]
+}
