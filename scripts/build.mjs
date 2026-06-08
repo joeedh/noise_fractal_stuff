@@ -3,7 +3,8 @@ import {buildOptions} from './esbuild.config.mjs'
 
 await esbuild.build(
   buildOptions({
-    minify: true,
+    minify: false,
+    keepNames: true,
     sourcemap: true,
   })
 )

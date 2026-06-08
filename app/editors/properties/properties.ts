@@ -156,7 +156,7 @@ export class PropsEditor extends Editor {
 
             elem.setAttribute("step", String(speed * 0.1));
 
-            elem.onchange = () => {
+            elem.on_change = () => {
                 if (!sdef.noReset) {
                     this.ctx.pattern.drawGen++;
                 }

@@ -49,6 +49,10 @@ export class AppState {
     this.lastAutoSaveTime = util.time_ms();
   }
 
+  loadDefaultFile(loadLocalStorage = true) {
+    loadDefaultFile(this, loadLocalStorage);
+  }
+  
   update() {
     let title: HTMLTitleElement | undefined;
 
