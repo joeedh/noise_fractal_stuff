@@ -33,3 +33,9 @@ import './clothoid_presets.js';
 import './trigescape_presets.js';
 import './trigescape.js'
 
+import './hyperbolic_tiling.js';
+import './hyperbolic_tiling_presets.js';
+
+import './householder.js';
+import './householder_presets.js';
+
