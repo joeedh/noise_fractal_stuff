@@ -472,6 +472,9 @@ uniform float filterWidth;
 uniform float sharpness;
 uniform float uSample;
 
+// 8 is arbitrary, number of parameters needed for viewport transform
+uniform float viewTransform[8];
+
 uniform sampler2D rgba;
 uniform sampler2D rgba2;
 

@@ -1,16 +1,13 @@
-import {
-  nstructjs, util, math, Vector2,
-  Vector3, Vector4, Matrix4, Quat
-} from '../path.ux/scripts/pathux.js';
+import {nstructjs, util, math, Vector2, Vector3, Vector4, Matrix4, Quat} from '../path.ux/scripts/pathux.js'
 
-import {Pattern, PatternDef, PresetText, DefineMap} from '../pattern/pattern.js';
-import {savePreset, Preset} from '../pattern/preset.js';
-import {UniformMap} from '../pattern/pattern_shaders.js';
-import type {ToolContext} from '../core/context.js';
+import {Pattern, PatternDef, PresetText, DefineMap} from '../pattern/pattern.js'
+import {savePreset, Preset} from '../pattern/preset.js'
+import {UniformMap} from '../pattern/pattern_shaders.js'
+import type {ToolContext} from '../core/context.js'
 
-export const NewtonPresets: Preset[] = [];
+export const NewtonPresets: Preset[] = []
 
-let presetCountBase = 1;
+let presetCountBase = 1
 
 export function add_preset(
   sliders: number[],
@@ -19,57 +16,57 @@ export function add_preset(
   hide = false
 ): void {
   if (hide) {
-    presetCountBase++;
-    return;
+    presetCountBase++
+    return
   }
 
-  let preset = new NewtonPattern();
+  let preset = new NewtonPattern()
 
   for (let key in options) {
-    if (key === "curveset") {
-      continue;
+    if (key === 'curveset') {
+      continue
     }
 
-    let k = key.toLowerCase();
-    let v = options[key];
+    let k = key.toLowerCase()
+    let v = options[key]
 
-    if (Reflect.get(preset, k) !== undefined && (typeof v === "number" || typeof v === "boolean")) {
-      Reflect.set(preset, k, v);
+    if (Reflect.get(preset, k) !== undefined && (typeof v === 'number' || typeof v === 'boolean')) {
+      Reflect.set(preset, k, v)
     }
   }
 
-  if (options && "curveset" in options) {
-    let cs = options.curveset;
-    if (cs && typeof cs === "object") {
-      preset.use_curves = true;
-      preset.curveset.loadJSON(cs as Record<'v' | 'r' | 'g' | 'b', Record<string, unknown>>);
+  if (options && 'curveset' in options) {
+    let cs = options.curveset
+    if (cs && typeof cs === 'object') {
+      preset.use_curves = true
+      preset.curveset.loadJSON(cs as Record<'v' | 'r' | 'g' | 'b', Record<string, unknown>>)
     }
   }
 
   /* we don't want to use normal defaults, stick with zero--
      except for hoff*/
-  let sdef = NewtonPattern.getPatternDef().sliderDef;
+  let sdef = NewtonPattern.getPatternDef().sliderDef
 
   while (sliders.length < preset.sliders.length) {
-    let entry = sdef[sliders.length];
-    let val = typeof entry === "string" ? 0.0 : (entry.value || 0.0);
-    let num = typeof val === "number" ? val : 0.0;
-    sliders.push(sliders.length === 9 ? 0.32 : num);
+    let entry = sdef[sliders.length]
+    let val = typeof entry === 'string' ? 0.0 : entry.value || 0.0
+    let num = typeof val === 'number' ? val : 0.0
+    sliders.push(sliders.length === 9 ? 0.32 : num)
   }
 
-  let tot = Math.min(sliders.length, preset.sliders.length);
+  let tot = Math.min(sliders.length, preset.sliders.length)
   for (let i = 0; i < tot; i++) {
-    preset.sliders[i] = sliders[i];
+    preset.sliders[i] = sliders[i]
   }
 
   if (fixScale) {
-    preset.sliders[4] = 1.0/preset.sliders[4];
+    preset.sliders[4] = 1.0 / preset.sliders[4]
   }
 
-  let name = "Builtin #" + presetCountBase;
-  presetCountBase++;
+  let name = 'Builtin #' + presetCountBase
+  presetCountBase++
 
-  NewtonPresets.push(savePreset(preset, name, "Builtin"));
+  NewtonPresets.push(savePreset(preset, name, 'Builtin'))
 }
 
 export function add_preset_new(
@@ -77,16 +74,31 @@ export function add_preset_new(
   options?: Record<string, number | boolean | object>,
   hide = false
 ): void {
-  return add_preset(sliders, options, false, hide);
+  return add_preset(sliders, options, false, hide)
 }
 
-const shaderPre = ``;
+const shaderPre = ``
 
 const shader = `
 //uniform vec2 iRes;
 //uniform vec2 iInvRes;
 //uniform float T;
 //uniform float SLIDERS[MAX_SLIDERS];
+
+vec2 ds_split(float a) {
+    uint bits = floatBitsToUint(a);
+    float hi = uintBitsToFloat(bits & 0xFFFFF000u); // zero low 12 mantissa bits
+    return vec2(hi, a - hi);
+}
+
+vec2 twoProduct(float a, float b) {
+      float p = a * b;
+      // Use bit-split on both factors, then compute cross-terms
+      vec2 as = ds_split(a);
+      vec2 bs = ds_split(b);
+      float err = ((as.x * bs.x - p) + as.x * bs.y + as.y * bs.x) + as.y * bs.y;
+      return vec2(p, err);
+}
 
 //$ is replaced with pattern.id
 vec2 fsample$(vec2 z, vec2 p) {
@@ -104,11 +116,10 @@ float pattern(float ix, float iy) {
     
     uv = uv*2.0 - 1.0;
     uv.x *= aspect;
-    
-    uv.x += SLIDERS[5];
-    uv.y += SLIDERS[6];//+0.5*SLIDERS[4];
 
-    uv *= SLIDERS[4];
+    uv.x += viewTransform[1]; //x
+    uv.y += viewTransform[2]; //y
+    uv *= viewTransform[0]; //scale
 
     vec2 seed;
     
@@ -281,94 +292,95 @@ float pattern(float ix, float iy) {
 
 `
 
-
 export class NewtonPattern extends Pattern {
   constructor() {
-    super();
+    super()
 
-    this.sharpness = 0.33; //use different default sharpness
+    this.sharpness = 0.33 //use different default sharpness
   }
 
   static patternDef(): PatternDef {
     return {
-      typeName     : "newton",
-      uiName       : "Newton",
-      flag         : 0,
-      description  : "modified newton fractal",
-      icon         : -1,
+      typeName: 'newton',
+      uiName: 'Newton',
+      flag: 0,
+      description: 'modified newton fractal',
+      icon: -1,
       offsetSliders: {
         scale: 4,
-        x    : 5,
-        y    : 6,
+        x: 5,
+        y: 6,
       },
-      presets      : NewtonPresets,
-      sliderDef    : [
+      presets: NewtonPresets,
+      sliderDef: [
         {
-          name : "steps",
-          type : "int",
+          name: 'steps',
+          type: 'int',
           range: [5, 955],
           value: 100,
           speed: 7.0,
-          exp  : 1.5,
+          exp: 1.5,
         }, //0
-        {name: "offset", value: 0.54, range: [-5.0, 5.0], speed: 0.1}, //1
-        {name: "gain", value: 0.19, range: [0.001, 1000], speed: 4.0, exp: 2.0, noReset: true},  //2
-        {name: "color", value: 0.75, range: [-50, 50], speed: 0.25, exp: 1.0, noReset: true}, //3
-        {name: "scale", value: 4.75, range: [0.001, 1000000.0]}, //4
-        "x",  //5
-        "y",  //6
-        {name: "colorscale", value: 5.9, noReset: true},//7
-        {name: "brightness", value: 1.0, range: [0.001, 10.0], noReset: true}, //8
-        {name: "hoff", value: 0.1, range: [-10.0001, 100.0]}, //9
-        {name: "poff", value: 0.39, range: [-8.0, 8.0], speed: 0.1, exp: 1.0}, //10
-        {name: "simple", value: 0.5, range: [-44.0, 44.0]}, //11
-        {name: "offset2", value: 0.0, range: [-5, 5], speed: 0.2},//12
-        {name: "valueoff", value: 0.0, range: [-15.0, 45.0], speed: 0.15, exp: 1.35, noReset: true}, //13
-        {name: "offset3", value: 0.0, range: [-2.0, 10.0], speed: 0.025}, //14
-        {name: "d", value: 1.0, range: [-25.0, 25.0]}, //15
-        {name: "rot", value: 0.0, range: [-5, 5], baseUnit: "radian", displayUnit: "degree"}, //16
+        {name: 'offset', value: 0.54, range: [-5.0, 5.0], speed: 0.1}, //1
+        {name: 'gain', value: 0.19, range: [0.001, 1000], speed: 4.0, exp: 2.0, noReset: true}, //2
+        {name: 'color', value: 0.75, range: [-50, 50], speed: 0.25, exp: 1.0, noReset: true}, //3
+        {name: 'scale', value: 4.75, range: [0.001, 1000000.0]}, //4
+        'x', //5
+        'y', //6
+        {name: 'colorscale', value: 5.9, noReset: true}, //7
+        {name: 'brightness', value: 1.0, range: [0.001, 10.0], noReset: true}, //8
+        {name: 'hoff', value: 0.1, range: [-10.0001, 100.0]}, //9
+        {name: 'poff', value: 0.39, range: [-8.0, 8.0], speed: 0.1, exp: 1.0}, //10
+        {name: 'simple', value: 0.5, range: [-44.0, 44.0]}, //11
+        {name: 'offset2', value: 0.0, range: [-5, 5], speed: 0.2}, //12
+        {name: 'valueoff', value: 0.0, range: [-15.0, 45.0], speed: 0.15, exp: 1.35, noReset: true}, //13
+        {name: 'offset3', value: 0.0, range: [-2.0, 10.0], speed: 0.025}, //14
+        {name: 'd', value: 1.0, range: [-25.0, 25.0]}, //15
+        {name: 'rot', value: 0.0, range: [-5, 5], baseUnit: 'radian', displayUnit: 'degree'}, //16
       ],
       shader,
-      shaderPre
+      shaderPre,
     }
   }
 
   setup(ctx: ToolContext, gl: AppGL, uniforms: UniformMap, defines: DefineMap): void {
-    defines.STEPS = ~~this.sliders[0];
+    defines.STEPS = ~~this.sliders[0]
 
-    defines.VALUE_OFFSET = "SLIDERS[13]";
-    defines.GAIN = "SLIDERS[2]";
-    defines.COLOR_SHIFT = "SLIDERS[3]";
-    defines.COLOR_SCALE = "SLIDERS[7]";
-    defines.BRIGHTNESS = "SLIDERS[8]";
+    defines.VALUE_OFFSET = 'SLIDERS[13]'
+    defines.GAIN = 'SLIDERS[2]'
+    defines.COLOR_SHIFT = 'SLIDERS[3]'
+    defines.COLOR_SCALE = 'SLIDERS[7]'
+    defines.BRIGHTNESS = 'SLIDERS[8]'
   }
 
   savePresetText(opt: PresetText = {}): string {
-    let saved = super.savePresetText(opt);
-    let obj: PresetText = typeof saved === "string" ? opt : saved;
-    delete obj.sliders;
+    let saved = super.savePresetText(opt)
+    let obj: PresetText = typeof saved === 'string' ? opt : saved
+    delete obj.sliders
 
-    let optStr = JSON.stringify(obj);
+    let optStr = JSON.stringify(obj)
 
-    let sliders = JSON.stringify(util.list(this.sliders));
+    let sliders = JSON.stringify(util.list(this.sliders))
 
     return `
 add_preset_new(${sliders}, ${optStr});
-    `.trim();
+    `.trim()
   }
 
   viewportDraw(ctx: ToolContext, gl: AppGL, uniforms: UniformMap, defines: DefineMap): void {
-    defines.STEPS = ~~this.sliders[0];
+    defines.STEPS = ~~this.sliders[0]
 
-    super.viewportDraw(ctx, gl, uniforms, defines);
+    super.viewportDraw(ctx, gl, uniforms, defines)
   }
 
   copyTo(b: Pattern): void {
-    super.copyTo(b);
+    super.copyTo(b)
   }
 }
 
-NewtonPattern.STRUCT = nstructjs.inherit(NewtonPattern, Pattern) + `
-}`;
+NewtonPattern.STRUCT =
+  nstructjs.inherit(NewtonPattern, Pattern) +
+  `
+}`
 
-Pattern.register(NewtonPattern);
+Pattern.register(NewtonPattern)
