@@ -100,10 +100,79 @@ vec2 twoProduct(float a, float b) {
       return vec2(p, err);
 }
 
+#ifdef HIGH_PREC
+/* double-single (ds) arithmetic: a number is vec2(hi, lo) with value hi + lo
+   and |lo| <= 0.5*ulp(hi), giving ~47 mantissa bits.  A ds complex number is
+   packed as vec4(x.hi, x.lo, y.hi, y.lo).
+
+   NOTE: twoSum relies on strict IEEE float add (no reassociation).  If a
+   driver's optimizer breaks it the symptom is ds having no effect; test with
+   twoSum(1.0, 1e-10).y != 0.0. */
+
+// Knuth twoSum: result.x + result.y == a + b exactly
+vec2 twoSum(float a, float b) {
+    float s = a + b;
+    float bb = s - a;
+    float err = (a - (s - bb)) + (b - bb);
+    return vec2(s, err);
+}
+
+vec2 dsAdd(vec2 a, vec2 b) {
+    vec2 s = twoSum(a.x, b.x);
+    s.y += a.y + b.y;
+    return twoSum(s.x, s.y);
+}
+
+vec2 dsSub(vec2 a, vec2 b) {
+    return dsAdd(a, -b);
+}
+
+vec2 dsAddF(vec2 a, float b) {
+    return dsAdd(a, vec2(b, 0.0));
+}
+
+vec2 dsMulF(vec2 a, float b) {
+    vec2 p = twoProduct(a.x, b);
+    p.y += a.y*b;
+    return twoSum(p.x, p.y);
+}
+
+vec2 dsMul(vec2 a, vec2 b) {
+    vec2 p = twoProduct(a.x, b.x);
+    p.y += a.x*b.y + a.y*b.x;
+    return twoSum(p.x, p.y);
+}
+
+vec2 dsDiv(vec2 a, vec2 b) {
+    float q1 = a.x / b.x;
+    vec2 r = dsAdd(a, dsMulF(b, -q1));
+    float q2 = r.x / b.x;
+    return twoSum(q1, q2);
+}
+
+float dsCollapse(vec2 a) {
+    return a.x + a.y;
+}
+
+// ds complex * ds complex
+vec4 dsCmul(vec4 a, vec4 b) {
+    vec2 x = dsSub(dsMul(a.xy, b.xy), dsMul(a.zw, b.zw));
+    vec2 y = dsAdd(dsMul(a.xy, b.zw), dsMul(a.zw, b.xy));
+    return vec4(x, y);
+}
+
+// ds complex * plain float complex
+vec4 dsCmulF(vec4 a, vec2 b) {
+    vec2 x = dsSub(dsMulF(a.xy, b.x), dsMulF(a.zw, b.y));
+    vec2 y = dsAdd(dsMulF(a.xy, b.y), dsMulF(a.zw, b.x));
+    return vec4(x, y);
+}
+#endif //HIGH_PREC
+
 //$ is replaced with pattern.id
 vec2 fsample$(vec2 z, vec2 p) {
     float d = SLIDERS[15];
-    
+
     //(z-1)(z+1)(z-p)
     vec2 a = z - vec2(d, 0.0+SLIDERS[12]);
     vec2 b = z + vec2(d, 0.0-SLIDERS[12]);
@@ -111,52 +180,99 @@ vec2 fsample$(vec2 z, vec2 p) {
     return cmul(cmul(a, b), c);
 }
 
+#ifdef HIGH_PREC
+// ds version of fsample$: the (z - root) subtractions are where per-pixel
+// deltas live at deep zoom, so the whole residual is computed in ds
+vec4 fsample_ds$(vec4 z, vec4 p) {
+    float d = SLIDERS[15];
+
+    //(z-1)(z+1)(z-p)
+    vec4 a = vec4(dsAddF(z.xy, -d), dsAddF(z.zw, -SLIDERS[12]));
+    vec4 b = vec4(dsAddF(z.xy, d), dsAddF(z.zw, -SLIDERS[12]));
+    vec4 c = vec4(dsSub(z.xy, p.xy), dsSub(z.zw, p.zw));
+    return dsCmul(dsCmul(a, b), c);
+}
+#endif //HIGH_PREC
+
 float pattern(float ix, float iy) {
     vec2 uv = vec2(ix, iy)/iRes;
-    
+
     uv = uv*2.0 - 1.0;
     uv.x *= aspect;
 
+#ifdef HIGH_PREC
+    /* world coordinate as ds: U = (ndc + offset)*scale, with the x/y offsets
+       split into hi/lo float32 pairs from float64 in pattern.ts */
+    float fscale = viewTransform[0];
+    vec2 Ux = dsMulF(dsAdd(vec2(uv.x, 0.0), vec2(viewTransform[1], viewTransform[3])), fscale);
+    vec2 Uy = dsMulF(dsAdd(vec2(uv.y, 0.0), vec2(viewTransform[2], viewTransform[4])), fscale);
+
+    vec4 S; //seed, ds complex
+#else
     uv.x += viewTransform[1]; //x
     uv.y += viewTransform[2]; //y
     uv *= viewTransform[0]; //scale
 
     vec2 seed;
-    
+    vec2 z;
+#endif
+
     vec2 dr, di;
     float f = 0.0;
     float dist = 0.0;
-    vec2 z;
-    
-    vec2 startuv = uv;
-    
+
     float tm = 0.0;
-    float tm2 = 0.0;
-    
-#ifndef SIMPLE_MODE
-  seed = uv;
+
+#ifdef HIGH_PREC
+  #ifndef SIMPLE_MODE
+    S = vec4(Ux, Uy);
+  #else
+    S = vec4(SLIDERS[11], 0.0, 0.0, 0.0); //0.4132432);
+  #endif
 #else
+  #ifndef SIMPLE_MODE
+    seed = uv;
+  #else
     seed = vec2(SLIDERS[11], 0.0); //0.4132432);
     //seed = vec2(pow(SLIDERS[11], uv[0]*0.5+0.5), pow(SLIDERS[11], uv[1]*0.5+0.5));
+  #endif
 #endif
 
     tm = SLIDERS[1];
     //tm = pow(tm, 1.0/1.0);
     float toff = pow(tm, 0.25);
-    
+
+#ifdef HIGH_PREC
+    float rotc = cos(SLIDERS[16]);
+    float rots = sin(SLIDERS[16]);
+#endif
+
     for (int i=0; i<STEPS; i++) {
         //float toff = sin(T*0.1);
         //toff = 0.75;
+#ifdef HIGH_PREC
+        vec4 Z = dsCmulF(vec4(Ux, Uy), vec2(0.333333 + tm*0.5, 0.0 + tm)); //0.85*toff));
+
+        vec4 A = fsample_ds$(Z, S);
+        vec2 a = vec2(dsCollapse(A.xy), dsCollapse(A.zw));
+
+        /* float32 copies for the Jacobian/hessians/dist: their rounding error
+           is locally smooth across pixels, so it shifts the image slightly
+           instead of destroying per-pixel detail */
+        vec2 z = vec2(dsCollapse(Z.xy), dsCollapse(Z.zw));
+        vec2 seed = vec2(dsCollapse(S.xy), dsCollapse(S.zw));
+#else
         z = cmul(uv, vec2(0.333333 + tm*0.5, 0.0 + tm)); //0.85*toff));
-        
+
         vec2 a = fsample$(z, seed);
+#endif
 
 #if 0 //finite differences
         float df = 0.0002;
 
         vec2 b = fsample$(z+vec2(df, 0.0), seed);
         vec2 c = fsample$(z+vec2(0.0, df), seed);
-        
+
         dr = (b - a) / df;
         di = (c - a) / df;
 #else //anayltical derivatives
@@ -222,13 +338,61 @@ float pattern(float ix, float iy) {
   mat2 iym = mat2(vec2(4.0*(px-3.0*zx)*(px-3.0*zx), -4.0*(px-3.0*zx)*(py-3.0*zy)),
                   vec2(-4.0*(px-3.0*zx)*(py-3.0*zy), 4.0*(py-3.0*zy)*(py-3.0*zy))); 
 #endif
+#ifdef HIGH_PREC
+        /* The Newton step entirely in ds.  f is analytic, so the Jacobian
+           mat2(dr, di) is just complex multiplication by f'(z) (note
+           di == (-dr.y, dr.x), i.e. Cauchy-Riemann), and -m^-1*a is the
+           complex division -a/f'(z).
+
+           f'(z) must be computed from the ds z, not the collapsed float32
+           copy: the collapsed z quantizes in ulp(|z|) steps, which makes the
+           step direction piecewise-constant over multi-pixel tiles at deep
+           zoom (visible as a grid of randomly shifted blocks). */
+        vec2 dxr = dsSub(S.xy, Z.xy); // px - zx
+        vec2 dyr = dsSub(S.zw, Z.zw); // py - zy
+        vec2 zx2 = dsMul(Z.xy, Z.xy);
+        vec2 zy2 = dsMul(Z.zw, Z.zw);
+
+        // WA = dr.x = -(2.0*((px-zx)*zx-(py-zy)*zy)+zy*zy+1.0-zx*zx)
+        vec2 WA = dsSub(dsMul(dxr, Z.xy), dsMul(dyr, Z.zw));
+        WA = dsMulF(WA, 2.0);
+        WA = dsAdd(WA, zy2);
+        WA = dsAddF(WA, 1.0);
+        WA = -dsSub(WA, zx2);
+
+        // WB = dr.y = -2.0*((py-zy-zy)*zx+(px-zx)*zy)
+        vec2 WB = dsAdd(dsMul(dsSub(dyr, Z.zw), Z.xy), dsMul(dxr, Z.zw));
+        WB = dsMulF(WB, -2.0);
+
+        // off = -A/(WA + i*WB) = -A*conj(W)/|W|^2
+        vec2 DEN = dsAdd(dsMul(WA, WA), dsMul(WB, WB));
+        vec2 NUMx = dsAdd(dsMul(A.xy, WA), dsMul(A.zw, WB));
+        vec2 NUMy = dsSub(dsMul(A.zw, WA), dsMul(A.xy, WB));
+
+        vec2 Ox = -dsDiv(NUMx, DEN);
+        vec2 Oy = -dsDiv(NUMy, DEN);
+
+        // rot2d(off, SLIDERS[16])
+        vec2 Tx = dsAdd(dsMulF(Ox, rotc), dsMulF(Oy, rots));
+        vec2 Ty = dsAdd(dsMulF(Oy, rotc), dsMulF(Ox, -rots));
+        Ox = Tx;
+        Oy = Ty;
+
+        // off.xy += vec2(-off.y, off.x)*SLIDERS[10]
+        Tx = dsAdd(Ox, dsMulF(Oy, -SLIDERS[10]));
+        Ty = dsAdd(Oy, dsMulF(Ox, SLIDERS[10]));
+        Ox = Tx;
+        Oy = Ty;
+
+        vec2 off = vec2(dsCollapse(Ox), dsCollapse(Oy));
+#else
         mat2 m = mat2(dr, di);
-        
+
         m = inverse(m);
-        
+
         vec2 off = -m * a;
         off = rot2d(off, SLIDERS[16]);
-        
+
 #if 0
         if (i % 2 == 1) {
           off.x *= -1.0;
@@ -236,9 +400,10 @@ float pattern(float ix, float iy) {
           off.y *= -1.0;
         }
 #endif
-        
+
         off.xy += vec2(-off.y, off.x)*SLIDERS[10];
-        
+#endif
+
         dist += 2.0*length(off) / (SLIDERS[9] + length(iym*rxm * off));
         //dist += 0.12 / (0.1 + length(rym*off));
         
@@ -254,12 +419,26 @@ float pattern(float ix, float iy) {
         //uv += abs(off.x) > abs(off.y) ? off.x : off.y;
         //off.x = pow(abs(off.x), SLIDERS[14]+1.0)*sign(off.x);
         //off.y = pow(abs(off.y), SLIDERS[14]+1.0)*sign(off.y);
-        
+
+#ifdef HIGH_PREC
+        // off += SLIDERS[14]; uv += off
+        Ox = dsAddF(Ox, SLIDERS[14]);
+        Oy = dsAddF(Oy, SLIDERS[14]);
+
+        Ux = dsAdd(Ux, Ox);
+        Uy = dsAdd(Uy, Oy);
+#else
         off += 0.0 + SLIDERS[14];
-          
+
         uv += off;
+#endif
     }
-    
+
+#ifdef HIGH_PREC
+    uv = vec2(dsCollapse(Ux), dsCollapse(Uy));
+    vec2 seed = vec2(dsCollapse(S.xy), dsCollapse(S.zw));
+#endif
+
     float d1 = length(uv - vec2(-1.0, 0.0));
     float d2 = length(uv - vec2(1.0, 0.0));
     float d3 = length(uv - seed);

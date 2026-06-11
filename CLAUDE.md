@@ -67,6 +67,9 @@ part of app work unless that's the explicit task.
     twice).
 - **Editors / UI areas:** `app/editors/` (canvas viewport, menus, properties, settings, theme).
   `app/editors/all.ts` wires them up.
+- **Debug API:** `app/core/debugAPI.ts` exposes `window.__debugAPI` (loaded from `appstate.ts`)
+  for browser-automation/manual testing: `loadPreset(n)`, `highPrec`, `switchPattern(name)`,
+  `getPatternNames()`, `pattern`. E.g. newton preset 352 is a deep-zoom precision test case.
 - **WebGL helpers:** `app/webgl/webgl.ts`, GL setup in `app/screen.ts`. The GL context type is
   the global `AppGL` alias (`WebGL2RenderingContext` + the extension handles init_webgl attaches),
   declared in `app/types/globals.d.ts`.
@@ -88,6 +91,35 @@ rebuild it re-imports `/.dev/shaders.js`, copies the fresh shader strings into t
 recompile — **no page reload**. Just edit a shader string in any `.ts` and save.
 All of this is gated behind `__DEV__` (an esbuild `define`, true in `pnpm dev`, false in
 `pnpm build`), so the dev/HMR code is tree-shaken out of production builds.
+
+## Deep zoom / HIGH_PREC (double-single precision)
+
+The viewport transform is `world = (ndc + x/y) * scale` with the x/y sliders storing
+`center/scale`, so plain float32 breaks down past ~1e4 zoom (adjacent pixels collapse to the
+same world coordinate). The machinery for going deeper:
+
+- **`viewTransform[8]` uniform** (declared in `pattern_shaders.ts`, uploaded in
+  `Pattern.viewportDraw`): `[0]`=scale, `[1]/[2]`=x/y rounded to float32 (`Math.fround`),
+  `[3]/[4]`=the float64 residuals (`x - fround(x)`). The hi/lo split **must** happen in JS from
+  the float64 slider values — splitting after upload recovers nothing.
+- **`Pattern.high_prec`** (bool property, UI checkbox "High Precision") sets the `HIGH_PREC`
+  shader define; patterns gate their double-single (ds) code behind `#ifdef HIGH_PREC` with the
+  plain float32 path in `#else` (see `app/patterns/newton.ts` for the reference implementation,
+  including the ds GLSL library: `twoSum`/`dsAdd`/`dsMul`/`dsDiv`/`dsCmul`, numbers as
+  `vec2(hi, lo)`, ds complex as `vec4(x.hi, x.lo, y.hi, y.lo)`).
+- **Rules learned the hard way:** the extra bits exist only while values stay as (hi, lo) pairs —
+  adding `lo` into a plain float at `hi`'s magnitude is a bit-exact no-op. The *entire orbit*
+  must stay ds: position, residual, **and the Newton-step derivative/Jacobian** (computing the
+  Jacobian from a collapsed float32 `z` quantizes the step direction over multi-pixel tiles →
+  grid-of-shifted-blocks artifact). For analytic `f`, replace the 2×2 Jacobian inverse with
+  complex division by `f'(z)` (Cauchy–Riemann). Collapsing to float32 is fine only for
+  smooth-shading quantities (`dist`, the hessian matrices) where ~1e-7 *relative* error is
+  invisible.
+- **Optimizer caveat:** `twoSum` needs strict IEEE adds; WebGL2 GLSL has no `precise`
+  qualifier. If a ds change has literally zero visual effect, suspect the driver reassociating —
+  probe with `twoSum(1.0, 1e-10).y != 0.0`. (The bit-mask `twoProduct` split is immune.)
+- ds buys ~47 mantissa bits (~1e-13 relative zoom); beyond that the next step is perturbation
+  against a CPU-side float64 reference orbit.
 
 ## Conventions
 

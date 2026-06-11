@@ -191,3 +191,5 @@ export function start() {
     }
   });
 }
+
+import './debugAPI.js'

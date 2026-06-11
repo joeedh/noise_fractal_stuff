@@ -165,6 +165,7 @@ export class Pattern {
   sharpness: number
   per_pixel_random: boolean
   per_pixel_blue: boolean
+  high_prec: boolean
   use_weighted_filter: boolean
   DT: number
   T: number
@@ -239,6 +240,7 @@ export class Pattern {
     this.sharpness = 0.5
     this.per_pixel_random = true
     this.per_pixel_blue = false
+    this.high_prec = false
     this.use_weighted_filter = true
 
     this.DT = 0.001
@@ -461,6 +463,7 @@ float pattern(float ix, float iy) {
     panel.prop('sharpness')
     panel.prop('per_pixel_random')
     panel.prop('per_pixel_blue')
+    panel.prop('high_prec')
     panel.prop('use_weighted_filter')
     panel.prop('print_test')
     panel.prop('show_variance')
@@ -580,6 +583,9 @@ float pattern(float ix, float iy) {
     st.bool('use_sharpness', 'use_sharpness', 'Use Sharpness').on('change', redraw)
     st.bool('per_pixel_random', 'per_pixel_random', 'Pixel Random').on('change', onchange)
     st.bool('per_pixel_blue', 'per_pixel_blue', 'Pixel Blue').on('change', onchange)
+    st.bool('high_prec', 'high_prec', 'High Precision')
+      .description('Use high precision if the pattern supports it')
+      .on('change', onchange)
     st.bool('use_weighted_filter', 'use_weighted_filter', 'Weighted Filter').on('change', onchange)
 
     st.float('sharpness', 'sharpness', 'Sharpness')
@@ -876,6 +882,7 @@ float pattern(float ix, float iy) {
     b.sharpness = this.sharpness
     b.per_pixel_random = this.per_pixel_random
     b.per_pixel_blue = this.per_pixel_blue
+    b.high_prec = this.high_prec
     b.use_weighted_filter = this.use_weighted_filter
 
     b.max_samples = this.max_samples
@@ -1129,6 +1136,10 @@ float pattern(float ix, float iy) {
       defines.PER_PIXEL_BLUE = null
     }
 
+    if (this.high_prec) {
+      defines.HIGH_PREC = null
+    }
+
     if (this.use_weighted_filter) {
       defines.USE_WEIGHTED_FILTER = null
     }
@@ -1151,11 +1162,18 @@ float pattern(float ix, float iy) {
     let x = this.sliders[this.sliders.get('x')!.binding!.i]
     let y = this.sliders[this.sliders.get('y')!.binding!.i]
     let scale = this.sliders[this.sliders.get('scale')!.binding!.i]
-    
-    uniforms['viewTransform[0]'] = scale;
-    uniforms['viewTransform[1]'] = x;
-    uniforms['viewTransform[2]'] = y;
-    
+
+    /* x/y split into hi/lo float32 pairs (double-single) so shaders can
+       recover the float64 slider precision; lo is below the ulp of hi. */
+    const xHi = Math.fround(x)
+    const yHi = Math.fround(y)
+
+    uniforms['viewTransform[0]'] = scale
+    uniforms['viewTransform[1]'] = xHi
+    uniforms['viewTransform[2]'] = yHi
+    uniforms['viewTransform[3]'] = x - xHi
+    uniforms['viewTransform[4]'] = y - yHi
+
     let setViewport = () => {
       if (this.renderTiles) {
         let ix = ri % tilew
@@ -1420,6 +1438,7 @@ Pattern {
   filter_width        : double;  
   per_pixel_random    : bool;
   per_pixel_blue      : bool;
+  high_prec           : bool;
   use_weighted_filter : bool;
   print_test          : bool;
   show_variance       : bool;

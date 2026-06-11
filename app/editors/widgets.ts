@@ -615,7 +615,7 @@ export class PresetCategoryWidget extends Container<ToolContext> {
       this._last_active = act;
 
       let change = this.list.on_change;
-      this.list.on_change = undefined;
+      this.list.on_change = null;
 
       console.warn("Setting active!", preset.name);
 
